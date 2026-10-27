@@ -6,7 +6,7 @@ import {
   translationWindowSchema, voteCountsSchema,
 } from './schemas.js';
 
-function notification<TName extends string, TPayload extends z.ZodTypeAny>(type: TName, payload: TPayload) {
+function notification<TName extends string, TPayload extends z.ZodType>(type: TName, payload: TPayload) {
   return z.object({
     version: z.literal(PROTOCOL_VERSION),
     type: z.literal(type),
@@ -91,7 +91,7 @@ const serverEventUnion = z.discriminatedUnion('type', [
 // so consumers cannot accidentally bypass cross-field checks.
 export const serverEventSchema = serverEventUnion.superRefine((event, context) => {
   const issue = (path: (string | number)[], message: string) => context.addIssue({
-    code: z.ZodIssueCode.custom, path, message,
+    code: 'custom', path, message,
   });
   if (event.type === 'roulette:start') {
     const languages = new Set(event.payload.languages);

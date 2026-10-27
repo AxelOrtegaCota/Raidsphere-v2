@@ -19,20 +19,28 @@ try {
     .width(container.clientWidth)
     .height(container.clientHeight);
 
-  globe.pointOfView({ lat: 18, lng: -30, altitude: 2.4 });
+  // Disable controls first so the point of view orients the camera directly.
   globe.controls().enabled = false;
+  globe.pointOfView({ lat: 18, lng: -30, altitude: 2.4 });
 
-  // Render the initial view, then suspend continuous work in this static preview.
-  const frame = requestAnimationFrame(() => globe.pauseAnimation());
+  // Property updates are applied asynchronously, so render briefly before suspending.
+  const SETTLE_MS = 250;
+  let settleTimer: number | undefined;
+  const renderBriefly = (): void => {
+    globe.resumeAnimation();
+    window.clearTimeout(settleTimer);
+    settleTimer = window.setTimeout(() => globe.pauseAnimation(), SETTLE_MS);
+  };
+
+  globe.onGlobeReady(renderBriefly);
   const resize = new ResizeObserver(() => {
     globe.width(container.clientWidth).height(container.clientHeight);
-    globe.resumeAnimation();
-    requestAnimationFrame(() => globe.pauseAnimation());
+    renderBriefly();
   });
   resize.observe(container);
 
   window.addEventListener('pagehide', () => {
-    cancelAnimationFrame(frame);
+    window.clearTimeout(settleTimer);
     resize.disconnect();
     globe.pauseAnimation();
   }, { once: true });

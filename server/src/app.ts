@@ -18,8 +18,7 @@ export function createApp() {
 
   app.setErrorHandler((error, _request, reply) => {
     // Avoid reflecting exception objects, validation input, or private paths.
-    const status = error.statusCode && error.statusCode >= 400 && error.statusCode < 500 ? error.statusCode : 500;
-    reply.code(status).send({ error: 'The request could not be processed.' });
+    reply.code(clientErrorStatus(error)).send({ error: 'The request could not be processed.' });
   });
   app.setNotFoundHandler((_request, reply) => {
     reply.code(404).send({ error: 'Not found.' });
@@ -27,4 +26,12 @@ export function createApp() {
 
   registerWebSocketBoundary(app);
   return app;
+}
+
+// Handler errors are untyped; only a bounded client status code is trusted.
+function clientErrorStatus(error: unknown): number {
+  const statusCode = typeof error === 'object' && error !== null && 'statusCode' in error
+    ? error.statusCode : undefined;
+  return typeof statusCode === 'number' && Number.isInteger(statusCode) && statusCode >= 400 && statusCode < 500
+    ? statusCode : 500;
 }

@@ -39,7 +39,7 @@ export const streamerSchema = z.object({
   path: ['minViewers'],
 });
 
-export const voteCountsSchema = z.record(languageCodeSchema, countSchema);
+export const voteCountsSchema = z.partialRecord(languageCodeSchema, countSchema);
 
 export const rouletteStatusSchema = z.enum([
   'voting', 'selecting', 'chosen', 'raid_pending', 'done', 'cancelled', 'failed', 'unknown',
@@ -56,35 +56,35 @@ export const publicRouletteStateSchema = z.object({
   chosenCandidate: candidateSchema.nullable(),
 }).strict().superRefine((value, context) => {
   if (new Set(value.candidates.map((candidate) => candidate.streamerId)).size !== value.candidates.length) {
-    context.addIssue({ code: z.ZodIssueCode.custom, path: ['candidates'], message: 'Candidate identities must be unique.' });
+    context.addIssue({ code: 'custom', path: ['candidates'], message: 'Candidate identities must be unique.' });
   }
   const isBeforeSelection = value.status === 'voting' || value.status === 'selecting';
   if (isBeforeSelection && value.candidates.length === 0) {
-    context.addIssue({ code: z.ZodIssueCode.custom, path: ['candidates'], message: 'Voting and selection require eligible candidates.' });
+    context.addIssue({ code: 'custom', path: ['candidates'], message: 'Voting and selection require eligible candidates.' });
   }
   if (isBeforeSelection && value.votingEndsAtMs === null) {
-    context.addIssue({ code: z.ZodIssueCode.custom, path: ['votingEndsAtMs'], message: 'Voting and selection require a deadline.' });
+    context.addIssue({ code: 'custom', path: ['votingEndsAtMs'], message: 'Voting and selection require a deadline.' });
   }
   if (isBeforeSelection && value.chosenCandidate !== null) {
-    context.addIssue({ code: z.ZodIssueCode.custom, path: ['chosenCandidate'], message: 'The candidate must remain unset until selection is complete.' });
+    context.addIssue({ code: 'custom', path: ['chosenCandidate'], message: 'The candidate must remain unset until selection is complete.' });
   }
   if (value.votingEndsAtMs !== null && value.votingEndsAtMs <= value.createdAtMs) {
-    context.addIssue({ code: z.ZodIssueCode.custom, path: ['votingEndsAtMs'], message: 'The deadline must follow creation.' });
+    context.addIssue({ code: 'custom', path: ['votingEndsAtMs'], message: 'The deadline must follow creation.' });
   }
   if (['chosen', 'raid_pending', 'done', 'unknown'].includes(value.status) && value.chosenCandidate === null) {
-    context.addIssue({ code: z.ZodIssueCode.custom, path: ['chosenCandidate'], message: 'This state requires a selected candidate.' });
+    context.addIssue({ code: 'custom', path: ['chosenCandidate'], message: 'This state requires a selected candidate.' });
   }
   const eligibleLanguages = new Set<string>(value.candidates.map((candidate) => candidate.language));
   for (const language of Object.keys(value.votes)) {
     if (!eligibleLanguages.has(language)) {
-      context.addIssue({ code: z.ZodIssueCode.custom, path: ['votes', language], message: 'Votes must refer to an eligible candidate language.' });
+      context.addIssue({ code: 'custom', path: ['votes', language], message: 'Votes must refer to an eligible candidate language.' });
     }
   }
   if (value.chosenCandidate) {
     const selected = value.chosenCandidate;
     const original = value.candidates.find((candidate) => candidate.streamerId === selected.streamerId);
     if (!original || original.language !== selected.language) {
-      context.addIssue({ code: z.ZodIssueCode.custom, path: ['chosenCandidate'], message: 'The selected identity and language must match the session pool.' });
+      context.addIssue({ code: 'custom', path: ['chosenCandidate'], message: 'The selected identity and language must match the session pool.' });
     }
   }
 });
@@ -130,7 +130,7 @@ export const translationBubbleSchema = z.discriminatedUnion('status', [
   }).strict(),
 ]).superRefine((value, context) => {
   if (value.fragments.map((fragment) => fragment.text).join('') !== value.original) {
-    context.addIssue({ code: z.ZodIssueCode.custom, path: ['fragments'], message: 'Fragments must reconstruct the original message.' });
+    context.addIssue({ code: 'custom', path: ['fragments'], message: 'Fragments must reconstruct the original message.' });
   }
 });
 
