@@ -1,0 +1,55 @@
+# Dependencies and generated output
+node_modules/
+dist/
+build/
+coverage/
+.vite/
+*.tsbuildinfo
+*.log
+npm-debug.log*
+
+# Environment files and local credentials
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
+.npmrc
+.netrc
+_netrc
+id_rsa
+id_dsa
+id_ecdsa
+id_ed25519
+id_ecdsa_sk
+id_ed25519_sk
+.aws/
+.ssh/
+credentials/
+secrets/
+credentials*.json
+service-account*.json
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Future local persistence and SQLite sidecars
+.data/
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+
+# Local editor and operating-system output
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Temporary artifacts
+tmp/
+temp/

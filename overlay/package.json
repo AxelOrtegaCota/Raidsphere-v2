@@ -1,0 +1,18 @@
+{
+  "name": "@raidsphere/overlay",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.node.json",
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@raidsphere/shared": "0.1.0",
+    "globe.gl": "2.32.0"
+  },
+  "devDependencies": {
+    "vite": "^6.1.0"
+  }
+}
