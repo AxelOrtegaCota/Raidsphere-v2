@@ -9,7 +9,7 @@
 - Execute only the approved command batch and stop if a command fails; report the failure before proposing an alternative.
 - Never request or use elevated filesystem permissions without separate explicit approval.
 - Never commit, push, pull, fetch, merge, rebase, change branches, deploy, or publish without explicit authorization.
-- Phase 1 implementation belongs exclusively on `feature/project-foundation`. Do not modify `main`.
+- `main` is the integration base. Phase 1 is complete and merged into `main` (PR #1). Start every feature branch from the latest `main`, and change `main` only through reviewed pull requests.
 - Do not overwrite another developer's work. Identify the exact overlap and obtain approval first.
 
 ## Architecture and ownership

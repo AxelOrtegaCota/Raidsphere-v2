@@ -10,11 +10,11 @@ The Phase 1 foundation has been installed, type-checked, tested, built, and smok
 
 npm registry HTTPS requests previously failed in one developer environment; the cause remains unknown. Installation succeeded in another environment without changing any security setting. Security controls, including TLS certificate verification, must not be disabled or bypassed.
 
-Before development, read [AGENTS.md](AGENTS.md) and [docs/phase-1-decisions.md](docs/phase-1-decisions.md). Use your own feature branch, protect credentials, and coordinate changes to the shared contracts before implementation.
+Before development, read [AGENTS.md](AGENTS.md), [docs/phase-1-decisions.md](docs/phase-1-decisions.md), and the [phase plan](docs/phase-plan.md). Create your own feature branch from the latest `main`, protect credentials, and coordinate changes to the shared contracts before implementation.
 
 ## Current status
 
-Phase 1 verification was completed on `feature/project-foundation-complete-phase1` for review before integration into `feature/project-foundation`. `package-lock.json` records the resolved dependency graph.
+Phase 1 is complete and was merged into `main` through PR #1. `main` is the base for all later work, and a post-merge check on `main` passed. `package-lock.json` records the resolved dependency graph.
 
 Included source:
 
@@ -106,7 +106,7 @@ The server development command compiles then starts once; it does not watch for 
 
 - Keep all development communication and deliverables in English.
 - Explain and obtain approval for commands, edits, dependency installation, execution, and network access.
-- Keep Phase 1 work on the approved foundation branches; commits, pushes, merges, and deployment need separate approval.
+- Branch from the latest `main` and change `main` only through reviewed pull requests; commits, pushes, merges, and deployment need separate approval.
 - Coordinate changes to `shared/events.ts` across all four module owners.
 - Never put real credentials or private information in code, fixtures, public payloads, URLs, or logs.
 - Keep viewing permissions separate from broadcaster control permissions.

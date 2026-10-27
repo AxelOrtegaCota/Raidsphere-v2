@@ -8,9 +8,9 @@ The project owner approved TypeScript, a modular monolith, Fastify, Vite, globe.
 
 The installed baseline previously inspected was Node.js 20.18.0 and npm 10.8.2. `.nvmrc` records that baseline; no runtime or package-manager upgrade is authorized. Engine declarations are not a claim about upstream support status.
 
-All Phase 1 implementation belongs on `feature/project-foundation`. The branch was created from the previously verified matching local `main` and locally recorded `origin/main`. Remote freshness is not implied.
+Phase 1 implementation was developed on `feature/project-foundation`, created from the previously verified matching local `main` and locally recorded `origin/main`. The owner approved one exception: Phase 1 verification and its corrections were completed on `feature/project-foundation-complete-phase1`, created from the same foundation commit (`4219a21`).
 
-The owner approved one exception: Phase 1 verification and its corrections were completed on `feature/project-foundation-complete-phase1`, created from the same foundation commit (`4219a21`), for review before integration into `feature/project-foundation`.
+Phase 1 was integrated into `main` through reviewed pull request #1 (merge `b89ed23`, 2026-10-27). `main` is the base for all later work. `feature/project-foundation` remains at `4219a21`, without the verification changes, and must not be used as a starting point.
 
 `RAIDSPHERE_CONTEXT.md` remains unchanged. This record documents the approved Phase 1 differences from its historical examples. The original specification was previously reviewed, but `docs/Raidsphere.pdf` was absent from the latest inspected checkout. It has not been recreated or reread for this implementation stage.
 
@@ -212,6 +212,7 @@ Wire event names, fields, and validation rules are unchanged; all contract tests
 | Backend smoke test | `GET /health` returned 200 with `Cache-Control: no-store` and the expected body; an unknown route returned 404; a `/ws` upgrade returned 503 without reflecting the query string; another upgrade path returned 404; the server listened only on `127.0.0.1:3000`. |
 | Overlay browser check | At `/fixture/overlay`, the globe rendered centered at load and after resizing to 1280×720 and 1920×1080; `html` and `body` backgrounds were transparent; no console errors from the application; every request targeted `127.0.0.1:5173`. |
 | OBS check | OBS Studio 32.2.2 browser source at 1920×1080 over a color source: the background was transparent, the globe was centered, and the status panel was visible. OBS reported about 1% CPU at 30 FPS. |
+| Post-merge check on `main` | After PR #1 (`b89ed23`), a clean install from the lockfile left it unchanged; `npm audit` reported 0 vulnerabilities; type checking, 63 of 63 tests, and the build passed. |
 
 ### Remaining limitations
 
@@ -236,8 +237,9 @@ Wire event names, fields, and validation rules are unchanged; all contract tests
 
 ## Next authorization gates
 
-1. Review the verification changes and `package-lock.json` on `feature/project-foundation-complete-phase1`.
-2. Approve integration into `feature/project-foundation` through a reviewed pull request.
-3. Coordinate the contract follow-ups and internal B/C/D interfaces before parallel module work.
+Phase 1 integration is complete: the verification changes and `package-lock.json` were reviewed and merged into `main` through PR #1.
+
+1. Create module branches from the latest `main`.
+2. Coordinate the contract follow-ups and internal B/C/D interfaces before parallel module work.
 
 No gate authorizes commits, remote operations, publication, unrelated file access, or elevated filesystem permissions.
