@@ -1,0 +1,31 @@
+{
+  "name": "raidsphere",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": ["shared", "server", "overlay"],
+  "engines": {
+    "node": ">=20.18.0",
+    "npm": ">=10"
+  },
+  "packageManager": "npm@10.8.2",
+  "scripts": {
+    "build:shared": "npm run build --workspace=@raidsphere/shared",
+    "typecheck": "npm run build:shared && npm run typecheck --workspaces",
+    "test": "npm run build:shared && vitest run shared/test server/test",
+    "build": "npm run build:shared && npm run build --workspace=@raidsphere/server && npm run build --workspace=@raidsphere/overlay",
+    "dev:server": "npm run build:shared && npm run dev --workspace=@raidsphere/server",
+    "dev:overlay": "npm run build:shared && npm run dev --workspace=@raidsphere/overlay"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.19",
+    "@types/ws": "^8.5.14",
+    "typescript": "^5.7.3",
+    "vite": "^6.1.0",
+    "vitest": "^4.1.12"
+  },
+  "overrides": {
+    "vite": "$vite",
+    "light-my-request": "6.6.0"
+  }
+}
