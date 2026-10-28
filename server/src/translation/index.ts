@@ -22,6 +22,9 @@ export {
   type TranslationResult,
   type TranslationError,
   type TranslationResponse,
+  type TranslationProviderExecutionContext,
+  MAX_TRANSLATION_EMOTES,
+  MAX_TRANSLATION_EMOTE_CHARACTERS,
   type LanguagePair,
 } from './provider.js';
 
@@ -39,6 +42,18 @@ export {
   getTranslationMetrics,
   resetTranslationMetrics,
   clearTranslationCache,
+  TRANSLATION_LIMITS,
+  activateTranslationSession,
+  isTranslationSessionActive,
+  invalidateTranslationMessage,
+  invalidateTranslationUser,
+  invalidateTranslationChannel,
+  invalidateTranslationSession,
+  disposeTranslationService,
+  resumeTranslationService,
+  getTranslationSchedulerState,
+  type TranslationSession,
+  type TranslationExecutionOptions,
   type TranslateMessageOptions,
   type TranslationMetrics,
 } from './service.js';

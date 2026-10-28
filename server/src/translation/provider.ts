@@ -8,6 +8,14 @@ import type { ChatFragment, LanguageCode } from '@raidsphere/shared';
 
 export type TranslationProvenance = 'simulated' | 'provider';
 
+// Internal admission bounds; these do not change the shared wire protocol.
+export const MAX_TRANSLATION_EMOTES = 500;
+export const MAX_TRANSLATION_EMOTE_CHARACTERS = 16000;
+
+export interface TranslationProviderExecutionContext {
+  signal?: AbortSignal;
+}
+
 export interface TranslationRequest {
   text: string;
   sourceLanguage: LanguageCode;
@@ -43,7 +51,9 @@ export type TranslationResponse =
 export interface TranslationProvider {
   name: string;
   readonly provenance: TranslationProvenance;
-  translate(request: TranslationRequest): Promise<TranslationResponse>;
+  // Settlement must mean the adapter has finished its owned operation. Abort is
+  // cooperative; the service retains capacity until this promise actually settles.
+  translate(request: TranslationRequest, execution?: TranslationProviderExecutionContext): Promise<TranslationResponse>;
   supportsLanguagePair(source: LanguageCode, target: LanguageCode): boolean;
   getEstimatedCost(textLength: number): number;
   isHealthy(): Promise<boolean>;
@@ -54,7 +64,10 @@ export const translationRequestSchema = z.object({
   sourceLanguage: languageCodeSchema,
   targetLanguage: languageCodeSchema,
   context: z.string().max(2000).optional(),
-  channelEmotes: z.array(z.string().min(1).max(2000)).optional(),
+  channelEmotes: z.array(z.string().min(1).max(2000)).max(MAX_TRANSLATION_EMOTES).refine(
+    names => names.reduce((total, name) => total + name.length, 0) <= MAX_TRANSLATION_EMOTE_CHARACTERS,
+    { message: 'Translation emote metadata exceeds the supported size.' }
+  ).optional(),
   fragments: z.array(chatFragmentSchema).min(1).max(100).optional(),
   simulationMode: z.boolean().optional(),
 }).strict().superRefine((value, context) => {

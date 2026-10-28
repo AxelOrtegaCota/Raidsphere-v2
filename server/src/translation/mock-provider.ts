@@ -2,11 +2,14 @@
  * Module C: Explicitly simulated translations for local development.
  * Dictionary entries and language prefixes are not verified AI translations.
  */
-import { languageCodeSchema } from '@raidsphere/shared';
+import { z } from 'zod';
+import { countSchema, languageCodeSchema } from '@raidsphere/shared';
 import type { LanguageCode } from '@raidsphere/shared';
 import { fragmentMessage, restoreFragments } from './emotes.js';
 import { translationRequestSchema, translationResultSchema } from './provider.js';
-import type { TranslationProvider, TranslationRequest, TranslationResponse, TranslationResult } from './provider.js';
+import type {
+  TranslationProvider, TranslationRequest, TranslationResponse, TranslationResult, TranslationProviderExecutionContext,
+} from './provider.js';
 
 // Fake translation dictionary for common phrases
 const MOCK_TRANSLATIONS: Record<string, Record<LanguageCode, string>> = {
@@ -39,12 +42,24 @@ export class MockTranslationProvider implements TranslationProvider {
   private failureRate: number;
 
   constructor(options: { minLatencyMs?: number; maxLatencyMs?: number; failureRate?: number } = {}) {
-    this.minLatencyMs = options.minLatencyMs ?? 100;
-    this.maxLatencyMs = options.maxLatencyMs ?? 500;
-    this.failureRate = options.failureRate ?? 0;
+    const parsed = z.object({
+      minLatencyMs: countSchema.max(2_147_483_647),
+      maxLatencyMs: countSchema.max(2_147_483_647),
+      failureRate: z.number().min(0).max(1),
+    }).strict().refine(value => value.minLatencyMs <= value.maxLatencyMs).safeParse({
+      minLatencyMs: 100, maxLatencyMs: 500, failureRate: 0, ...options,
+    });
+    if (!parsed.success) throw new TypeError('Invalid mock translation configuration.');
+    this.minLatencyMs = parsed.data.minLatencyMs;
+    this.maxLatencyMs = parsed.data.maxLatencyMs;
+    this.failureRate = parsed.data.failureRate;
   }
 
-  async translate(request: TranslationRequest): Promise<TranslationResponse> {
+  async translate(request: TranslationRequest, execution: TranslationProviderExecutionContext = {}): Promise<TranslationResponse> {
+    const signal = execution.signal;
+    if (signal !== undefined && !(signal instanceof AbortSignal)) {
+      return { success: false, error: { code: 'PROVIDER_ERROR', message: 'Invalid translation execution context.' } };
+    }
     const parsed = translationRequestSchema.safeParse(request);
     if (!parsed.success) {
       return {
@@ -61,16 +76,17 @@ export class MockTranslationProvider implements TranslationProvider {
     if (input.simulationMode !== true) {
       return { success: false, error: { code: 'PROVIDER_ERROR', message: 'Simulation mode must be explicitly enabled.' } };
     }
+    if (signal?.aborted) return cancelledResponse();
     const startTime = Date.now();
-    const latency = this.minLatencyMs + Math.random() * (this.maxLatencyMs - this.minLatencyMs);
-    await sleep(latency);
-    if (Math.random() < this.failureRate) {
-      return {
-        success: false,
-        error: { code: 'PROVIDER_ERROR', message: 'Mock provider simulated failure', retryAfterMs: 1000 },
-      };
-    }
     try {
+      const latency = this.minLatencyMs + Math.random() * (this.maxLatencyMs - this.minLatencyMs);
+      if (!await sleep(latency, signal) || signal?.aborted) return cancelledResponse();
+      if (Math.random() < this.failureRate) {
+        return {
+          success: false,
+          error: { code: 'PROVIDER_ERROR', message: 'Mock provider simulated failure', retryAfterMs: 1000 },
+        };
+      }
       const sameLanguage = input.sourceLanguage === input.targetLanguage;
       const fragmented = fragmentMessage(input.text, input.channelEmotes, input.fragments);
       const translatedText = sameLanguage ? input.text : restoreFragments(
@@ -88,6 +104,7 @@ export class MockTranslationProvider implements TranslationProvider {
         cached: false,
       };
       const validated = translationResultSchema.safeParse(result);
+      if (signal?.aborted) return cancelledResponse();
       return validated.success
         ? { success: true, result: validated.data }
         : { success: false, error: { code: 'PROVIDER_ERROR', message: 'Invalid simulated translation result.' } };
@@ -116,8 +133,27 @@ export class MockTranslationProvider implements TranslationProvider {
   }
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
+function cancelledResponse(): TranslationResponse {
+  return { success: false, error: { code: 'PROVIDER_ERROR', message: 'Translation was cancelled.' } };
+}
+
+function sleep(ms: number, signal?: AbortSignal): Promise<boolean> {
+  return new Promise(resolve => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let settled = false;
+    const finish = (completed: boolean): void => {
+      if (settled) return;
+      settled = true;
+      if (timer !== undefined) clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
+      resolve(completed);
+    };
+    const onAbort = () => { finish(false); };
+    if (signal?.aborted) { finish(false); return; }
+    signal?.addEventListener('abort', onAbort, { once: true });
+    if (signal?.aborted) { finish(false); return; }
+    timer = setTimeout(() => { finish(true); }, ms);
+  });
 }
 
 let defaultProvider: TranslationProvider | null = null;
