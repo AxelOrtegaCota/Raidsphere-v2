@@ -290,7 +290,7 @@ Add new entries at the end. Do not rewrite an entry after it is approved; supers
 
 ### D2-10: Single event publisher
 
-- **Status:** APPROVED
+- **Status:** VERIFIED
 - **Date:** 2026-10-28
 - **Resolves:** Q9 (event building and in-process delivery)
 - **Decided by:** project owner
@@ -304,7 +304,7 @@ Add new entries at the end. Do not rewrite an entry after it is approved; supers
 - **Alternatives considered:** Letting each component build its own events: duplicates sequencing and makes skipping validation possible.
 - **Consequences:** No shared contract change. Module A can work with recorded, schema-valid event sequences until the WebSocket client is connected.
 - **Affected files:** `server/src/application/publisher.ts`, `server/test/publisher.test.ts`.
-- **Verification:** Implemented on 2026-10-28 (plan step 5); `npm run typecheck` passed and `npm test` passed 114/114 (6 publisher tests). Implementation details approved by the project owner: invalid events take no sequence number and are reported without content; a failing subscriber does not stop delivery to the others; `issue()` builds and validates a per-connection event (such as `state:snapshot`) without broadcasting it, taking the next sequence number so clients can order later events after it. Sequences therefore increase per channel but may have gaps for a given subscriber. Rule 5 (the WebSocket transport as a subscriber) is verified in step 8.
+- **Verification:** Implemented on 2026-10-28 (plan step 5); `npm run typecheck` passed and `npm test` passed 114/114 (6 publisher tests). Implementation details approved by the project owner: invalid events take no sequence number and are reported without content; a failing subscriber does not stop delivery to the others; `issue()` builds and validates a per-connection event (such as `state:snapshot`) without broadcasting it, taking the next sequence number so clients can order later events after it. Sequences therefore increase per channel but may have gaps for a given subscriber. Step 8 (2026-10-28): the WebSocket transport subscribes through `RouletteCoordinator.openView()` and delivers live events over a real loopback connection (`server/test/websocket.test.ts`); 155/155 tests pass.
 
 ### D2-11: Read-only viewing authorization for `/ws`
 
@@ -330,12 +330,16 @@ Add new entries at the end. Do not rewrite an entry after it is approved; supers
   - **Exception to `AGENTS.md`.** Rule 7 places a credential in a URL fragment and in local terminal output, which `AGENTS.md` otherwise forbids. The exception is limited to Phase 2 viewing credentials: read-only, loopback-only, in memory, regenerated per restart, and never granting control. It does not apply to Twitch tokens or any other credential. Users must not share the printed URL or screen-share the terminal.
   - The server's real credential delivery and broadcaster setup flow are redesigned in Phase 3.
   - No shared contract change: `auth` and `state:snapshot` already exist.
-- **Affected files:** Future changes to `server/src/websocket.ts` and `server/src/app.ts` (not written yet); overlay client in `overlay/` (Module A).
-- **Verification:** Not verified (no code yet).
+- **Affected files:** `server/src/viewing/credentials.ts`, `server/src/websocket.ts`, `server/src/app.ts`, `server/src/composition.ts`, `server/src/index.ts`, `server/src/application/roulette.ts` (`openView`), `server/test/credentials.test.ts`, `server/test/websocket.test.ts`, `server/test/app.test.ts`; overlay client in `overlay/` (Module A, step 10).
+- **Verification:** Partial (plan step 8, 2026-10-28); `npm run typecheck` passed and `npm test` passed 155/155.
+  - Tested: rule 1 (unique credentials, digest-only storage, wrong or foreign credentials rejected); rule 2 (403 for other or missing origins, 404 for other paths); rule 3 (auth timeout, malformed JSON, control messages, and wrong credentials close with 1008 and no reason); rule 4 (snapshot first, then live events of that channel only; any later client message closes); rule 5 connection limits (503 total, 1013 per channel); rule 6 (`/health`).
+  - Not covered by automated tests: the 30-second heartbeat and the outgoing-buffer disconnection (rule 5); reviewed in code only.
+  - Rule 7 (printed OBS URLs) is implemented in `server/src/index.ts` and checked manually in step 9; rule 8 (overlay client) belongs to step 10.
+  - Implementation detail approved with the step 8 design: `RouletteCoordinator.openView()` reads state, issues the snapshot, and subscribes inside one channel task, so no change can fall between the snapshot and the first live event; the socket queues events that arrive while the snapshot is being sent. Overlays apply events in arrival order and do not need to reorder by sequence.
 
 ### D2-12: In-memory state and synthetic fixtures
 
-- **Status:** APPROVED
+- **Status:** VERIFIED
 - **Date:** 2026-10-28
 - **Resolves:** Q10
 - **Decided by:** project owner
@@ -348,7 +352,7 @@ Add new entries at the end. Do not rewrite an entry after it is approved; supers
 - **Alternatives considered:** The historical in-memory store with JSON backup: rejected because file backup is persistence I/O.
 - **Consequences:** No shared contract change and no new dependency. Persistence remains a later decision.
 - **Affected files:** `server/src/persistence/memory.ts`, `server/src/persistence/contracts.ts`, `server/src/simulation/fixtures.ts`, `server/test/memory.test.ts`, `server/test/fixtures.test.ts`.
-- **Verification:** Implemented on 2026-10-28 (plan step 3); `npm run typecheck` passed and `npm test` passed 90/90. Implementation details approved by the project owner: `RouletteRepository` gains `findLatestByChannel` so snapshots can show the last terminal session (D2-07 rule 7), and the in-memory repository keeps only the latest session per channel; a wrong next version throws instead of returning `false`; stored sessions also require public counts to match individual votes. Fixtures: 21 streamers (3 per language). Rule 4 (restart behavior) is verified with the server composition in step 8.
+- **Verification:** Implemented on 2026-10-28 (plan step 3); `npm run typecheck` passed and `npm test` passed 90/90. Implementation details approved by the project owner: `RouletteRepository` gains `findLatestByChannel` so snapshots can show the last terminal session (D2-07 rule 7), and the in-memory repository keeps only the latest session per channel; a wrong next version throws instead of returning `false`; stored sessions also require public counts to match individual votes. Fixtures: 21 streamers (3 per language). Step 8 (2026-10-28): rule 4 holds by construction: `createRuntime()` in `server/src/composition.ts` starts with empty repositories and issues new credentials on every process start, and nothing is written to disk.
 
 ### D2-13: Internal ports between the roulette logic and adapters
 
@@ -421,7 +425,7 @@ Add new entries at the end. Do not rewrite an entry after it is approved; supers
 - **Alternatives considered:** A per-event "simulated" flag in the shared contract: more precise, but adds a protocol change for a Phase 2-only concern.
 - **Consequences:** The `/health` response gains a `mode` field, so the existing health test in `server/test/app.test.ts` must be updated. The overlay "Simulation" label is Module A work (same owner). If the countdown is configured above 120 seconds, the event would fail validation; the simulator configuration must stay within that bound.
 - **Affected files:** `server/src/application/roulette.ts`, `server/test/roulette.test.ts`; future simulator in `server/src/`, `server/src/app.ts`, `server/test/app.test.ts`, and the overlay in `overlay/`.
-- **Verification:** Partial (plan step 6, 2026-10-28): rules 4 and 5 (arrival deadline; the three cancellation results; arrivals after a terminal state ignored) are tested in `server/test/roulette.test.ts` with a fake gateway. Step 7 (2026-10-28): rules 1–3 are implemented by `SimulatedRaidGateway` (configurable request outcome, 0–120 s countdown validated at construction, arrival delivered or withheld, idempotent per session) and tested in `server/test/simulation.test.ts`. Rules 6–7 are verified in steps 8 and 10.
+- **Verification:** Partial (plan step 6, 2026-10-28): rules 4 and 5 (arrival deadline; the three cancellation results; arrivals after a terminal state ignored) are tested in `server/test/roulette.test.ts` with a fake gateway. Step 7 (2026-10-28): rules 1–3 are implemented by `SimulatedRaidGateway` (configurable request outcome, 0–120 s countdown validated at construction, arrival delivered or withheld, idempotent per session) and tested in `server/test/simulation.test.ts`. Step 8 (2026-10-28): `/health` reports `mode: 'simulation'` (rule 6, server side, tested in `server/test/app.test.ts`), and every synthetic channel receives a viewing credential (rule 7, tested in `server/test/websocket.test.ts` with source and destination overlays). The overlay "Simulation" label is verified in step 10.
 
 ### D2-16: Print only demo channel overlay URLs
 
@@ -433,8 +437,8 @@ Add new entries at the end. Do not rewrite an entry after it is approved; supers
 - **Decision:** At startup the server prints overlay URLs only for the channels used by the demo script: the demo source channel and its possible destinations. Credentials still exist in memory for every channel, but only the printed ones can be used in practice.
 - **Alternatives considered:** Printing every channel's URL (D2-11 as first approved): more flexible, but exposes more credentials in terminal output for no demo benefit.
 - **Consequences:** Fewer credentials appear in terminal output. Using a channel outside the demo set requires changing the demo configuration.
-- **Affected files:** Future `server/src/index.ts` and `server/src/simulation/demo.ts` (not written yet).
-- **Verification:** Not verified (no code yet).
+- **Affected files:** `server/src/composition.ts` (`demoOverlayUrls`), `server/src/index.ts`, `server/src/simulation/fixtures.ts` (`DEMO_SOURCE_ID`); future `server/src/simulation/demo.ts`.
+- **Verification:** Implemented in plan step 8 (2026-10-28): only `rsdemo_es_01` and its five eligible destinations get a printed URL. Not yet checked by running the server; manual check in step 9.
 
 ### D2-17: Defer reputation, raid logs, and translation window storage
 
@@ -455,10 +459,10 @@ Add new entries at the end. Do not rewrite an entry after it is approved; supers
 
 ### D2-18: Roulette coordinator implementation details
 
-- **Status:** PROPOSED (implemented and tested; awaiting project owner approval)
+- **Status:** VERIFIED
 - **Date:** 2026-10-28
 - **Resolves:** Details not fixed by D2-05, D2-07, D2-13, and D2-15, chosen while implementing plan step 6
-- **Decided by:** Module D implementation, pending project owner review
+- **Decided by:** Proposed during implementation; all seven points approved by the project owner
 - **Context:** The approved decisions left a few behaviors open that the coordinator must define.
 - **Decision:**
   1. **One task at a time per channel.** Commands, timers, and arrivals for a channel run strictly in sequence. A `!cancel` received while the raid request is in flight is processed after the request answers, so it cancels the pending raid instead of racing the request. As a result, `chosen` and `selecting` are never observed by commands.
@@ -484,10 +488,10 @@ Keep implemented source, verified behavior, pending work, and unverified assumpt
 | Candidate selection | Yes | Yes | `server/test/eligibility.test.ts`, `server/test/selection.test.ts` (step 4), `server/test/roulette.test.ts` (step 6) |
 | Command intake (simulated) | Yes | Yes | `server/test/roulette.test.ts` (step 6), `server/test/simulation.test.ts` (step 7) |
 | Simulated raid gateway and arrivals (D2-15) | Yes | Yes | `server/test/simulation.test.ts` (step 7) |
-| Event building and publication | Yes | Partial | `server/test/publisher.test.ts` (plan step 5); WebSocket delivery pending step 8 |
-| Read-only viewing authorization (`/ws`) | No | No | — |
+| Event building and publication | Yes | Yes | `server/test/publisher.test.ts` (step 5), `server/test/websocket.test.ts` (step 8) |
+| Read-only viewing authorization (`/ws`) | Yes | Partial | `server/test/credentials.test.ts`, `server/test/websocket.test.ts`, `server/test/app.test.ts` (step 8); heartbeat and buffer limit reviewed in code only; printed URLs pending a manual run |
 | Shared contract follow-ups (D2-14) | Yes | Yes | Contract tests, 67/67 passing (plan step 1) |
-| In-memory repositories and synthetic fixtures (D2-12) | Yes | Partial | `server/test/memory.test.ts`, `server/test/fixtures.test.ts` (plan step 3); restart behavior pending step 8 |
+| In-memory repositories and synthetic fixtures (D2-12) | Yes | Yes | `server/test/memory.test.ts`, `server/test/fixtures.test.ts` (step 3); restart behavior by construction in `server/src/composition.ts` (step 8) |
 | Internal ports and injectable runtime (D2-09, D2-13) | Yes | Yes | `server/test/runtime.test.ts` (step 2), `server/test/roulette.test.ts` (step 6), `server/test/simulation.test.ts` (step 7) |
 
 ## Limitations and unverified assumptions

@@ -137,6 +137,22 @@ describe('roulette flow', () => {
     expect(h.errors).toEqual([]);
   });
 
+  it('opens a view with the latest state, then delivers only later events', async () => {
+    const h = setup();
+    await h.start();
+    const received: ServerEvent[] = [];
+    const view = await h.coordinator.openView(SOURCE, (event) => { received.push(event); });
+    if (!view) throw new Error('Expected a view.');
+    expect(view.snapshot).toMatchObject({ type: 'state:snapshot', channelId: SOURCE, payload: { roulette: { status: 'voting' } } });
+    await h.vote('viewer-1', 'en');
+    expect(received.map((event) => event.type)).toEqual(['roulette:votes']);
+    expect((received[0]?.sequence ?? 0) > view.snapshot.sequence).toBe(true);
+    view.close();
+    await h.send({ type: 'cancel' });
+    expect(received).toHaveLength(1);
+    expect(h.errors).toEqual([]);
+  });
+
   it('counts one vote per user and ignores duplicate messages', async () => {
     const h = setup();
     await h.start();

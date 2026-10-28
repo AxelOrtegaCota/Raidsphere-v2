@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import type { Candidate, IllustrativeCountry, PublicRouletteState, Streamer } from '@raidsphere/shared';
+import type { Candidate, IllustrativeCountry, PublicRouletteState, ServerEvent, Streamer } from '@raidsphere/shared';
 import type { RouletteRepository, StoredRouletteSession, StreamerRepository } from '../persistence/contracts.js';
 import { buildPool, eligibleChannels } from './eligibility.js';
 import type {
   CandidateSource, ChatCommand, Clock, RaidArrival, RaidGateway, RandomSource, Scheduler, TimerHandle,
 } from './ports.js';
-import type { EventPublisher } from './publisher.js';
+import type { EventListener, EventPublisher } from './publisher.js';
 import { pickCandidate, poolLanguages, winningLanguage } from './selection.js';
 import { castVote } from './votes.js';
 
@@ -87,6 +87,20 @@ export class RouletteCoordinator {
   async snapshot(channelId: string): Promise<{ roulette: PublicRouletteState | null; translationWindow: null }> {
     const latest = await this.#deps.sessions.findLatestByChannel(channelId);
     return { roulette: latest?.publicState ?? null, translationWindow: null };
+  }
+
+  // Reads the state, issues the snapshot, and subscribes within one channel task, so no
+  // change can fall between the snapshot and the first live event.
+  async openView(channelId: string, listener: EventListener): Promise<{ snapshot: ServerEvent; close: () => void } | null> {
+    let view: { snapshot: ServerEvent; close: () => void } | null = null;
+    await this.#exclusive(channelId, async () => {
+      const latest = await this.#deps.sessions.findLatestByChannel(channelId);
+      const snapshot = this.#deps.publisher.issue({
+        type: 'state:snapshot', channelId, payload: { roulette: latest?.publicState ?? null, translationWindow: null },
+      });
+      if (snapshot) view = { snapshot, close: this.#deps.publisher.subscribe(channelId, listener) };
+    });
+    return view;
   }
 
   close(): void {

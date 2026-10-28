@@ -5,6 +5,8 @@ import type { CandidateSource, LiveChannel } from '../application/ports.js';
 // presented as real. No avatar URLs, so nothing is fetched from external services.
 
 export const SYNTHETIC_PREFIX = 'rsdemo_';
+// The demo source channel; its preferences keep its eligible pool small (D2-16).
+export const DEMO_SOURCE_ID = 'rsdemo_es_01';
 
 const COUNTRY_BY_LANGUAGE: Record<LanguageCode, IllustrativeCountry> = {
   en: 'US', es: 'MX', pt: 'BR', fr: 'FR', de: 'DE', ja: 'JP', ko: 'KR',
