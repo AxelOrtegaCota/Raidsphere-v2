@@ -16,6 +16,7 @@ Each entry uses one of these statuses:
 | IMPLEMENTED | Source exists; not yet verified by tests or execution. |
 | VERIFIED | Implemented and covered by checks that were actually run; the evidence is recorded. |
 | SUPERSEDED | Replaced by a later entry, which is linked. |
+| DEFERRED | Intentionally postponed: neither decided nor implemented in Phase 2. The entry says when to revisit it. |
 
 ## Scope
 
@@ -66,6 +67,7 @@ These items are carried over from the [phase plan](phase-plan.md#decisions-befor
 | Q11 | Internal B/C/D contracts | Normalized chat command input, raid request/outcome adapter, arrival event, and translation request/result interfaces. | APPROVED ([D2-13](#d2-13-internal-ports-between-the-roulette-logic-and-adapters)); translation, moderation, and vote aliases deferred |
 | Q12 | Shared contract follow-ups | Require `sessionId` on raid-related `error` events; validate `roulette:chosen.toCountry` against the candidate; derive the `languages` maximum from the enum instead of `7`. Possibly add an error code for "no eligible candidates" (see D2-06). Coordinate with all module owners. | APPROVED ([D2-14](#d2-14-shared-contract-follow-ups)) |
 | Q13 | Raid outcomes in a simulation | How a simulated raid shows queued, confirmed, failed, cancelled, and uncertain outcomes without claiming that a real Twitch raid happened. | APPROVED ([D2-15](#d2-15-simulated-raid-outcomes)) |
+| Q14 | Reputation | How reputation is credited (amount, conditions, whether `unknown` outcomes count) and what it is used for. Raised during plan step 3; listed as undecided in [Phase 1 deferred work](phase-1-decisions.md#deferred-work-and-decisions). | DEFERRED ([D2-17](#d2-17-defer-reputation-raid-logs-and-translation-window-storage)) |
 
 ## Decision log
 
@@ -345,8 +347,8 @@ Add new entries at the end. Do not rewrite an entry after it is approved; supers
   4. **Restart loses everything.** Sessions, votes, and viewing credentials (D2-11) are lost on restart. Reconnecting overlays receive `roulette: null` in the snapshot, and the OBS URL must be copied again because the credential changes.
 - **Alternatives considered:** The historical in-memory store with JSON backup: rejected because file backup is persistence I/O.
 - **Consequences:** No shared contract change and no new dependency. Persistence remains a later decision.
-- **Affected files:** Future in-memory repositories and fixtures in `server/src/` (not written yet).
-- **Verification:** Not verified (no code yet).
+- **Affected files:** `server/src/persistence/memory.ts`, `server/src/persistence/contracts.ts`, `server/src/simulation/fixtures.ts`, `server/test/memory.test.ts`, `server/test/fixtures.test.ts`.
+- **Verification:** Implemented on 2026-10-28 (plan step 3); `npm run typecheck` passed and `npm test` passed 90/90. Implementation details approved by the project owner: `RouletteRepository` gains `findLatestByChannel` so snapshots can show the last terminal session (D2-07 rule 7), and the in-memory repository keeps only the latest session per channel; a wrong next version throws instead of returning `false`; stored sessions also require public counts to match individual votes. Fixtures: 21 streamers (3 per language). Rule 4 (restart behavior) is verified with the server composition in step 8.
 
 ### D2-13: Internal ports between the roulette logic and adapters
 
@@ -434,6 +436,23 @@ Add new entries at the end. Do not rewrite an entry after it is approved; supers
 - **Affected files:** Future `server/src/index.ts` and `server/src/simulation/demo.ts` (not written yet).
 - **Verification:** Not verified (no code yet).
 
+### D2-17: Defer reputation, raid logs, and translation window storage
+
+- **Status:** DEFERRED
+- **Date:** 2026-10-28
+- **Resolves:** Q14 (deferral only)
+- **Decided by:** project owner
+- **Context:** `RaidRepository.recordArrivalAndCreditOnce` in `server/src/persistence/contracts.ts` records an arrival and credits reputation, but no reputation rule was ever defined; the historical spec only says the source "receives reputation credit". `TranslationWindowRepository` serves the Phase 4 translation window.
+- **Decision:**
+  1. Phase 2 does not implement `RaidRepository` or `TranslationWindowRepository`.
+  2. When a session reaches `done`, `raid:arrived` is published (D2-07), but no raid log is recorded and no reputation is credited. `Streamer.reputation` stays at its fixture value.
+  3. Snapshots carry `translationWindow: null`.
+  4. **Revisit:** reputation and raid logs when Phase 3 introduces real arrivals; translation window storage in Phase 4.
+- **Alternatives considered:** A minimal rule (+1 to the source per confirmed arrival, once per session, informational only): rejected for now to avoid inventing a policy without its use case.
+- **Consequences:** No shared contract change. Reputation has no effect on eligibility or selection (consistent with D2-06). The repository interfaces stay unchanged so a later implementation can follow them.
+- **Affected files:** None in Phase 2.
+- **Verification:** Not applicable (deferred).
+
 ## Implementation and verification status
 
 Keep implemented source, verified behavior, pending work, and unverified assumptions separate.
@@ -447,8 +466,10 @@ Keep implemented source, verified behavior, pending work, and unverified assumpt
 | Event building and publication | No | No | — |
 | Read-only viewing authorization (`/ws`) | No | No | — |
 | Shared contract follow-ups (D2-14) | Yes | Yes | Contract tests, 67/67 passing (plan step 1) |
+| In-memory repositories and synthetic fixtures (D2-12) | Yes | Partial | `server/test/memory.test.ts`, `server/test/fixtures.test.ts` (plan step 3); restart behavior pending step 8 |
 | Internal ports and injectable runtime (D2-09, D2-13) | Partial | Partial | Port types, runtime, and fakes; `server/test/runtime.test.ts` (plan step 2) |
 
 ## Limitations and unverified assumptions
 
 - D2-11 approves a limited exception to the `AGENTS.md` rule against credentials in URLs and logs, for Phase 2 read-only viewing credentials only.
+- D2-17 defers reputation, raid logs, and translation window storage: confirmed arrivals are published but not recorded, and reputation never changes in Phase 2.
