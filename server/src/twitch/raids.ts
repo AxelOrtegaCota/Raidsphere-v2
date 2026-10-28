@@ -6,7 +6,7 @@
  * In Phase 3, this is replaced by real Helix API calls.
  */
 
-import { LanguageCode } from '@raidsphere/shared';
+import type { LanguageCode } from '@raidsphere/shared';
 
 export type RaidOutcome = 'accepted' | 'rejected' | 'arrived' | 'cancelled' | 'timeout' | 'unknown';
 

@@ -1,18 +1,21 @@
 /**
- * Module C: Translation provider interface
- * 
- * Defines the contract for translation providers.
- * Phase 2 uses a mock provider; Phase 4 integrates real LLM/API.
+ * Module C: Internal translation provider contracts.
+ * Provider provenance identifies simulation; it does not verify translation quality.
  */
+import { z } from 'zod';
+import { chatFragmentSchema, countSchema, languageCodeSchema } from '@raidsphere/shared';
+import type { ChatFragment, LanguageCode } from '@raidsphere/shared';
 
-import { LanguageCode } from '@raidsphere/shared';
+export type TranslationProvenance = 'simulated' | 'provider';
 
 export interface TranslationRequest {
   text: string;
   sourceLanguage: LanguageCode;
   targetLanguage: LanguageCode;
-  context?: string; // Optional context for better translation
-  channelEmotes?: string[]; // Emotes to preserve
+  context?: string;
+  channelEmotes?: string[];
+  fragments?: ChatFragment[];
+  simulationMode?: boolean;
 }
 
 export interface TranslationResult {
@@ -20,9 +23,10 @@ export interface TranslationResult {
   translatedText: string;
   sourceLanguage: LanguageCode;
   targetLanguage: LanguageCode;
-  confidence: number; // 0-1
+  confidence: number;
   latencyMs: number;
   provider: string;
+  provenance: TranslationProvenance;
   cached: boolean;
 }
 
@@ -32,65 +36,70 @@ export interface TranslationError {
   retryAfterMs?: number;
 }
 
-export type TranslationResponse = 
+export type TranslationResponse =
   | { success: true; result: TranslationResult }
   | { success: false; error: TranslationError };
 
-/**
- * Abstract translation provider interface.
- * All providers must implement this contract.
- */
 export interface TranslationProvider {
   name: string;
-  
-  /**
-   * Translate text from source to target language.
-   */
+  readonly provenance: TranslationProvenance;
   translate(request: TranslationRequest): Promise<TranslationResponse>;
-  
-  /**
-   * Check if the provider supports the given language pair.
-   */
   supportsLanguagePair(source: LanguageCode, target: LanguageCode): boolean;
-  
-  /**
-   * Get estimated cost per translation (for monitoring).
-   */
   getEstimatedCost(textLength: number): number;
-  
-  /**
-   * Health check for the provider.
-   */
   isHealthy(): Promise<boolean>;
 }
 
-/**
- * Language pair supported for translation.
- */
+export const translationRequestSchema = z.object({
+  text: z.string().min(1).max(2000),
+  sourceLanguage: languageCodeSchema,
+  targetLanguage: languageCodeSchema,
+  context: z.string().max(2000).optional(),
+  channelEmotes: z.array(z.string().min(1).max(2000)).optional(),
+  fragments: z.array(chatFragmentSchema).min(1).max(100).optional(),
+  simulationMode: z.boolean().optional(),
+}).strict().superRefine((value, context) => {
+  if (value.fragments && value.fragments.map(fragment => fragment.text).join('') !== value.text) {
+    context.addIssue({ code: 'custom', path: ['fragments'], message: 'Fragments must reconstruct the original message.' });
+  }
+});
+
+export const translationResultSchema = z.object({
+  originalText: z.string().min(1).max(2000),
+  translatedText: z.string().min(1).max(4000),
+  sourceLanguage: languageCodeSchema,
+  targetLanguage: languageCodeSchema,
+  confidence: z.number().min(0).max(1),
+  latencyMs: countSchema,
+  provider: z.string().min(1).max(128),
+  provenance: z.enum(['simulated', 'provider']),
+  cached: z.boolean(),
+}).strict();
+
+export const translationResponseSchema = z.discriminatedUnion('success', [
+  z.object({ success: z.literal(true), result: translationResultSchema }).strict(),
+  z.object({
+    success: z.literal(false),
+    error: z.object({
+      code: z.enum(['RATE_LIMIT', 'TIMEOUT', 'INVALID_LANGUAGE', 'PROVIDER_ERROR', 'UNKNOWN']),
+      message: z.string().min(1).max(200),
+      retryAfterMs: countSchema.optional(),
+    }).strict(),
+  }).strict(),
+]);
+
 export interface LanguagePair {
   source: LanguageCode;
   target: LanguageCode;
 }
 
-/**
- * Get display name for language.
- */
 export function getLanguageName(code: LanguageCode): string {
   const names: Record<LanguageCode, string> = {
-    en: 'English',
-    es: 'Spanish',
-    pt: 'Portuguese',
-    fr: 'French',
-    de: 'German',
-    ja: 'Japanese',
-    ko: 'Korean',
+    en: 'English', es: 'Spanish', pt: 'Portuguese', fr: 'French',
+    de: 'German', ja: 'Japanese', ko: 'Korean',
   };
   return names[code];
 }
 
-/**
- * Check if translation is needed (same language = no translation).
- */
 export function needsTranslation(source: LanguageCode, target: LanguageCode): boolean {
   return source !== target;
 }

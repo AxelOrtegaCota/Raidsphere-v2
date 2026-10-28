@@ -5,7 +5,9 @@
  * In Phase 3, this is replaced by real Twitch Helix API calls.
  */
 
-import { Candidate, LanguageCode, IllustrativeCountry } from '@raidsphere/shared';
+import { z } from 'zod';
+import { candidateSchema, countSchema, identifierSchema, languageCodeSchema } from '@raidsphere/shared';
+import type { Candidate, LanguageCode, IllustrativeCountry } from '@raidsphere/shared';
 
 // Synthetic streamers for development
 const SYNTHETIC_STREAMERS: Array<{
@@ -14,7 +16,7 @@ const SYNTHETIC_STREAMERS: Array<{
   displayName: string;
   language: LanguageCode;
   country: IllustrativeCountry | null;
-  games: string[];
+  games: [string, ...string[]];
   baseViewers: number;
 }> = [
   // English streamers (US is the only English IllustrativeCountry)
@@ -56,55 +58,46 @@ export interface CandidateFilters {
   limit?: number;
 }
 
+const candidateFiltersSchema = z.object({
+  languages: z.array(languageCodeSchema).max(languageCodeSchema.options.length).optional(),
+  minViewers: countSchema.default(5),
+  maxViewers: countSchema.default(100),
+  excludeStreamerId: identifierSchema.optional(),
+  limit: countSchema.max(100).default(20),
+}).strict().refine(value => value.minViewers <= value.maxViewers, {
+  message: 'The minimum viewer count must not exceed the maximum.',
+});
+
 /**
- * Get synthetic candidates for roulette.
- * Simulates the Helix /streams endpoint with random viewer fluctuation.
+ * Generate offline candidates. An empty allowed-language list never widens preferences.
  */
-export function getSyntheticCandidates(filters: CandidateFilters = {}): Candidate[] {
-  const {
-    languages,
-    minViewers = 5,
-    maxViewers = 100,
-    excludeStreamerId,
-    limit = 20,
-  } = filters;
-  
-  let candidates = SYNTHETIC_STREAMERS
-    .filter(s => {
-      // Exclude self
-      if (excludeStreamerId && s.streamerId === excludeStreamerId) return false;
-      
-      // Filter by language
-      if (languages && languages.length > 0 && !languages.includes(s.language)) return false;
-      
-      return true;
-    })
-    .map(s => {
-      // Add random viewer fluctuation ±30%
-      const fluctuation = 0.7 + Math.random() * 0.6;
-      const viewers = Math.round(s.baseViewers * fluctuation);
-      
-      return {
-        streamerId: s.streamerId,
-        login: s.login,
-        displayName: s.displayName,
-        avatarUrl: `https://static-cdn.jtvnw.tv/jtv_user_pictures/${s.login}-profile_image-70x70.png`,
-        title: `${s.displayName}'s Stream`,
-        gameName: s.games[Math.floor(Math.random() * s.games.length)],
-        viewers,
-        language: s.language,
-        illustrativeCountry: s.country,
-      } satisfies Candidate;
-    })
-    .filter(c => {
-      // Filter by viewer range
-      return c.viewers >= minViewers && c.viewers <= maxViewers;
-    });
-  
-  // Shuffle and limit
-  candidates = shuffleArray(candidates).slice(0, limit);
-  
-  return candidates;
+export function getSyntheticCandidates(
+  filters: CandidateFilters = {},
+  random: () => number = Math.random
+): Candidate[] {
+  const parsed = candidateFiltersSchema.safeParse(filters);
+  if (!parsed.success) throw new TypeError('Invalid synthetic candidate filters.');
+  if (typeof random !== 'function') throw new TypeError('Invalid random source.');
+  const { languages, minViewers, maxViewers, excludeStreamerId, limit } = parsed.data;
+  if (limit === 0 || languages?.length === 0) return [];
+
+  const candidates = SYNTHETIC_STREAMERS
+    .filter(streamer => streamer.streamerId !== excludeStreamerId &&
+      (languages === undefined || languages.includes(streamer.language)))
+    .map(streamer => candidateSchema.parse({
+      streamerId: streamer.streamerId,
+      login: streamer.login,
+      displayName: streamer.displayName,
+      avatarUrl: null,
+      title: streamer.displayName + "'s Stream",
+      gameName: streamer.games[Math.floor(readRandom(random) * streamer.games.length)] ?? streamer.games[0],
+      viewers: Math.round(streamer.baseViewers * (0.7 + readRandom(random) * 0.6)),
+      language: streamer.language,
+      illustrativeCountry: streamer.country,
+    }))
+    .filter(candidate => candidate.viewers >= minViewers && candidate.viewers <= maxViewers);
+
+  return shuffleArray(candidates, random).slice(0, limit);
 }
 
 /**
@@ -130,17 +123,32 @@ export function selectRandomCandidate(
   candidates: Candidate[],
   random: () => number = Math.random
 ): Candidate | null {
+  if (!z.array(candidateSchema).safeParse(candidates).success) throw new TypeError('Invalid candidate pool.');
   if (candidates.length === 0) return null;
-  const index = Math.floor(random() * candidates.length);
-  return candidates[index];
+  const index = Math.floor(readRandom(random) * candidates.length);
+  return candidates[index] ?? null;
 }
 
 // Fisher-Yates shuffle
-function shuffleArray<T>(array: T[]): T[] {
+function shuffleArray<T>(array: T[], random: () => number): T[] {
   const result = [...array];
   for (let i = result.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [result[i], result[j]] = [result[j], result[i]];
+    const j = Math.floor(readRandom(random) * (i + 1));
+    const current = result[i];
+    const selected = result[j];
+    if (current !== undefined && selected !== undefined) {
+      result[i] = selected;
+      result[j] = current;
+    }
   }
   return result;
+}
+
+function readRandom(random: () => number): number {
+  if (typeof random !== 'function') throw new TypeError('Invalid random source.');
+  const value = random();
+  if (!Number.isFinite(value) || value < 0 || value >= 1) {
+    throw new RangeError('Random values must be finite and within [0, 1).');
+  }
+  return value;
 }

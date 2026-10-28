@@ -3,11 +3,12 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
+import { candidateSchema, languageCodeSchema } from '@raidsphere/shared';
 import {
   parseCommand,
   normalizeLanguage,
   hasControlPermission,
-  ChatMessage,
+  type ChatMessage,
 } from '../twitch/commands.js';
 import {
   getSyntheticCandidates,
@@ -16,7 +17,7 @@ import {
 } from '../twitch/candidates.js';
 import {
   SimulatedRaidGateway,
-  RaidRequest,
+  type RaidRequest,
 } from '../twitch/raids.js';
 
 describe('Command Parser', () => {
@@ -201,6 +202,23 @@ describe('Synthetic Candidates', () => {
     it('should return null for empty array', () => {
       expect(selectRandomCandidate([])).toBeNull();
     });
+
+    it('should select the only candidate across valid random boundaries', () => {
+      const candidates = getSyntheticCandidates({ limit: 1 });
+      expect(candidates).toHaveLength(1);
+
+      for (const value of [0, 0.5, 1 - Number.EPSILON]) {
+        expect(selectRandomCandidate(candidates, () => value)).toBe(candidates[0]);
+      }
+    });
+
+    it('should select the last candidate when random is just below one', () => {
+      const candidates = getSyntheticCandidates({ limit: 5 });
+      expect(candidates).toHaveLength(5);
+
+      const selected = selectRandomCandidate(candidates, () => 1 - Number.EPSILON);
+      expect(selected).toBe(candidates[candidates.length - 1]);
+    });
   });
 });
 
@@ -285,5 +303,102 @@ describe('Simulated Raid Gateway', () => {
       await new Promise(resolve => setTimeout(resolve, 200));
       expect(arrived).toBe(false);
     });
+  });
+});
+
+describe('Batch 2 command validation', () => {
+  const message: ChatMessage = {
+    messageId: 'fixture-message', userId: 'fixture-user', userLogin: 'fixture_user',
+    channelId: 'fixture-channel', text: '!roulette', timestamp: 1000,
+  };
+
+  it.each(['constructor', '__proto__', 'prototype', 'toString', '', 'unsupported'])(
+    'rejects invalid alias %s', alias => {
+      expect(normalizeLanguage(alias)).toBeNull();
+      expect(parseCommand({ ...message, text: '!vote ' + alias })?.type).toBe('error');
+    }
+  );
+
+  it.each(['pt', ' PORTUGUESE ', 'português', 'PORTUGUÊS', 'portugués', 'br'])(
+    'preserves valid Portuguese alias %s', alias => {
+      expect(normalizeLanguage(alias)).toBe('pt');
+    }
+  );
+
+  it('accepts only canonical normalized languages', () => {
+    for (const alias of ['English', 'español', 'français', 'deutsch', 'japanese', 'coreano']) {
+      expect(languageCodeSchema.safeParse(normalizeLanguage(alias)).success).toBe(true);
+    }
+  });
+
+  it('rejects invalid chat input before parsing a control command', () => {
+    for (const invalid of [
+      { ...message, channelId: '' },
+      { ...message, userLogin: 'invalid login' },
+      { ...message, timestamp: -1 },
+      { ...message, timestamp: Number.NaN },
+      { ...message, timestamp: Number.MAX_SAFE_INTEGER + 1 },
+      { ...message, text: '!roulette' + ' '.repeat(501) },
+    ]) {
+      expect(parseCommand(invalid)).toEqual({
+        type: 'error', code: 'INVALID_COMMAND', message: 'Invalid chat message.', originalText: '',
+      });
+    }
+  });
+});
+
+describe('Batch 2 synthetic candidate boundaries', () => {
+  it('distinguishes omitted and explicitly empty allowed languages', () => {
+    expect(getSyntheticCandidates({}, () => 0.5).length).toBeGreaterThan(0);
+    expect(getSyntheticCandidates({ languages: [] }, () => 0.5)).toEqual([]);
+  });
+
+  it('allows zero limit and inclusive viewer boundaries', () => {
+    expect(getSyntheticCandidates({ limit: 0 })).toEqual([]);
+    const candidates = getSyntheticCandidates({ minViewers: 25, maxViewers: 25 }, () => 0.5);
+    expect(candidates.length).toBeGreaterThan(0);
+    expect(candidates.every(candidate => candidate.viewers === 25)).toBe(true);
+  });
+
+  it.each([-1, 0.5, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, 101])(
+    'rejects invalid candidate limit %s', limit => {
+      expect(() => getSyntheticCandidates({ limit })).toThrow(TypeError);
+    }
+  );
+
+  it.each([
+    { minViewers: -1 }, { maxViewers: -1 }, { minViewers: 0.5 },
+    { maxViewers: Number.NaN }, { minViewers: Number.POSITIVE_INFINITY },
+    { minViewers: 50, maxViewers: 10 },
+    { maxViewers: Number.MAX_SAFE_INTEGER + 1 },
+  ])('rejects invalid viewer boundaries %j', filters => {
+    expect(() => getSyntheticCandidates(filters)).toThrow(TypeError);
+  });
+
+  it('uses controlled randomness for generation, games, and shuffling', () => {
+    const first = getSyntheticCandidates({ limit: 5 }, () => 0.25);
+    const second = getSyntheticCandidates({ limit: 5 }, () => 0.25);
+    expect(first).toHaveLength(5);
+    expect(second).toEqual(first);
+    expect(selectRandomCandidate(first, () => 0)).toEqual(first[0]);
+    expect(selectRandomCandidate(first, () => 1 - Number.EPSILON)).toEqual(first[4]);
+  });
+
+  it.each([-0.1, 1, 2, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
+    'rejects invalid random value %s', value => {
+      expect(() => getSyntheticCandidates({}, () => value)).toThrow(RangeError);
+      const candidates = getSyntheticCandidates({ limit: 1 }, () => 0);
+      expect(() => selectRandomCandidate(candidates, () => value)).toThrow(RangeError);
+    }
+  );
+
+  it('preserves self-exclusion and emits valid offline candidates', () => {
+    const candidates = getSyntheticCandidates({ excludeStreamerId: 'synth_001' }, () => 0.5);
+    expect(candidates.length).toBeGreaterThan(0);
+    for (const candidate of candidates) {
+      expect(candidate.streamerId).not.toBe('synth_001');
+      expect(candidate.avatarUrl).toBeNull();
+      expect(candidateSchema.parse(candidate)).toEqual(candidate);
+    }
   });
 });
