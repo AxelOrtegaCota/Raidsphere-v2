@@ -6,9 +6,9 @@
  * In Phase 4, this is replaced by GPT-4o-mini or another real provider.
  */
 
-import { LanguageCode } from '@raidsphere/shared';
+import type { LanguageCode } from '@raidsphere/shared';
 import { fragmentMessage, restoreFragments } from './emotes.js';
-import {
+import type {
   TranslationProvider,
   TranslationRequest,
   TranslationResponse,

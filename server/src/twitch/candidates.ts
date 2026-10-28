@@ -5,7 +5,7 @@
  * In Phase 3, this is replaced by real Twitch Helix API calls.
  */
 
-import { Candidate, LanguageCode, IllustrativeCountry } from '@raidsphere/shared';
+import type { Candidate, LanguageCode, IllustrativeCountry } from '@raidsphere/shared';
 
 // Synthetic streamers for development
 const SYNTHETIC_STREAMERS: Array<{
@@ -83,6 +83,8 @@ export function getSyntheticCandidates(filters: CandidateFilters = {}): Candidat
       // Add random viewer fluctuation ±30%
       const fluctuation = 0.7 + Math.random() * 0.6;
       const viewers = Math.round(s.baseViewers * fluctuation);
+      const gameIndex = Math.floor(Math.random() * s.games.length);
+      const gameName = s.games[gameIndex] ?? s.games[0] ?? 'Just Chatting';
       
       return {
         streamerId: s.streamerId,
@@ -90,7 +92,7 @@ export function getSyntheticCandidates(filters: CandidateFilters = {}): Candidat
         displayName: s.displayName,
         avatarUrl: `https://static-cdn.jtvnw.tv/jtv_user_pictures/${s.login}-profile_image-70x70.png`,
         title: `${s.displayName}'s Stream`,
-        gameName: s.games[Math.floor(Math.random() * s.games.length)],
+        gameName,
         viewers,
         language: s.language,
         illustrativeCountry: s.country,
@@ -132,7 +134,7 @@ export function selectRandomCandidate(
 ): Candidate | null {
   if (candidates.length === 0) return null;
   const index = Math.floor(random() * candidates.length);
-  return candidates[index];
+  return candidates[index] ?? null;
 }
 
 // Fisher-Yates shuffle
@@ -140,7 +142,9 @@ function shuffleArray<T>(array: T[]): T[] {
   const result = [...array];
   for (let i = result.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    [result[i], result[j]] = [result[j], result[i]];
+    const temp = result[i];
+    result[i] = result[j]!;
+    result[j] = temp!;
   }
   return result;
 }

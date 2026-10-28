@@ -5,7 +5,7 @@
  * Phase 2 uses a mock provider; Phase 4 integrates real LLM/API.
  */
 
-import { LanguageCode } from '@raidsphere/shared';
+import type { LanguageCode } from '@raidsphere/shared';
 
 export interface TranslationRequest {
   text: string;

@@ -7,8 +7,8 @@ import {
   parseCommand,
   normalizeLanguage,
   hasControlPermission,
-  ChatMessage,
 } from '../twitch/commands.js';
+import type { ChatMessage } from '../twitch/commands.js';
 import {
   getSyntheticCandidates,
   getAvailableLanguages,
@@ -16,8 +16,8 @@ import {
 } from '../twitch/candidates.js';
 import {
   SimulatedRaidGateway,
-  RaidRequest,
 } from '../twitch/raids.js';
+import type { RaidRequest } from '../twitch/raids.js';
 
 describe('Command Parser', () => {
   const baseMessage: ChatMessage = {

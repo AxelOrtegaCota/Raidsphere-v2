@@ -6,7 +6,7 @@
  */
 
 import { z } from 'zod';
-import { LanguageCode } from '@raidsphere/shared';
+import type { LanguageCode } from '@raidsphere/shared';
 
 // Supported language codes for voting
 const LANGUAGE_CODES: readonly LanguageCode[] = ['en', 'es', 'pt', 'fr', 'de', 'ja', 'ko'] as const;

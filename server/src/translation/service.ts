@@ -5,13 +5,15 @@
  * Returns payloads compatible with the shared TranslationBubble schema.
  */
 
-import { LanguageCode, TranslationBubble, ChatFragment } from '@raidsphere/shared';
+import type { LanguageCode, TranslationBubble, ChatFragment } from '@raidsphere/shared';
 import { fragmentMessage, restoreFragments, extractEmotes } from './emotes.js';
 import {
+  needsTranslation,
+} from './provider.js';
+import type {
   TranslationProvider,
   TranslationRequest,
   TranslationResponse,
-  needsTranslation,
 } from './provider.js';
 import { getTranslationProvider } from './mock-provider.js';
 
