@@ -289,7 +289,9 @@ export class RouletteCoordinator {
         current.publicState.chosenCandidate?.streamerId !== arrival.toChannelId) return;
     const { sessionId } = current.publicState;
     const runtime = this.#runtimes.get(sessionId);
-    if (!runtime || !(await this.#save(current, { status: 'done' }))) return;
+    if (!runtime) return;
+    const done = await this.#save(current, { status: 'done' });
+    if (!done) return;
     this.#endRuntime(sessionId);
     this.#deps.publisher.publish({
       type: 'raid:arrived', channelId: arrival.toChannelId, sessionId,
@@ -297,6 +299,10 @@ export class RouletteCoordinator {
         fromStreamerId: arrival.fromChannelId, fromLogin: runtime.source.login, toStreamerId: arrival.toChannelId,
         viewers: arrival.viewers, sourceLanguage: runtime.source.language, arrivedAtMs: arrival.observedAtMs,
       },
+    });
+    // raid:arrived only reaches the destination, so the source gets its final state as a snapshot (D2-19).
+    this.#deps.publisher.publish({
+      type: 'state:snapshot', channelId: arrival.fromChannelId, payload: { roulette: done.publicState, translationWindow: null },
     });
   }
 

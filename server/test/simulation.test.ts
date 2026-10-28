@@ -128,7 +128,7 @@ describe('simulated roulette end to end', () => {
     await time.advance(10_000);
 
     expect(events.filter((event) => event.channelId === SOURCE).map((event) => event.type)).toEqual([
-      'roulette:start', 'roulette:votes', 'roulette:votes', 'roulette:chosen', 'raid:started',
+      'roulette:start', 'roulette:votes', 'roulette:votes', 'roulette:chosen', 'raid:started', 'state:snapshot',
     ]);
     expect(events.filter((event) => event.channelId === 'rsdemo_pt_01').map((event) => event.type)).toEqual(['raid:arrived']);
     expect((await coordinator.snapshot(SOURCE)).roulette?.status).toBe('done');

@@ -109,6 +109,8 @@ describe('roulette flow', () => {
       },
     });
     expect(await h.status()).toBe('done');
+    expect(h.types().at(-1)).toBe('state:snapshot');
+    expect(h.last('state:snapshot')).toMatchObject({ channelId: SOURCE, payload: { roulette: { status: 'done' } } });
     expect(h.time.pendingCount()).toBe(0);
     expect(h.errors).toEqual([]);
   });

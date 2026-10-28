@@ -331,10 +331,10 @@ Add new entries at the end. Do not rewrite an entry after it is approved; supers
   - The server's real credential delivery and broadcaster setup flow are redesigned in Phase 3.
   - No shared contract change: `auth` and `state:snapshot` already exist.
 - **Affected files:** `server/src/viewing/credentials.ts`, `server/src/websocket.ts`, `server/src/app.ts`, `server/src/composition.ts`, `server/src/index.ts`, `server/src/application/roulette.ts` (`openView`), `server/test/credentials.test.ts`, `server/test/websocket.test.ts`, `server/test/app.test.ts`; overlay client in `overlay/` (Module A, step 10).
-- **Verification:** Partial (plan step 8, 2026-10-28); `npm run typecheck` passed and `npm test` passed 155/155.
+- **Verification:** Partial (plan step 8, 2026-10-28; reviewed at Phase 2 close-out, step 11); `npm run typecheck` passed and `npm test` passed 155/155. It stays partial because the heartbeat and buffer limit have no automated test; the overlay has not been checked in OBS in Phase 2.
   - Tested: rule 1 (unique credentials, digest-only storage, wrong or foreign credentials rejected); rule 2 (403 for other or missing origins, 404 for other paths); rule 3 (auth timeout, malformed JSON, control messages, and wrong credentials close with 1008 and no reason); rule 4 (snapshot first, then live events of that channel only; any later client message closes); rule 5 connection limits (503 total, 1013 per channel); rule 6 (`/health`).
   - Not covered by automated tests: the 30-second heartbeat and the outgoing-buffer disconnection (rule 5); reviewed in code only.
-  - Rule 7 (printed OBS URLs) is implemented in `server/src/index.ts` and `server/src/simulation/demo.ts`; step 9 confirmed the printed URL format by running `npm run demo:auto`. The overlay side of rule 7 (reading and removing the fragment) and rule 8 belong to step 10.
+  - Rule 7 (printed OBS URLs) is implemented in `server/src/index.ts` and `server/src/simulation/demo.ts`; step 9 confirmed the printed URL format by running `npm run demo:auto`. Step 10 (2026-10-28): the overlay reads the fragment, removes it from the address bar, and authenticates (`overlay/src/connection.ts`); the project owner confirmed source and destination overlays working in a browser (rules 7–8).
   - Implementation detail approved with the step 8 design: `RouletteCoordinator.openView()` reads state, issues the snapshot, and subscribes inside one channel task, so no change can fall between the snapshot and the first live event; the socket queues events that arrive while the snapshot is being sent. Overlays apply events in arrival order and do not need to reorder by sequence.
 
 ### D2-12: In-memory state and synthetic fixtures
@@ -401,7 +401,7 @@ Add new entries at the end. Do not rewrite an entry after it is approved; supers
 
 ### D2-15: Simulated raid outcomes
 
-- **Status:** APPROVED
+- **Status:** VERIFIED
 - **Date:** 2026-10-28
 - **Resolves:** Q13
 - **Decided by:** project owner
@@ -425,7 +425,7 @@ Add new entries at the end. Do not rewrite an entry after it is approved; supers
 - **Alternatives considered:** A per-event "simulated" flag in the shared contract: more precise, but adds a protocol change for a Phase 2-only concern.
 - **Consequences:** The `/health` response gains a `mode` field, so the existing health test in `server/test/app.test.ts` must be updated. The overlay "Simulation" label is Module A work (same owner). If the countdown is configured above 120 seconds, the event would fail validation; the simulator configuration must stay within that bound.
 - **Affected files:** `server/src/application/roulette.ts`, `server/test/roulette.test.ts`; future simulator in `server/src/`, `server/src/app.ts`, `server/test/app.test.ts`, and the overlay in `overlay/`.
-- **Verification:** Partial (plan step 6, 2026-10-28): rules 4 and 5 (arrival deadline; the three cancellation results; arrivals after a terminal state ignored) are tested in `server/test/roulette.test.ts` with a fake gateway. Step 7 (2026-10-28): rules 1–3 are implemented by `SimulatedRaidGateway` (configurable request outcome, 0–120 s countdown validated at construction, arrival delivered or withheld, idempotent per session) and tested in `server/test/simulation.test.ts`. Step 8 (2026-10-28): `/health` reports `mode: 'simulation'` (rule 6, server side, tested in `server/test/app.test.ts`), and every synthetic channel receives a viewing credential (rule 7, tested in `server/test/websocket.test.ts` with source and destination overlays). The overlay "Simulation" label is verified in step 10.
+- **Verification:** Partial (plan step 6, 2026-10-28): rules 4 and 5 (arrival deadline; the three cancellation results; arrivals after a terminal state ignored) are tested in `server/test/roulette.test.ts` with a fake gateway. Step 7 (2026-10-28): rules 1–3 are implemented by `SimulatedRaidGateway` (configurable request outcome, 0–120 s countdown validated at construction, arrival delivered or withheld, idempotent per session) and tested in `server/test/simulation.test.ts`. Step 8 (2026-10-28): `/health` reports `mode: 'simulation'` (rule 6, server side, tested in `server/test/app.test.ts`), and every synthetic channel receives a viewing credential (rule 7, tested in `server/test/websocket.test.ts` with source and destination overlays). Step 10 (2026-10-28): the overlay shows a permanent "Simulation" label and "(simulated)" raid texts; the project owner confirmed the two-overlay demo in a browser.
 
 ### D2-16: Print only demo channel overlay URLs
 
@@ -477,6 +477,21 @@ Add new entries at the end. Do not rewrite an entry after it is approved; supers
 - **Affected files:** `server/src/application/roulette.ts`, `server/test/roulette.test.ts`.
 - **Verification:** `npm run typecheck` passed and `npm test` passed 128/128 on 2026-10-28 (plan step 6).
 
+### D2-19: Send the final state to the source channel on arrival
+
+- **Status:** VERIFIED (server tests; overlay display confirmed in the step 10 manual check)
+- **Date:** 2026-10-28
+- **Resolves:** Gap found while designing plan step 10
+- **Decided by:** project owner
+- **Context:** Under D2-07, `raid_pending` → `done` publishes `raid:arrived` only to the destination channel, because the contract requires `channelId` to equal `toStreamerId`. The source overlay would keep showing a pending raid until it reconnects. The other terminal states already publish an event to the source channel.
+- **Decision:** When a session reaches `done`, the coordinator also publishes a `state:snapshot` with the final public state to the source channel, right after `raid:arrived`.
+- **Alternatives considered:**
+  - Accepting a stale source overlay: confusing during the demo.
+  - A new event or a relaxed `raid:arrived` routing rule: requires a shared contract change.
+- **Consequences:** No shared contract change. Source subscribers receive one extra `state:snapshot` per completed raid; overlays already replace their state with any snapshot.
+- **Affected files:** `server/src/application/roulette.ts`, `server/test/roulette.test.ts`, `server/test/simulation.test.ts`.
+- **Verification:** `npm run typecheck`, `npm test` (155/155), and `npm run build` passed on 2026-10-28; the full-flow and end-to-end simulation tests assert the final source snapshot with status `done`.
+
 ## Implementation and verification status
 
 Keep implemented source, verified behavior, pending work, and unverified assumptions separate.
@@ -491,6 +506,7 @@ Keep implemented source, verified behavior, pending work, and unverified assumpt
 | Event building and publication | Yes | Yes | `server/test/publisher.test.ts` (step 5), `server/test/websocket.test.ts` (step 8) |
 | Read-only viewing authorization (`/ws`) | Yes | Partial | `server/test/credentials.test.ts`, `server/test/websocket.test.ts`, `server/test/app.test.ts` (step 8); heartbeat and buffer limit reviewed in code only; printed URLs confirmed with `npm run demo:auto` (step 9) |
 | Local demo (plan step 9) | Yes | Yes | `npm run demo:auto`: full simulated round from `!roulette` to `raid:arrived` on a real loopback server (step 9) |
+| Overlay client and text panel (step 10, Module A) | Yes | Partial | Typecheck and build (step 10); source and destination overlays confirmed in a browser by the project owner; no automated overlay tests; not checked in OBS in Phase 2 |
 | Shared contract follow-ups (D2-14) | Yes | Yes | Contract tests, 67/67 passing (plan step 1) |
 | In-memory repositories and synthetic fixtures (D2-12) | Yes | Yes | `server/test/memory.test.ts`, `server/test/fixtures.test.ts` (step 3); restart behavior by construction in `server/src/composition.ts` (step 8) |
 | Internal ports and injectable runtime (D2-09, D2-13) | Yes | Yes | `server/test/runtime.test.ts` (step 2), `server/test/roulette.test.ts` (step 6), `server/test/simulation.test.ts` (step 7) |
@@ -499,3 +515,7 @@ Keep implemented source, verified behavior, pending work, and unverified assumpt
 
 - D2-11 approves a limited exception to the `AGENTS.md` rule against credentials in URLs and logs, for Phase 2 read-only viewing credentials only.
 - D2-17 defers reputation, raid logs, and translation window storage: confirmed arrivals are published but not recorded, and reputation never changes in Phase 2.
+- The globe does not yet show session data (candidates, chosen channel, raid arc); the overlay shows the session as text only. This is later Module A work, so milestone M3 is only partly met.
+- The Phase 2 overlay was verified in a browser only; OBS rendering, reconnection on refresh, and performance were not re-checked after Phase 1.
+- All timings (30 s voting, 10 s gateway timeout, 60 s arrival grace) are tuned for the simulation. They are unverified against real Twitch raid behavior and must be reviewed in Phase 3.
+- Synthetic channels carry an `illustrativeCountry`; Twitch does not report a channel's country, so Phase 3 needs a decision on how the globe places real channels.
