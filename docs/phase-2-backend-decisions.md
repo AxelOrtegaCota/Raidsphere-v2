@@ -303,8 +303,8 @@ Add new entries at the end. Do not rewrite an entry after it is approved; supers
   5. **In-process subscribers.** Tests and the local demo script subscribe directly in process. The WebSocket transport (D2-11) is one more subscriber, not a separate path.
 - **Alternatives considered:** Letting each component build its own events: duplicates sequencing and makes skipping validation possible.
 - **Consequences:** No shared contract change. Module A can work with recorded, schema-valid event sequences until the WebSocket client is connected.
-- **Affected files:** Future event publisher in `server/src/` (not written yet).
-- **Verification:** Not verified (no code yet).
+- **Affected files:** `server/src/application/publisher.ts`, `server/test/publisher.test.ts`.
+- **Verification:** Implemented on 2026-10-28 (plan step 5); `npm run typecheck` passed and `npm test` passed 114/114 (6 publisher tests). Implementation details approved by the project owner: invalid events take no sequence number and are reported without content; a failing subscriber does not stop delivery to the others; `issue()` builds and validates a per-connection event (such as `state:snapshot`) without broadcasting it, taking the next sequence number so clients can order later events after it. Sequences therefore increase per channel but may have gaps for a given subscriber. Rule 5 (the WebSocket transport as a subscriber) is verified in step 8.
 
 ### D2-11: Read-only viewing authorization for `/ws`
 
@@ -463,7 +463,7 @@ Keep implemented source, verified behavior, pending work, and unverified assumpt
 | Vote aggregation and deadlines | Partial | Partial | Vote rules in `server/test/votes.test.ts` (plan step 4); deadline timers pending step 6 |
 | Candidate selection | Partial | Partial | Eligibility, pool, tie-break, and pick in `server/test/eligibility.test.ts` and `server/test/selection.test.ts` (plan step 4) |
 | Command intake (simulated) | No | No | — |
-| Event building and publication | No | No | — |
+| Event building and publication | Yes | Partial | `server/test/publisher.test.ts` (plan step 5); WebSocket delivery pending step 8 |
 | Read-only viewing authorization (`/ws`) | No | No | — |
 | Shared contract follow-ups (D2-14) | Yes | Yes | Contract tests, 67/67 passing (plan step 1) |
 | In-memory repositories and synthetic fixtures (D2-12) | Yes | Partial | `server/test/memory.test.ts`, `server/test/fixtures.test.ts` (plan step 3); restart behavior pending step 8 |
