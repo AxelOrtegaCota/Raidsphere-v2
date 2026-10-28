@@ -10,7 +10,7 @@ The Phase 1 foundation has been installed, type-checked, tested, built, and smok
 
 npm registry HTTPS requests previously failed in one developer environment; the cause remains unknown. Installation succeeded in another environment without changing any security setting. Security controls, including TLS certificate verification, must not be disabled or bypassed.
 
-Before development, read [AGENTS.md](AGENTS.md), [docs/phase-1-decisions.md](docs/phase-1-decisions.md), and the [phase plan](docs/phase-plan.md). Create your own feature branch from the latest `main`, protect credentials, and coordinate changes to the shared contracts before implementation.
+Before development, read [AGENTS.md](AGENTS.md), [docs/phase-1-decisions.md](docs/phase-1-decisions.md), [docs/phase-2-backend-decisions.md](docs/phase-2-backend-decisions.md), and the [phase plan](docs/phase-plan.md). Create your own feature branch from the latest `main`, protect credentials, and coordinate changes to the shared contracts before implementation.
 
 ## Current status
 

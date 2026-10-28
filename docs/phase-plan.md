@@ -16,6 +16,8 @@ As of 2026-10-27. Phase 1 is complete and merged into `main`, which is the base 
 
 This status is based on local verification, Git history, and [Phase 1 decisions](phase-1-decisions.md). Twitch, raids, translation, and deployment are not implemented yet.
 
+Phase 2 backend decisions are recorded in [Phase 2 backend decisions](phase-2-backend-decisions.md).
+
 ## Development phases
 
 | Phase | Goal and deliverable | Status |
