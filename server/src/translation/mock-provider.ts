@@ -1,18 +1,14 @@
 /**
- * Module C: Mock translation provider
- * 
- * Fake translation for Phase 2 development.
- * Returns predictable translations for testing without API costs.
- * In Phase 4, this is replaced by GPT-4o-mini or another real provider.
+ * Module C: Explicitly simulated translations for local development.
+ * Dictionary entries and language prefixes are not verified AI translations.
  */
-
+import { z } from 'zod';
+import { countSchema, languageCodeSchema } from '@raidsphere/shared';
 import type { LanguageCode } from '@raidsphere/shared';
 import { fragmentMessage, restoreFragments } from './emotes.js';
+import { translationRequestSchema, translationResultSchema } from './provider.js';
 import type {
-  TranslationProvider,
-  TranslationRequest,
-  TranslationResponse,
-  TranslationResult,
+  TranslationProvider, TranslationRequest, TranslationResponse, TranslationResult, TranslationProviderExecutionContext,
 } from './provider.js';
 
 // Fake translation dictionary for common phrases
@@ -39,124 +35,131 @@ const LANGUAGE_PREFIXES: Record<LanguageCode, string> = {
 
 export class MockTranslationProvider implements TranslationProvider {
   name = 'mock';
-  
+  readonly provenance = 'simulated';
+
   private minLatencyMs: number;
   private maxLatencyMs: number;
   private failureRate: number;
-  
+
   constructor(options: { minLatencyMs?: number; maxLatencyMs?: number; failureRate?: number } = {}) {
-    this.minLatencyMs = options.minLatencyMs ?? 100;
-    this.maxLatencyMs = options.maxLatencyMs ?? 500;
-    this.failureRate = options.failureRate ?? 0; // 0 = never fail
+    const parsed = z.object({
+      minLatencyMs: countSchema.max(2_147_483_647),
+      maxLatencyMs: countSchema.max(2_147_483_647),
+      failureRate: z.number().min(0).max(1),
+    }).strict().refine(value => value.minLatencyMs <= value.maxLatencyMs).safeParse({
+      minLatencyMs: 100, maxLatencyMs: 500, failureRate: 0, ...options,
+    });
+    if (!parsed.success) throw new TypeError('Invalid mock translation configuration.');
+    this.minLatencyMs = parsed.data.minLatencyMs;
+    this.maxLatencyMs = parsed.data.maxLatencyMs;
+    this.failureRate = parsed.data.failureRate;
   }
-  
-  async translate(request: TranslationRequest): Promise<TranslationResponse> {
-    const startTime = Date.now();
-    
-    // Simulate network latency
-    const latency = this.minLatencyMs + Math.random() * (this.maxLatencyMs - this.minLatencyMs);
-    await sleep(latency);
-    
-    // Simulate occasional failures
-    if (Math.random() < this.failureRate) {
+
+  async translate(request: TranslationRequest, execution: TranslationProviderExecutionContext = {}): Promise<TranslationResponse> {
+    const signal = execution.signal;
+    if (signal !== undefined && !(signal instanceof AbortSignal)) {
+      return { success: false, error: { code: 'PROVIDER_ERROR', message: 'Invalid translation execution context.' } };
+    }
+    const parsed = translationRequestSchema.safeParse(request);
+    if (!parsed.success) {
       return {
         success: false,
         error: {
-          code: 'PROVIDER_ERROR',
-          message: 'Mock provider simulated failure',
-          retryAfterMs: 1000,
+          code: parsed.error.issues.some(issue =>
+            issue.path[0] === 'sourceLanguage' || issue.path[0] === 'targetLanguage')
+            ? 'INVALID_LANGUAGE' : 'PROVIDER_ERROR',
+          message: 'Invalid translation request.',
         },
       };
     }
-    
-    // Skip if same language
-    if (request.sourceLanguage === request.targetLanguage) {
-      return {
-        success: true,
-        result: {
-          originalText: request.text,
-          translatedText: request.text,
-          sourceLanguage: request.sourceLanguage,
-          targetLanguage: request.targetLanguage,
-          confidence: 1.0,
-          latencyMs: Date.now() - startTime,
-          provider: this.name,
-          cached: false,
-        },
-      };
+    const input = parsed.data;
+    if (input.simulationMode !== true) {
+      return { success: false, error: { code: 'PROVIDER_ERROR', message: 'Simulation mode must be explicitly enabled.' } };
     }
-    
-    // Fragment message to preserve emotes
-    const fragmented = fragmentMessage(request.text, request.channelEmotes);
-    
-    // Translate the protected text
-    const translatedProtected = this.mockTranslate(
-      fragmented.protectedText,
-      request.sourceLanguage,
-      request.targetLanguage
-    );
-    
-    // Restore emotes
-    const translatedText = restoreFragments(translatedProtected, fragmented);
-    
-    const result: TranslationResult = {
-      originalText: request.text,
-      translatedText,
-      sourceLanguage: request.sourceLanguage,
-      targetLanguage: request.targetLanguage,
-      confidence: 0.85, // Mock confidence
-      latencyMs: Date.now() - startTime,
-      provider: this.name,
-      cached: false,
-    };
-    
-    return { success: true, result };
+    if (signal?.aborted) return cancelledResponse();
+    const startTime = Date.now();
+    try {
+      const latency = this.minLatencyMs + Math.random() * (this.maxLatencyMs - this.minLatencyMs);
+      if (!await sleep(latency, signal) || signal?.aborted) return cancelledResponse();
+      if (Math.random() < this.failureRate) {
+        return {
+          success: false,
+          error: { code: 'PROVIDER_ERROR', message: 'Mock provider simulated failure', retryAfterMs: 1000 },
+        };
+      }
+      const sameLanguage = input.sourceLanguage === input.targetLanguage;
+      const fragmented = fragmentMessage(input.text, input.channelEmotes, input.fragments);
+      const translatedText = sameLanguage ? input.text : restoreFragments(
+        this.mockTranslate(fragmented.protectedText, input.targetLanguage), fragmented
+      );
+      const result: TranslationResult = {
+        originalText: input.text,
+        translatedText,
+        sourceLanguage: input.sourceLanguage,
+        targetLanguage: input.targetLanguage,
+        confidence: sameLanguage ? 1 : 0.85,
+        latencyMs: Date.now() - startTime,
+        provider: this.name,
+        provenance: this.provenance,
+        cached: false,
+      };
+      const validated = translationResultSchema.safeParse(result);
+      if (signal?.aborted) return cancelledResponse();
+      return validated.success
+        ? { success: true, result: validated.data }
+        : { success: false, error: { code: 'PROVIDER_ERROR', message: 'Invalid simulated translation result.' } };
+    } catch {
+      return { success: false, error: { code: 'PROVIDER_ERROR', message: 'Protected content could not be restored.' } };
+    }
   }
-  
-  supportsLanguagePair(_source: LanguageCode, _target: LanguageCode): boolean {
-    // Mock supports all pairs
-    return true;
+
+  supportsLanguagePair(source: LanguageCode, target: LanguageCode): boolean {
+    return languageCodeSchema.safeParse(source).success && languageCodeSchema.safeParse(target).success;
   }
-  
+
   getEstimatedCost(_textLength: number): number {
-    // Mock is free
     return 0;
   }
-  
+
   async isHealthy(): Promise<boolean> {
     return true;
   }
-  
-  /**
-   * Generate mock translation.
-   * - Checks dictionary first
-   * - Falls back to prefix + original text
-   */
-  private mockTranslate(text: string, _source: LanguageCode, target: LanguageCode): string {
+
+  private mockTranslate(text: string, target: LanguageCode): string {
     const lowerText = text.toLowerCase().trim();
-    
-    // Check if we have a canned translation
-    if (MOCK_TRANSLATIONS[lowerText]?.[target]) {
-      return MOCK_TRANSLATIONS[lowerText][target];
-    }
-    
-    // For unknown text, return with language prefix (simulating translation)
-    const prefix = LANGUAGE_PREFIXES[target];
-    return `${prefix} ${text}`;
+    const translations = Object.hasOwn(MOCK_TRANSLATIONS, lowerText) ? MOCK_TRANSLATIONS[lowerText] : undefined;
+    const translated = translations?.[target];
+    return translated ?? LANGUAGE_PREFIXES[target] + ' ' + text;
   }
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
+function cancelledResponse(): TranslationResponse {
+  return { success: false, error: { code: 'PROVIDER_ERROR', message: 'Translation was cancelled.' } };
 }
 
-// Default instance
+function sleep(ms: number, signal?: AbortSignal): Promise<boolean> {
+  return new Promise(resolve => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let settled = false;
+    const finish = (completed: boolean): void => {
+      if (settled) return;
+      settled = true;
+      if (timer !== undefined) clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
+      resolve(completed);
+    };
+    const onAbort = () => { finish(false); };
+    if (signal?.aborted) { finish(false); return; }
+    signal?.addEventListener('abort', onAbort, { once: true });
+    if (signal?.aborted) { finish(false); return; }
+    timer = setTimeout(() => { finish(true); }, ms);
+  });
+}
+
 let defaultProvider: TranslationProvider | null = null;
 
 export function getTranslationProvider(): TranslationProvider {
-  if (!defaultProvider) {
-    defaultProvider = new MockTranslationProvider();
-  }
+  if (!defaultProvider) defaultProvider = new MockTranslationProvider();
   return defaultProvider;
 }
 

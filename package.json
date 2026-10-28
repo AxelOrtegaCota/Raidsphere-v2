@@ -12,7 +12,7 @@
   "scripts": {
     "build:shared": "npm run build --workspace=@raidsphere/shared",
     "typecheck": "npm run build:shared && npm run typecheck --workspaces",
-    "test": "npm run build:shared && vitest run shared/test server/test",
+    "test": "npm run build:shared && vitest run shared/test server/test server/src/__tests__",
     "build": "npm run build:shared && npm run build --workspace=@raidsphere/server && npm run build --workspace=@raidsphere/overlay",
     "dev:server": "npm run build:shared && npm run dev --workspace=@raidsphere/server",
     "dev:overlay": "npm run build:shared && npm run dev --workspace=@raidsphere/overlay",

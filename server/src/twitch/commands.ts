@@ -6,10 +6,11 @@
  */
 
 import { z } from 'zod';
+import { identifierSchema, languageCodeSchema, loginSchema, timestampSchema } from '@raidsphere/shared';
 import type { LanguageCode } from '@raidsphere/shared';
 
 // Supported language codes for voting
-const LANGUAGE_CODES: readonly LanguageCode[] = ['en', 'es', 'pt', 'fr', 'de', 'ja', 'ko'] as const;
+const LANGUAGE_CODES = languageCodeSchema.options;
 
 // Language aliases for user-friendly voting
 const LANGUAGE_ALIASES: Record<string, LanguageCode> = {
@@ -18,7 +19,7 @@ const LANGUAGE_ALIASES: Record<string, LanguageCode> = {
   // Spanish
   'spanish': 'es', 'esp': 'es', 'es': 'es', 'español': 'es', 'espanol': 'es',
   // Portuguese
-  'portuguese': 'pt', 'port': 'pt', 'pt': 'pt', 'portugués': 'pt', 'portugues': 'pt', 'br': 'pt',
+  'portuguese': 'pt', 'port': 'pt', 'pt': 'pt', 'portugués': 'pt', 'portugues': 'pt', 'português': 'pt', 'br': 'pt',
   // French
   'french': 'fr', 'fra': 'fr', 'fr': 'fr', 'français': 'fr', 'francais': 'fr',
   // German
@@ -67,16 +68,16 @@ export type ParseResult = ParsedCommand | ParseError | null;
 
 // Schema for incoming chat message (normalized from Twitch EventSub)
 export const chatMessageSchema = z.object({
-  messageId: z.string().min(1).max(128),
-  userId: z.string().min(1).max(64),
-  userLogin: z.string().min(1).max(64),
-  channelId: z.string().min(1).max(64),
+  messageId: identifierSchema,
+  userId: identifierSchema.max(64),
+  userLogin: loginSchema,
+  channelId: identifierSchema.max(64),
   text: z.string().min(1).max(500),
-  timestamp: z.number().int().positive(),
+  timestamp: timestampSchema,
   badges: z.array(z.string()).optional(),
   isBroadcaster: z.boolean().optional(),
   isModerator: z.boolean().optional(),
-});
+}).strict();
 
 export type ChatMessage = z.infer<typeof chatMessageSchema>;
 
@@ -87,7 +88,12 @@ export type ChatMessage = z.infer<typeof chatMessageSchema>;
  * @returns ParsedCommand if valid command, ParseError if invalid, null if not a command
  */
 export function parseCommand(message: ChatMessage): ParseResult {
-  const text = message.text.trim();
+  const parsed = chatMessageSchema.safeParse(message);
+  if (!parsed.success) {
+    return { type: 'error', code: 'INVALID_COMMAND', message: 'Invalid chat message.', originalText: '' };
+  }
+  const validatedMessage = parsed.data;
+  const text = validatedMessage.text.trim();
   
   // Must start with ! to be a command
   if (!text.startsWith('!')) {
@@ -102,9 +108,9 @@ export function parseCommand(message: ChatMessage): ParseResult {
   }
   
   const baseContext = {
-    userId: message.userId,
-    userLogin: message.userLogin,
-    channelId: message.channelId,
+    userId: validatedMessage.userId,
+    userLogin: validatedMessage.userLogin,
+    channelId: validatedMessage.channelId,
   };
   
   switch (command) {
@@ -158,8 +164,11 @@ export function parseCommand(message: ChatMessage): ParseResult {
  * Accepts full names, abbreviations, and aliases in multiple languages.
  */
 export function normalizeLanguage(input: string): LanguageCode | null {
+  if (typeof input !== 'string') return null;
   const normalized = input.toLowerCase().trim();
-  return LANGUAGE_ALIASES[normalized] ?? null;
+  if (!Object.hasOwn(LANGUAGE_ALIASES, normalized)) return null;
+  const parsed = languageCodeSchema.safeParse(LANGUAGE_ALIASES[normalized]);
+  return parsed.success ? parsed.data : null;
 }
 
 /**
