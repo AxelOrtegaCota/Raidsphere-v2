@@ -155,7 +155,7 @@ Add new entries at the end. Do not rewrite an entry after it is approved; supers
 
 ### D2-05: Command authorization for `!roulette` and `!cancel`
 
-- **Status:** APPROVED
+- **Status:** VERIFIED
 - **Date:** 2026-10-28
 - **Resolves:** Q4
 - **Decided by:** project owner
@@ -171,7 +171,7 @@ Add new entries at the end. Do not rewrite an entry after it is approved; supers
   - Broadcaster only for `!cancel`: more cautious for an in-progress raid, but rejected so moderators can stop an unwanted raid.
 - **Consequences:** No shared contract change. In Phase 3, cancelling a raid on Twitch uses the broadcaster's token even when a moderator issues `!cancel`; Module B must confirm that this is allowed and how it is authorized. `/health` keeps reporting `controlCommands: false` because no remote control path exists.
 - **Affected files:** `server/src/application/roulette.ts`, `server/test/roulette.test.ts`; simulator in step 7.
-- **Verification:** Partial (plan step 6, 2026-10-28): rules 1–4 tested in `server/test/roulette.test.ts`, including a `broadcaster` role whose user ID differs from the channel (ignored, see D2-18). Rule 5: `CommandSimulator` (step 7) is an in-process class with no network surface; the demo script is checked in step 9.
+- **Verification:** Partial (plan step 6, 2026-10-28): rules 1–4 tested in `server/test/roulette.test.ts`, including a `broadcaster` role whose user ID differs from the channel (ignored, see D2-18). Rule 5: `CommandSimulator` (step 7) is an in-process class with no network surface. Step 9 (2026-10-28): the demo is driven only by the keyboard of its own terminal or by `--auto`, inside the server process; `/health` keeps `controlCommands: false`.
 
 ### D2-06: Candidate eligibility and selection
 
@@ -334,7 +334,7 @@ Add new entries at the end. Do not rewrite an entry after it is approved; supers
 - **Verification:** Partial (plan step 8, 2026-10-28); `npm run typecheck` passed and `npm test` passed 155/155.
   - Tested: rule 1 (unique credentials, digest-only storage, wrong or foreign credentials rejected); rule 2 (403 for other or missing origins, 404 for other paths); rule 3 (auth timeout, malformed JSON, control messages, and wrong credentials close with 1008 and no reason); rule 4 (snapshot first, then live events of that channel only; any later client message closes); rule 5 connection limits (503 total, 1013 per channel); rule 6 (`/health`).
   - Not covered by automated tests: the 30-second heartbeat and the outgoing-buffer disconnection (rule 5); reviewed in code only.
-  - Rule 7 (printed OBS URLs) is implemented in `server/src/index.ts` and checked manually in step 9; rule 8 (overlay client) belongs to step 10.
+  - Rule 7 (printed OBS URLs) is implemented in `server/src/index.ts` and `server/src/simulation/demo.ts`; step 9 confirmed the printed URL format by running `npm run demo:auto`. The overlay side of rule 7 (reading and removing the fragment) and rule 8 belong to step 10.
   - Implementation detail approved with the step 8 design: `RouletteCoordinator.openView()` reads state, issues the snapshot, and subscribes inside one channel task, so no change can fall between the snapshot and the first live event; the socket queues events that arrive while the snapshot is being sent. Overlays apply events in arrival order and do not need to reorder by sequence.
 
 ### D2-12: In-memory state and synthetic fixtures
@@ -429,7 +429,7 @@ Add new entries at the end. Do not rewrite an entry after it is approved; supers
 
 ### D2-16: Print only demo channel overlay URLs
 
-- **Status:** APPROVED
+- **Status:** VERIFIED
 - **Date:** 2026-10-28
 - **Resolves:** Implementation planning detail for D2-11 rule 7
 - **Decided by:** project owner
@@ -438,7 +438,7 @@ Add new entries at the end. Do not rewrite an entry after it is approved; supers
 - **Alternatives considered:** Printing every channel's URL (D2-11 as first approved): more flexible, but exposes more credentials in terminal output for no demo benefit.
 - **Consequences:** Fewer credentials appear in terminal output. Using a channel outside the demo set requires changing the demo configuration.
 - **Affected files:** `server/src/composition.ts` (`demoOverlayUrls`), `server/src/index.ts`, `server/src/simulation/fixtures.ts` (`DEMO_SOURCE_ID`); future `server/src/simulation/demo.ts`.
-- **Verification:** Implemented in plan step 8 (2026-10-28): only `rsdemo_es_01` and its five eligible destinations get a printed URL. Not yet checked by running the server; manual check in step 9.
+- **Verification:** Implemented in plan step 8 (2026-10-28): only `rsdemo_es_01` and its five eligible destinations get a printed URL. Step 9 (2026-10-28): `npm run demo:auto` printed exactly those 6 URLs with the credential in the URL fragment.
 
 ### D2-17: Defer reputation, raid logs, and translation window storage
 
@@ -489,7 +489,8 @@ Keep implemented source, verified behavior, pending work, and unverified assumpt
 | Command intake (simulated) | Yes | Yes | `server/test/roulette.test.ts` (step 6), `server/test/simulation.test.ts` (step 7) |
 | Simulated raid gateway and arrivals (D2-15) | Yes | Yes | `server/test/simulation.test.ts` (step 7) |
 | Event building and publication | Yes | Yes | `server/test/publisher.test.ts` (step 5), `server/test/websocket.test.ts` (step 8) |
-| Read-only viewing authorization (`/ws`) | Yes | Partial | `server/test/credentials.test.ts`, `server/test/websocket.test.ts`, `server/test/app.test.ts` (step 8); heartbeat and buffer limit reviewed in code only; printed URLs pending a manual run |
+| Read-only viewing authorization (`/ws`) | Yes | Partial | `server/test/credentials.test.ts`, `server/test/websocket.test.ts`, `server/test/app.test.ts` (step 8); heartbeat and buffer limit reviewed in code only; printed URLs confirmed with `npm run demo:auto` (step 9) |
+| Local demo (plan step 9) | Yes | Yes | `npm run demo:auto`: full simulated round from `!roulette` to `raid:arrived` on a real loopback server (step 9) |
 | Shared contract follow-ups (D2-14) | Yes | Yes | Contract tests, 67/67 passing (plan step 1) |
 | In-memory repositories and synthetic fixtures (D2-12) | Yes | Yes | `server/test/memory.test.ts`, `server/test/fixtures.test.ts` (step 3); restart behavior by construction in `server/src/composition.ts` (step 8) |
 | Internal ports and injectable runtime (D2-09, D2-13) | Yes | Yes | `server/test/runtime.test.ts` (step 2), `server/test/roulette.test.ts` (step 6), `server/test/simulation.test.ts` (step 7) |
