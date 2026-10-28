@@ -114,8 +114,8 @@ Add new entries at the end. Do not rewrite an entry after it is approved; supers
   - Extra tie-break voting round: changes the fixed 30-second duration and needs a new state or event in `shared/`.
   - Random draw over all candidates of the tied languages: gives an advantage to languages with more candidates despite equal votes.
 - **Consequences:** No shared contract change; `roulette:chosen` already carries only `winningLanguage`. Public events do not say that a tie occurred. The zero-vote case is not covered here (see Q2).
-- **Affected files:** Future roulette logic in `server/src/` (not written yet).
-- **Verification:** Not verified (no code yet).
+- **Affected files:** `server/src/application/selection.ts`, `server/test/selection.test.ts`; future coordinator in `server/src/`.
+- **Verification:** Partial (plan step 4, 2026-10-28): `winningLanguage` draws only among the tied highest languages, as a pure function tested in `server/test/selection.test.ts`. Use by the coordinator is verified in step 6.
 
 ### D2-03: Treat zero votes as a tie among all pool languages
 
@@ -130,8 +130,8 @@ Add new entries at the end. Do not rewrite an entry after it is approved; supers
   - Mark the session `failed` with an `error` event: no existing error code describes this case, so `shared/events.ts` would need a coordinated change.
   - Random draw over all candidates: favors languages with more candidates, which D2-02 already rejected.
 - **Consequences:** No shared contract change. A destination can be selected without chat participation. The broadcaster's ability to cancel after selection is defined separately (see Q6 and Q13). In Phase 2 no real raid is executed.
-- **Affected files:** Future roulette logic in `server/src/` (not written yet).
-- **Verification:** Not verified (no code yet).
+- **Affected files:** `server/src/application/selection.ts`, `server/test/selection.test.ts`; future coordinator in `server/src/`.
+- **Verification:** Partial (plan step 4, 2026-10-28): with zero votes every pool language ties at zero, so the same `winningLanguage` rule draws among all of them; tested in `server/test/selection.test.ts`. Use by the coordinator is verified in step 6.
 
 ### D2-04: Vote acceptance rules
 
@@ -150,8 +150,8 @@ Add new entries at the end. Do not rewrite an entry after it is approved; supers
   - Latest vote replaces the previous one (the historical spec): lets users fix a mistake, but was rejected in favor of fixed votes.
   - Reporting invalid votes with an `error` event: `error` events reach the channel overlay, not the voter, so they would clutter the overlay.
 - **Consequences:** No shared contract change. `votesByUser` in `server/src/persistence/contracts.ts` is written at most once per user per session. Public vote counts only ever increase during voting. This differs from `RAIDSPHERE_CONTEXT.md` ("latest vote replaces previous"), which stays unchanged as historical context.
-- **Affected files:** Future roulette logic in `server/src/` (not written yet).
-- **Verification:** Not verified (no code yet).
+- **Affected files:** `server/src/application/votes.ts`, `server/test/votes.test.ts`; future coordinator in `server/src/`.
+- **Verification:** Partial (plan step 4, 2026-10-28): rules 1–3 are implemented by `castVote` and tested in `server/test/votes.test.ts`. Rules 4–5 (anyone votes by user ID; normalized codes) depend on the command path and are verified in steps 6 and 7.
 
 ### D2-05: Command authorization for `!roulette` and `!cancel`
 
@@ -191,8 +191,8 @@ Add new entries at the end. Do not rewrite an entry after it is approved; supers
   - Also applying the destination's viewer range: fairer to both sides but shrinks the pool, and the meaning of the destination range is not yet defined. Deferred.
   - Weighting the final pick by reputation: deferred until reputation rules exist.
 - **Consequences:** No shared contract change. When no candidate is eligible, the overlay receives no feedback, because no existing `error` code describes that case; this is a candidate contract follow-up for Q12. Sampling down to 100 can drop a language from the pool entirely.
-- **Affected files:** Future roulette logic and candidate source interface in `server/src/` (not written yet).
-- **Verification:** Not verified (no code yet).
+- **Affected files:** `server/src/application/eligibility.ts`, `server/src/application/selection.ts`, `server/test/eligibility.test.ts`, `server/test/selection.test.ts`; future coordinator in `server/src/`.
+- **Verification:** Partial (plan step 4, 2026-10-28): rules 1–3, 5, and 6 are implemented as pure functions and tested, including the demo source pool (`rsdemo_en_01`, `rsdemo_es_02`, `rsdemo_pt_01`, `rsdemo_ja_01`, `rsdemo_ko_02`). Rule 4 (as amended by D2-14) and coordinator use are verified in step 6.
 
 ### D2-07: Roulette session state machine
 
@@ -460,8 +460,8 @@ Keep implemented source, verified behavior, pending work, and unverified assumpt
 | Area | Implemented | Verified | Evidence |
 | --- | --- | --- | --- |
 | Roulette state machine | No | No | — |
-| Vote aggregation and deadlines | No | No | — |
-| Candidate selection | No | No | — |
+| Vote aggregation and deadlines | Partial | Partial | Vote rules in `server/test/votes.test.ts` (plan step 4); deadline timers pending step 6 |
+| Candidate selection | Partial | Partial | Eligibility, pool, tie-break, and pick in `server/test/eligibility.test.ts` and `server/test/selection.test.ts` (plan step 4) |
 | Command intake (simulated) | No | No | — |
 | Event building and publication | No | No | — |
 | Read-only viewing authorization (`/ws`) | No | No | — |
