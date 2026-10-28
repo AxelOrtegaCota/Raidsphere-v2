@@ -306,7 +306,7 @@ Add new entries at the end. Do not rewrite an entry after it is approved; supers
 
 ### D2-11: Read-only viewing authorization for `/ws`
 
-- **Status:** APPROVED
+- **Status:** APPROVED; rule 7 amended by [D2-16](#d2-16-print-only-demo-channel-overlay-urls)
 - **Date:** 2026-10-28
 - **Resolves:** Q9 (transport to the overlay)
 - **Decided by:** project owner
@@ -419,6 +419,19 @@ Add new entries at the end. Do not rewrite an entry after it is approved; supers
 - **Alternatives considered:** A per-event "simulated" flag in the shared contract: more precise, but adds a protocol change for a Phase 2-only concern.
 - **Consequences:** The `/health` response gains a `mode` field, so the existing health test in `server/test/app.test.ts` must be updated. The overlay "Simulation" label is Module A work (same owner). If the countdown is configured above 120 seconds, the event would fail validation; the simulator configuration must stay within that bound.
 - **Affected files:** Future simulator and roulette logic in `server/src/`, `server/src/app.ts`, `server/test/app.test.ts`, and the overlay in `overlay/` (not changed yet).
+- **Verification:** Not verified (no code yet).
+
+### D2-16: Print only demo channel overlay URLs
+
+- **Status:** APPROVED
+- **Date:** 2026-10-28
+- **Resolves:** Implementation planning detail for D2-11 rule 7
+- **Decided by:** project owner
+- **Context:** D2-11 rule 7 prints an OBS URL with a viewing credential for each channel. With 3 to 5 synthetic streamers per language (D2-12), that would print 21 to 35 credentials to the terminal.
+- **Decision:** At startup the server prints overlay URLs only for the channels used by the demo script: the demo source channel and its possible destinations. Credentials still exist in memory for every channel, but only the printed ones can be used in practice.
+- **Alternatives considered:** Printing every channel's URL (D2-11 as first approved): more flexible, but exposes more credentials in terminal output for no demo benefit.
+- **Consequences:** Fewer credentials appear in terminal output. Using a channel outside the demo set requires changing the demo configuration.
+- **Affected files:** Future `server/src/index.ts` and `server/src/simulation/demo.ts` (not written yet).
 - **Verification:** Not verified (no code yet).
 
 ## Implementation and verification status
