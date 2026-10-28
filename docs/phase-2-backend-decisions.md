@@ -283,8 +283,8 @@ Add new entries at the end. Do not rewrite an entry after it is approved; supers
   4. **Timer cleanup.** When a session is cancelled or reaches a terminal state, all of its pending timers are cancelled.
 - **Alternatives considered:** Vitest fake timers (`vi.useFakeTimers`) without injection: less code, but couples the logic to the test tool and leaves randomness uncontrolled.
 - **Consequences:** No shared contract change and no new dependency. Domain logic does not call `Date.now()`, `setTimeout`, or `Math.random()` directly.
-- **Affected files:** Future roulette logic and server composition in `server/src/` (not written yet).
-- **Verification:** Not verified (no code yet).
+- **Affected files:** `server/src/application/ports.ts`, `server/src/application/runtime.ts`, `server/test/support/fakes.ts`; future roulette logic and server composition in `server/src/`.
+- **Verification:** Partial (plan step 2, 2026-10-28): clock, scheduler, and random ports, their production implementations, and deterministic test fakes exist and pass `server/test/runtime.test.ts`. Rules 2–4 are verified when the coordinator uses them (step 6).
 
 ### D2-10: Single event publisher
 
@@ -372,8 +372,8 @@ Add new entries at the end. Do not rewrite an entry after it is approved; supers
   - Re-validating every internal call with Zod: duplicate work inside one trusted process.
   - Designing translation and moderation ports now: guesswork without Phase 3–4 data.
 - **Consequences:** No shared contract change. `AGENTS.md` and `docs/phase-plan.md` still describe four separate module owners; they are left unchanged unless separately approved.
-- **Affected files:** Future port types and simulators in `server/src/` (not written yet); real adapters later in `server/src/twitch/` and `server/src/translation/`.
-- **Verification:** Not verified (no code yet).
+- **Affected files:** `server/src/application/ports.ts`; future simulators in `server/src/`; real adapters later in `server/src/twitch/` and `server/src/translation/`.
+- **Verification:** Partial (plan step 2, 2026-10-28): port types for commands, candidates, raids, and arrivals are defined and type-check. The call timeout (rule 5), deduplication (rules 3 and 6), and simulators (rule 7) are verified in steps 6 and 7.
 
 ### D2-14: Shared contract follow-ups
 
@@ -447,7 +447,7 @@ Keep implemented source, verified behavior, pending work, and unverified assumpt
 | Event building and publication | No | No | — |
 | Read-only viewing authorization (`/ws`) | No | No | — |
 | Shared contract follow-ups (D2-14) | Yes | Yes | Contract tests, 67/67 passing (plan step 1) |
-| Internal B/C/D interfaces | No | No | — |
+| Internal ports and injectable runtime (D2-09, D2-13) | Partial | Partial | Port types, runtime, and fakes; `server/test/runtime.test.ts` (plan step 2) |
 
 ## Limitations and unverified assumptions
 
