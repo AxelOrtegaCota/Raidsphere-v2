@@ -103,7 +103,7 @@ Add new entries at the end. Do not rewrite an entry after it is approved; supers
 
 ### D2-02: Resolve ties by uniform random draw among tied languages
 
-- **Status:** APPROVED
+- **Status:** VERIFIED
 - **Date:** 2026-10-28
 - **Resolves:** Q1
 - **Decided by:** project owner
@@ -115,11 +115,11 @@ Add new entries at the end. Do not rewrite an entry after it is approved; supers
   - Random draw over all candidates of the tied languages: gives an advantage to languages with more candidates despite equal votes.
 - **Consequences:** No shared contract change; `roulette:chosen` already carries only `winningLanguage`. Public events do not say that a tie occurred. The zero-vote case is not covered here (see Q2).
 - **Affected files:** `server/src/application/selection.ts`, `server/test/selection.test.ts`; future coordinator in `server/src/`.
-- **Verification:** Partial (plan step 4, 2026-10-28): `winningLanguage` draws only among the tied highest languages, as a pure function tested in `server/test/selection.test.ts`. Use by the coordinator is verified in step 6.
+- **Verification:** Partial (plan step 4, 2026-10-28): `winningLanguage` draws only among the tied highest languages, as a pure function tested in `server/test/selection.test.ts`. Step 6 (2026-10-28): the coordinator breaks a vote tie by a scripted draw in `server/test/roulette.test.ts`; 128/128 tests pass.
 
 ### D2-03: Treat zero votes as a tie among all pool languages
 
-- **Status:** APPROVED
+- **Status:** VERIFIED
 - **Date:** 2026-10-28
 - **Resolves:** Q2
 - **Decided by:** project owner
@@ -131,11 +131,11 @@ Add new entries at the end. Do not rewrite an entry after it is approved; supers
   - Random draw over all candidates: favors languages with more candidates, which D2-02 already rejected.
 - **Consequences:** No shared contract change. A destination can be selected without chat participation. The broadcaster's ability to cancel after selection is defined separately (see Q6 and Q13). In Phase 2 no real raid is executed.
 - **Affected files:** `server/src/application/selection.ts`, `server/test/selection.test.ts`; future coordinator in `server/src/`.
-- **Verification:** Partial (plan step 4, 2026-10-28): with zero votes every pool language ties at zero, so the same `winningLanguage` rule draws among all of them; tested in `server/test/selection.test.ts`. Use by the coordinator is verified in step 6.
+- **Verification:** Partial (plan step 4, 2026-10-28): with zero votes every pool language ties at zero, so the same `winningLanguage` rule draws among all of them; tested in `server/test/selection.test.ts`. Step 6 (2026-10-28): a session without votes draws among all pool languages in `server/test/roulette.test.ts`.
 
 ### D2-04: Vote acceptance rules
 
-- **Status:** APPROVED
+- **Status:** VERIFIED
 - **Date:** 2026-10-28
 - **Resolves:** Q3
 - **Decided by:** project owner
@@ -151,7 +151,7 @@ Add new entries at the end. Do not rewrite an entry after it is approved; supers
   - Reporting invalid votes with an `error` event: `error` events reach the channel overlay, not the voter, so they would clutter the overlay.
 - **Consequences:** No shared contract change. `votesByUser` in `server/src/persistence/contracts.ts` is written at most once per user per session. Public vote counts only ever increase during voting. This differs from `RAIDSPHERE_CONTEXT.md` ("latest vote replaces previous"), which stays unchanged as historical context.
 - **Affected files:** `server/src/application/votes.ts`, `server/test/votes.test.ts`; future coordinator in `server/src/`.
-- **Verification:** Partial (plan step 4, 2026-10-28): rules 1–3 are implemented by `castVote` and tested in `server/test/votes.test.ts`. Rules 4–5 (anyone votes by user ID; normalized codes) depend on the command path and are verified in steps 6 and 7.
+- **Verification:** Partial (plan step 4, 2026-10-28): rules 1–3 are implemented by `castVote` and tested in `server/test/votes.test.ts`. Step 6 (2026-10-28): the coordinator accepts votes from any role keyed by user ID, ignores duplicates, later votes, and invalid languages (`server/test/roulette.test.ts`). Rule 5 holds by type: `ChatCommand` votes carry a `LanguageCode`.
 
 ### D2-05: Command authorization for `!roulette` and `!cancel`
 
@@ -170,12 +170,12 @@ Add new entries at the end. Do not rewrite an entry after it is approved; supers
   - Broadcaster only for `!roulette`: more control, less flexibility while the streamer is busy.
   - Broadcaster only for `!cancel`: more cautious for an in-progress raid, but rejected so moderators can stop an unwanted raid.
 - **Consequences:** No shared contract change. In Phase 3, cancelling a raid on Twitch uses the broadcaster's token even when a moderator issues `!cancel`; Module B must confirm that this is allowed and how it is authorized. `/health` keeps reporting `controlCommands: false` because no remote control path exists.
-- **Affected files:** Future roulette logic and command interface in `server/src/` (not written yet).
-- **Verification:** Not verified (no code yet).
+- **Affected files:** `server/src/application/roulette.ts`, `server/test/roulette.test.ts`; simulator in step 7.
+- **Verification:** Partial (plan step 6, 2026-10-28): rules 1–4 tested in `server/test/roulette.test.ts`, including a `broadcaster` role whose user ID differs from the channel (ignored, see D2-18). Rule 5 (internal-only simulator) is verified in steps 7 and 9.
 
 ### D2-06: Candidate eligibility and selection
 
-- **Status:** APPROVED; rule 4 amended by [D2-14](#d2-14-shared-contract-follow-ups)
+- **Status:** VERIFIED; rule 4 amended by [D2-14](#d2-14-shared-contract-follow-ups)
 - **Date:** 2026-10-28
 - **Resolves:** Q5
 - **Decided by:** project owner
@@ -192,11 +192,11 @@ Add new entries at the end. Do not rewrite an entry after it is approved; supers
   - Weighting the final pick by reputation: deferred until reputation rules exist.
 - **Consequences:** No shared contract change. When no candidate is eligible, the overlay receives no feedback, because no existing `error` code describes that case; this is a candidate contract follow-up for Q12. Sampling down to 100 can drop a language from the pool entirely.
 - **Affected files:** `server/src/application/eligibility.ts`, `server/src/application/selection.ts`, `server/test/eligibility.test.ts`, `server/test/selection.test.ts`; future coordinator in `server/src/`.
-- **Verification:** Partial (plan step 4, 2026-10-28): rules 1–3, 5, and 6 are implemented as pure functions and tested, including the demo source pool (`rsdemo_en_01`, `rsdemo_es_02`, `rsdemo_pt_01`, `rsdemo_ja_01`, `rsdemo_ko_02`). Rule 4 (as amended by D2-14) and coordinator use are verified in step 6.
+- **Verification:** Partial (plan step 4, 2026-10-28): rules 1–3, 5, and 6 are implemented as pure functions and tested, including the demo source pool (`rsdemo_en_01`, `rsdemo_es_02`, `rsdemo_pt_01`, `rsdemo_ja_01`, `rsdemo_ko_02`). Step 6 (2026-10-28): the coordinator builds the pool from these rules, and with no eligible candidate publishes `NO_ELIGIBLE_CANDIDATES` without creating a session (`server/test/roulette.test.ts`).
 
 ### D2-07: Roulette session state machine
 
-- **Status:** APPROVED
+- **Status:** VERIFIED
 - **Date:** 2026-10-28
 - **Resolves:** Q6
 - **Decided by:** project owner
@@ -248,12 +248,12 @@ Add new entries at the end. Do not rewrite an entry after it is approved; supers
   7. **Last session in snapshots.** The most recent terminal session remains in `state:snapshot` until a new session starts, so a reconnecting overlay sees the final outcome.
 - **Alternatives considered:** Waiting for a confirmation command or for the overlay animation before requesting the raid; rejected because visual timing must not decide state and an extra command slows the flow.
 - **Consequences:** No shared contract change. Phase 3 must revisit a cooldown for Twitch's raid rate limit (historically 10 requests per 10 minutes; revalidate) and whether `unknown` should block a new session while a real raid may still be in progress.
-- **Affected files:** Future roulette logic in `server/src/` (not written yet).
-- **Verification:** Not verified (no code yet).
+- **Affected files:** `server/src/application/roulette.ts`, `server/test/roulette.test.ts`.
+- **Verification:** Implemented and tested on 2026-10-28 (plan step 6); 128/128 tests pass. Every transition and its event is exercised in `server/test/roulette.test.ts`, except interrupting `selecting`, which cannot be observed because selection runs inside one channel task (D2-18). Snapshots return the latest session, active or terminal.
 
 ### D2-08: Throttled vote count broadcasts
 
-- **Status:** APPROVED
+- **Status:** VERIFIED
 - **Date:** 2026-10-28
 - **Resolves:** Q7
 - **Decided by:** project owner
@@ -268,12 +268,12 @@ Add new entries at the end. Do not rewrite an entry after it is approved; supers
   - Fixed 2-second broadcast (the historical spec): predictable, but sends unchanged events and makes small-channel bars lag up to 2 s.
   - One event per vote: immediate, but unbounded under heavy voting.
 - **Consequences:** No shared contract change. Outgoing vote traffic is bounded at about 30 events per 30-second session, regardless of chat size. Each event carries absolute totals rather than increments, so an overlay that misses one recovers with the next event or a snapshot. Inbound load is not covered here: in Phase 3, chat messages that reach the backend late (for example, during an EventSub reconnection) may arrive after the deadline and be ignored under D2-04 rule 3, and messages Twitch never delivers cannot be counted. Module B must measure and report this; it may justify revisiting the deadline rule.
-- **Affected files:** Future roulette logic and event publisher in `server/src/` (not written yet).
-- **Verification:** Not verified (no code yet).
+- **Affected files:** `server/src/application/roulette.ts`, `server/test/roulette.test.ts`.
+- **Verification:** Implemented and tested on 2026-10-28 (plan step 6): the first vote broadcasts immediately, later votes within the interval are coalesced, the final counts are sent before `roulette:chosen`, and no event is sent at start or without votes (`server/test/roulette.test.ts`).
 
 ### D2-09: Injected clock, scheduler, and random source
 
-- **Status:** APPROVED
+- **Status:** VERIFIED
 - **Date:** 2026-10-28
 - **Resolves:** Q8
 - **Decided by:** project owner
@@ -286,7 +286,7 @@ Add new entries at the end. Do not rewrite an entry after it is approved; supers
 - **Alternatives considered:** Vitest fake timers (`vi.useFakeTimers`) without injection: less code, but couples the logic to the test tool and leaves randomness uncontrolled.
 - **Consequences:** No shared contract change and no new dependency. Domain logic does not call `Date.now()`, `setTimeout`, or `Math.random()` directly.
 - **Affected files:** `server/src/application/ports.ts`, `server/src/application/runtime.ts`, `server/test/support/fakes.ts`; future roulette logic and server composition in `server/src/`.
-- **Verification:** Partial (plan step 2, 2026-10-28): clock, scheduler, and random ports, their production implementations, and deterministic test fakes exist and pass `server/test/runtime.test.ts`. Rules 2–4 are verified when the coordinator uses them (step 6).
+- **Verification:** Partial (plan step 2, 2026-10-28): clock, scheduler, and random ports, their production implementations, and deterministic test fakes exist and pass `server/test/runtime.test.ts`. Step 6 (2026-10-28): the coordinator uses only the injected ports; absolute deadlines, stale timers after cancellation, and timer cleanup (no pending timers after terminal states) are tested in `server/test/roulette.test.ts`.
 
 ### D2-10: Single event publisher
 
@@ -375,7 +375,7 @@ Add new entries at the end. Do not rewrite an entry after it is approved; supers
   - Designing translation and moderation ports now: guesswork without Phase 3–4 data.
 - **Consequences:** No shared contract change. `AGENTS.md` and `docs/phase-plan.md` still describe four separate module owners; they are left unchanged unless separately approved.
 - **Affected files:** `server/src/application/ports.ts`; future simulators in `server/src/`; real adapters later in `server/src/twitch/` and `server/src/translation/`.
-- **Verification:** Partial (plan step 2, 2026-10-28): port types for commands, candidates, raids, and arrivals are defined and type-check. The call timeout (rule 5), deduplication (rules 3 and 6), and simulators (rule 7) are verified in steps 6 and 7.
+- **Verification:** Partial (plan step 2, 2026-10-28): port types for commands, candidates, raids, and arrivals are defined and type-check. Step 6 (2026-10-28): the call timeout (rule 5) and deduplication of messages and arrivals (rules 3 and 6) are tested in `server/test/roulette.test.ts`. Simulators (rule 7) are verified in step 7.
 
 ### D2-14: Shared contract follow-ups
 
@@ -420,8 +420,8 @@ Add new entries at the end. Do not rewrite an entry after it is approved; supers
   7. **Two-overlay demo.** D2-11 issues a viewing credential for every channel, including synthetic ones, so the demo can show the source overlay (roulette) and the destination overlay (arrival) side by side in OBS.
 - **Alternatives considered:** A per-event "simulated" flag in the shared contract: more precise, but adds a protocol change for a Phase 2-only concern.
 - **Consequences:** The `/health` response gains a `mode` field, so the existing health test in `server/test/app.test.ts` must be updated. The overlay "Simulation" label is Module A work (same owner). If the countdown is configured above 120 seconds, the event would fail validation; the simulator configuration must stay within that bound.
-- **Affected files:** Future simulator and roulette logic in `server/src/`, `server/src/app.ts`, `server/test/app.test.ts`, and the overlay in `overlay/` (not changed yet).
-- **Verification:** Not verified (no code yet).
+- **Affected files:** `server/src/application/roulette.ts`, `server/test/roulette.test.ts`; future simulator in `server/src/`, `server/src/app.ts`, `server/test/app.test.ts`, and the overlay in `overlay/`.
+- **Verification:** Partial (plan step 6, 2026-10-28): rules 4 and 5 (arrival deadline; the three cancellation results; arrivals after a terminal state ignored) are tested in `server/test/roulette.test.ts` with a fake gateway. Rules 1–3 and 6–7 are verified in steps 7, 8, and 10.
 
 ### D2-16: Print only demo channel overlay URLs
 
@@ -453,16 +453,36 @@ Add new entries at the end. Do not rewrite an entry after it is approved; supers
 - **Affected files:** None in Phase 2.
 - **Verification:** Not applicable (deferred).
 
+### D2-18: Roulette coordinator implementation details
+
+- **Status:** PROPOSED (implemented and tested; awaiting project owner approval)
+- **Date:** 2026-10-28
+- **Resolves:** Details not fixed by D2-05, D2-07, D2-13, and D2-15, chosen while implementing plan step 6
+- **Decided by:** Module D implementation, pending project owner review
+- **Context:** The approved decisions left a few behaviors open that the coordinator must define.
+- **Decision:**
+  1. **One task at a time per channel.** Commands, timers, and arrivals for a channel run strictly in sequence. A `!cancel` received while the raid request is in flight is processed after the request answers, so it cancels the pending raid instead of racing the request. As a result, `chosen` and `selecting` are never observed by commands.
+  2. **Gateway call timeout of 10 seconds** (D2-13 rule 5). A call that throws or exceeds it counts as `unknown`.
+  3. **Broadcaster check.** A command with role `broadcaster` is accepted only if its user ID equals the channel ID (D2-05 rule 4); otherwise it is ignored.
+  4. **Error recoverability.** `RAID_REJECTED` is published with `recoverable: true` (a new roulette can start). `RAID_OUTCOME_UNKNOWN` uses `recoverable: false`, matching the Phase 1 fixture, because the real raid may still happen.
+  5. **Fixed public messages.** `NO_ELIGIBLE_CANDIDATES`: "No eligible channel is live right now." `RAID_REJECTED`: "The raid request was rejected." `RAID_OUTCOME_UNKNOWN`: "The raid outcome could not be confirmed." No input is reflected.
+  6. **Bounded deduplication.** The last 1,000 message IDs per channel and the last 1,000 arrival event IDs are remembered.
+  7. **Unregistered channels.** `!roulette` on a channel that is not a registered streamer is ignored silently.
+- **Alternatives considered:** Processing `!cancel` concurrently with an in-flight raid request: could cancel a raid whose request outcome is still unknown, so rejected.
+- **Consequences:** No shared contract change. The cancellation of a raid request in flight waits up to the gateway timeout.
+- **Affected files:** `server/src/application/roulette.ts`, `server/test/roulette.test.ts`.
+- **Verification:** `npm run typecheck` passed and `npm test` passed 128/128 on 2026-10-28 (plan step 6).
+
 ## Implementation and verification status
 
 Keep implemented source, verified behavior, pending work, and unverified assumptions separate.
 
 | Area | Implemented | Verified | Evidence |
 | --- | --- | --- | --- |
-| Roulette state machine | No | No | — |
-| Vote aggregation and deadlines | Partial | Partial | Vote rules in `server/test/votes.test.ts` (plan step 4); deadline timers pending step 6 |
-| Candidate selection | Partial | Partial | Eligibility, pool, tie-break, and pick in `server/test/eligibility.test.ts` and `server/test/selection.test.ts` (plan step 4) |
-| Command intake (simulated) | No | No | — |
+| Roulette state machine | Yes | Yes | `server/test/roulette.test.ts` (plan step 6) |
+| Vote aggregation and deadlines | Yes | Yes | `server/test/votes.test.ts` (step 4), `server/test/roulette.test.ts` (step 6) |
+| Candidate selection | Yes | Yes | `server/test/eligibility.test.ts`, `server/test/selection.test.ts` (step 4), `server/test/roulette.test.ts` (step 6) |
+| Command intake (simulated) | Partial | Partial | Coordinator command handling tested (step 6); simulator pending step 7 |
 | Event building and publication | Yes | Partial | `server/test/publisher.test.ts` (plan step 5); WebSocket delivery pending step 8 |
 | Read-only viewing authorization (`/ws`) | No | No | — |
 | Shared contract follow-ups (D2-14) | Yes | Yes | Contract tests, 67/67 passing (plan step 1) |
