@@ -1,5 +1,5 @@
 import type { IllustrativeCountry, LanguageCode, Streamer } from '@raidsphere/shared';
-import type { LiveChannel } from '../application/ports.js';
+import type { CandidateSource, LiveChannel } from '../application/ports.js';
 
 // Synthetic demo channels (D2-12). They are not real Twitch accounts and must never be
 // presented as real. No avatar URLs, so nothing is fetched from external services.
@@ -41,3 +41,8 @@ export const syntheticLiveChannels: readonly LiveChannel[] = CHANNEL_SPECS.map(
 );
 
 export const syntheticStreamers: readonly Streamer[] = syntheticLiveChannels.map((channel) => channel.streamer);
+
+// Every synthetic channel is always live in Phase 2.
+export const syntheticCandidateSource: CandidateSource = {
+  listLiveChannels: async () => syntheticLiveChannels,
+};

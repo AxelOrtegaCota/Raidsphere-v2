@@ -171,7 +171,7 @@ Add new entries at the end. Do not rewrite an entry after it is approved; supers
   - Broadcaster only for `!cancel`: more cautious for an in-progress raid, but rejected so moderators can stop an unwanted raid.
 - **Consequences:** No shared contract change. In Phase 3, cancelling a raid on Twitch uses the broadcaster's token even when a moderator issues `!cancel`; Module B must confirm that this is allowed and how it is authorized. `/health` keeps reporting `controlCommands: false` because no remote control path exists.
 - **Affected files:** `server/src/application/roulette.ts`, `server/test/roulette.test.ts`; simulator in step 7.
-- **Verification:** Partial (plan step 6, 2026-10-28): rules 1–4 tested in `server/test/roulette.test.ts`, including a `broadcaster` role whose user ID differs from the channel (ignored, see D2-18). Rule 5 (internal-only simulator) is verified in steps 7 and 9.
+- **Verification:** Partial (plan step 6, 2026-10-28): rules 1–4 tested in `server/test/roulette.test.ts`, including a `broadcaster` role whose user ID differs from the channel (ignored, see D2-18). Rule 5: `CommandSimulator` (step 7) is an in-process class with no network surface; the demo script is checked in step 9.
 
 ### D2-06: Candidate eligibility and selection
 
@@ -352,7 +352,7 @@ Add new entries at the end. Do not rewrite an entry after it is approved; supers
 
 ### D2-13: Internal ports between the roulette logic and adapters
 
-- **Status:** APPROVED
+- **Status:** VERIFIED
 - **Date:** 2026-10-28
 - **Resolves:** Q11 (Phase 2 scope)
 - **Decided by:** project owner (who also owns Modules B, C, and D)
@@ -375,7 +375,7 @@ Add new entries at the end. Do not rewrite an entry after it is approved; supers
   - Designing translation and moderation ports now: guesswork without Phase 3–4 data.
 - **Consequences:** No shared contract change. `AGENTS.md` and `docs/phase-plan.md` still describe four separate module owners; they are left unchanged unless separately approved.
 - **Affected files:** `server/src/application/ports.ts`; future simulators in `server/src/`; real adapters later in `server/src/twitch/` and `server/src/translation/`.
-- **Verification:** Partial (plan step 2, 2026-10-28): port types for commands, candidates, raids, and arrivals are defined and type-check. Step 6 (2026-10-28): the call timeout (rule 5) and deduplication of messages and arrivals (rules 3 and 6) are tested in `server/test/roulette.test.ts`. Simulators (rule 7) are verified in step 7.
+- **Verification:** Partial (plan step 2, 2026-10-28): port types for commands, candidates, raids, and arrivals are defined and type-check. Step 6 (2026-10-28): the call timeout (rule 5) and deduplication of messages and arrivals (rules 3 and 6) are tested in `server/test/roulette.test.ts`. Step 7 (2026-10-28): the command simulator, synthetic candidate source, and simulated raid gateway with arrivals implement the ports in process and drive a full session to `done` in `server/test/simulation.test.ts`; 140/140 tests pass. Rule 8 remains deferred by design.
 
 ### D2-14: Shared contract follow-ups
 
@@ -421,7 +421,7 @@ Add new entries at the end. Do not rewrite an entry after it is approved; supers
 - **Alternatives considered:** A per-event "simulated" flag in the shared contract: more precise, but adds a protocol change for a Phase 2-only concern.
 - **Consequences:** The `/health` response gains a `mode` field, so the existing health test in `server/test/app.test.ts` must be updated. The overlay "Simulation" label is Module A work (same owner). If the countdown is configured above 120 seconds, the event would fail validation; the simulator configuration must stay within that bound.
 - **Affected files:** `server/src/application/roulette.ts`, `server/test/roulette.test.ts`; future simulator in `server/src/`, `server/src/app.ts`, `server/test/app.test.ts`, and the overlay in `overlay/`.
-- **Verification:** Partial (plan step 6, 2026-10-28): rules 4 and 5 (arrival deadline; the three cancellation results; arrivals after a terminal state ignored) are tested in `server/test/roulette.test.ts` with a fake gateway. Rules 1–3 and 6–7 are verified in steps 7, 8, and 10.
+- **Verification:** Partial (plan step 6, 2026-10-28): rules 4 and 5 (arrival deadline; the three cancellation results; arrivals after a terminal state ignored) are tested in `server/test/roulette.test.ts` with a fake gateway. Step 7 (2026-10-28): rules 1–3 are implemented by `SimulatedRaidGateway` (configurable request outcome, 0–120 s countdown validated at construction, arrival delivered or withheld, idempotent per session) and tested in `server/test/simulation.test.ts`. Rules 6–7 are verified in steps 8 and 10.
 
 ### D2-16: Print only demo channel overlay URLs
 
@@ -482,12 +482,13 @@ Keep implemented source, verified behavior, pending work, and unverified assumpt
 | Roulette state machine | Yes | Yes | `server/test/roulette.test.ts` (plan step 6) |
 | Vote aggregation and deadlines | Yes | Yes | `server/test/votes.test.ts` (step 4), `server/test/roulette.test.ts` (step 6) |
 | Candidate selection | Yes | Yes | `server/test/eligibility.test.ts`, `server/test/selection.test.ts` (step 4), `server/test/roulette.test.ts` (step 6) |
-| Command intake (simulated) | Partial | Partial | Coordinator command handling tested (step 6); simulator pending step 7 |
+| Command intake (simulated) | Yes | Yes | `server/test/roulette.test.ts` (step 6), `server/test/simulation.test.ts` (step 7) |
+| Simulated raid gateway and arrivals (D2-15) | Yes | Yes | `server/test/simulation.test.ts` (step 7) |
 | Event building and publication | Yes | Partial | `server/test/publisher.test.ts` (plan step 5); WebSocket delivery pending step 8 |
 | Read-only viewing authorization (`/ws`) | No | No | — |
 | Shared contract follow-ups (D2-14) | Yes | Yes | Contract tests, 67/67 passing (plan step 1) |
 | In-memory repositories and synthetic fixtures (D2-12) | Yes | Partial | `server/test/memory.test.ts`, `server/test/fixtures.test.ts` (plan step 3); restart behavior pending step 8 |
-| Internal ports and injectable runtime (D2-09, D2-13) | Partial | Partial | Port types, runtime, and fakes; `server/test/runtime.test.ts` (plan step 2) |
+| Internal ports and injectable runtime (D2-09, D2-13) | Yes | Yes | `server/test/runtime.test.ts` (step 2), `server/test/roulette.test.ts` (step 6), `server/test/simulation.test.ts` (step 7) |
 
 ## Limitations and unverified assumptions
 
