@@ -377,7 +377,7 @@ Add new entries at the end. Do not rewrite an entry after it is approved; supers
 
 ### D2-14: Shared contract follow-ups
 
-- **Status:** APPROVED
+- **Status:** VERIFIED
 - **Date:** 2026-10-28
 - **Resolves:** Q12
 - **Decided by:** project owner (who also owns Module A, the other consumer of `shared/events.ts`)
@@ -390,8 +390,8 @@ Add new entries at the end. Do not rewrite an entry after it is approved; supers
   5. **Delivery.** The four changes are made together in `shared/`, each with contract tests, when implementation starts.
 - **Alternatives considered:** Leaving the "no eligible candidates" case silent (D2-06 as first approved): simpler, but the broadcaster gets no visible response to `!roulette`.
 - **Consequences:** Rules 1 and 2 reject events that were valid before; no producer emits them yet, so nothing breaks. Rule 4 adds an error code that the overlay must handle. Module A has the same owner, so no separate coordination is needed. Protocol version stays `1`.
-- **Affected files:** `shared/events.ts`, `shared/test/events.test.ts` (not changed yet).
-- **Verification:** Not verified (no code yet).
+- **Affected files:** `shared/events.ts`, `shared/test/events.test.ts`.
+- **Verification:** Implemented on 2026-10-28 (plan step 1). As an implementation detail, an `error` with `NO_ELIGIBLE_CANDIDATES` is also rejected if it carries a `sessionId`, enforcing rule 4. `npm run typecheck` passed and `npm test` passed 67/67 (4 new contract tests).
 
 ### D2-15: Simulated raid outcomes
 
@@ -446,7 +446,7 @@ Keep implemented source, verified behavior, pending work, and unverified assumpt
 | Command intake (simulated) | No | No | — |
 | Event building and publication | No | No | — |
 | Read-only viewing authorization (`/ws`) | No | No | — |
-| Shared contract follow-ups (D2-14) | No | No | — |
+| Shared contract follow-ups (D2-14) | Yes | Yes | Contract tests, 67/67 passing (plan step 1) |
 | Internal B/C/D interfaces | No | No | — |
 
 ## Limitations and unverified assumptions
