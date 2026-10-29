@@ -47,10 +47,11 @@
 | Private Overlay URL | ✅ Working | Channel-specific with credentials |
 | Globe (night Earth) | ✅ Working | `globe.gl` with textures |
 | Stars Background | ✅ Working | CSS + texture |
-| Auto-rotation | ✅ Working | Pauses on location detect |
-| Geolocation | ✅ Working | Auto-detect + manual button |
-| Interactive Controls | ✅ Working | Zoom, rotate, drag |
-| Simulation Badge | ✅ Working | Hides when authenticated |
+| Auto-rotation | ✅ Working | `?mode=interactive` only; pauses on location detect |
+| Geolocation | ✅ Working | `?mode=interactive` only; requested on click, not on load |
+| Interactive Controls | ✅ Working | `?mode=interactive` only: zoom, rotate, drag |
+| Simulation Badge | ✅ Working | Visible unless `/health` reports live mode |
+| OBS Mode | ✅ Verified in OBS | Default: transparent, no discovery tools, globe paused when idle |
 | Raid Candidate Discovery | ✅ Implemented | Live Helix candidates, category autocomplete, language and viewer filters |
 | Candidate Identity | ✅ Implemented | Twitch avatars with stream-preview and initial fallbacks |
 | Stream Language Markers | ✅ Implemented | All Twitch broadcast language codes plus `other`; flags are not location |
@@ -62,10 +63,10 @@
 ### Module A — Overlay UI
 | Component | Status | Priority |
 |-----------|--------|----------|
-| Vote bars (30s timer, language percentages) | ❌ Not built | HIGH |
-| Channel card (avatar, name, game, viewers) | ❌ Not built | HIGH |
-| Translation bubbles (purple overlays) | ❌ Not built | MEDIUM |
-| Arc animation (origin → destination) | ❌ Not built | LOW |
+| Vote bars (30s timer, language percentages) | ✅ Built on `feature/phase4-translation` | — |
+| Channel card (name, game, viewers) | ✅ Built (winner card; no avatars yet) | — |
+| Translation bubbles (purple overlays) | ✅ Built; no server input until the chat pipeline exists | — |
+| Arc animation (origin → destination) | ✅ Built | — |
 
 ### Module B — Real Twitch Connection
 | Component | Status | Priority |
@@ -73,7 +74,7 @@
 | EventSub WebSocket activation | ❌ Not connected | HIGH |
 | Real chat message reception | ❌ Not connected | HIGH |
 | Real raid execution | ❌ Disabled | HIGH |
-| Integration with roulette coordinator | ❌ Not wired | HIGH |
+| Integration with roulette coordinator | ⚠️ Simulated parser and raid gateway wired through adapters; real Twitch not wired | HIGH |
 
 ### Module C — Real Translation
 | Component | Status | Priority |
@@ -186,5 +187,5 @@ curl https://raidsphere.up.railway.app/health
 
 1. **Client Secret was exposed** — Must rotate in Twitch Developer Console before production
 2. **Sessions are in-memory** — Lost on every Railway deploy/restart
-3. **`main` branch is empty** — All work is in `railway` branch
+3. **`main` has Phase 1 and Module D** — The rest of Phase 2 and this work are on `railway`, `Test`, and `feature/phase4-translation`, pending review
 4. **Mode is `simulation`** — Real raids are disabled for safety

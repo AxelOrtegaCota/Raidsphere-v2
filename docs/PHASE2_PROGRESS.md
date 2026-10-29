@@ -1,120 +1,80 @@
-# 🚀 Phase 2 Progress — Modules B & C
+# Phase 2 progress — local MVP
 
-> **Branch:** `feature/twitch-integration`  
-> **PR:** [#3](https://github.com/Articnn/Raidsphere/pull/3)  
-> **Status:** Awaiting team review
+As of 2026-10-29. Phase 2 code is complete and verified locally and in OBS. It is not yet merged into `main`: the integration work lives on branches that still need a reviewed pull request (see [Close-out](#close-out)).
 
----
+Everything in Phase 2 runs in **simulation mode**: synthetic `rsdemo_` channels, a simulated chat, simulated raids, and a mock translation provider. No Twitch request, real raid, or AI call happens in the Phase 2 flow. Real Twitch work belongs to Phase 3 and is reported separately below.
 
-## 📋 Summary
+## What Phase 2 delivers
 
-Implemented Modules B (Twitch simulated) and C (Translation) — the Phase 2 components that can be developed **independently** without touching the overlay (A) or backend core (D).
+One local roulette round, end to end: the broadcaster types `!roulette` in a simulated chat, viewers vote for a language for 30 seconds, the backend picks a channel, requests a simulated raid, and observes a simulated arrival. The OBS overlay follows every step read-only.
 
----
+| Module | Delivered | Location |
+| --- | --- | --- |
+| A — Overlay | OBS mode (transparent, no discovery tools, globe paused when idle); globe markers, winner highlight, animated raid arc, and camera moves; vote bars per language with channels; winner card; text status panel; permanent Simulation label | `overlay/src/` |
+| B — Twitch (simulated) | Chat command parser (`!roulette`, `!vote`, `!cancel` and aliases); simulated raid gateway with queued, arrived, rejected, cancelled, timed-out, and unknown outcomes; adapters to the Module D ports; in-process simulated chat | `server/src/twitch/` |
+| C — Translation (mock) | Translation service with fragment and emote preservation, cache (500 entries, 5-minute TTL), bounded concurrency (5 running, queue of 100), sessions, and invalidation; mock provider that marks its output as simulated | `server/src/translation/` |
+| D — Backend | Authoritative roulette coordinator, vote rules, selection, deadlines, event publisher, in-memory repositories, read-only `/ws` with per-channel viewing credentials, local demo | `server/src/application/`, `server/src/persistence/`, `server/src/websocket.ts`, `server/src/simulation/` |
 
-## 📦 Module B — Twitch Integration (Simulated)
+Decisions for Module D are recorded in [Phase 2 backend decisions](phase-2-backend-decisions.md) and its build order in the [Phase 2 backend plan](phase-2-backend-plan.md).
 
-**Location:** `server/src/twitch/`
+## Integration (connected in Phase 2)
 
-| File | Purpose |
-|------|---------|
-| `commands.ts` | Parse `!roulette`, `!vote <lang>`, `!cancel` with aliases |
-| `candidates.ts` | 16 synthetic streamers across 7 languages |
-| `raids.ts` | Simulated raid gateway with configurable outcomes |
-| `index.ts` | Module exports |
+| Connection | Status |
+| --- | --- |
+| Simulated chat → B parser → D coordinator | Connected through `toChatCommand`. Roles come from adapter metadata, never from message text; a broadcaster flag counts only for the channel owner (finding F3). |
+| D coordinator → B raid gateway | Connected through `RaidGatewayAdapter` behind the D `RaidGateway` port: one request per session, unknown outcome on submission failure, bounded public countdown. |
+| D coordinator → overlay | Connected over read-only `/ws`; the overlay validates every event with the shared schemas. |
+| C translation → D / overlay | **Not connected in Phase 2.** The service exists and is tested; the chat-to-translation pipeline is Phase 4 (module 4). |
 
-### Features
-- ✅ Multi-language normalization (`spanish` → `es`, `português` → `pt`)
-- ✅ Permission checks (broadcaster/mod only for control commands)
-- ✅ Injectable random for deterministic tests
-- ✅ Viewer fluctuation ±30%
+## Verification
 
-### Supported Commands
-```
-!roulette / !raidsphere / !spin / !ruleta  → Start roulette
-!vote <lang> / !votar <lang> / !v <lang>   → Vote for language
-!cancel / !cancelar / !stop                → Cancel roulette
-```
+| Check | Result |
+| --- | --- |
+| Type checking | Passes |
+| Tests | 542 of 542 pass (24 files): contracts, backend, roulette, raids, adapters, translation, `/ws`, and overlay state |
+| Build | Passes; Vite warns that the overlay bundle exceeds 500 kB (three.js) |
+| `npm audit` | 0 vulnerabilities after upgrading `@fastify/static` to 10.1.8 |
+| Local demo | `npm run demo:auto`: start, votes, choice, simulated raid, and arrival |
+| Browser | One round against the real runtime at 1920 × 1080 |
+| OBS 32.2.2 | Browser source at 1920 × 1080 and 30 FPS over a colour source: transparent background, no dropped frames, OBS CPU 0.9% idle, 1.1% voting, 0.9% raid pending, 1.3% on arrival |
 
----
+Mutation checks confirmed that the tests fail when the F3 role rule, the translation moderation guard, or the replaced-timer guard is removed.
 
-## 📦 Module C — Translation
+## Known limitations
 
-**Location:** `server/src/translation/`
+- An overlay that connects in the middle of a raid shows no arc: the snapshot does not carry the source country, so the camera goes to the destination only.
+- Below about 800 px wide, the overlay panels overlap. At 1080p they do not.
+- The overlay bundle is about 2 MB; code splitting is still pending.
+- `npm run dev:server` uses the default Module B simulation, which rejects about 10% of raids and loses about 5% of arrivals on purpose. The demo forces both to 100%.
+- globe.gl 2.32 never advances its own camera transitions, so the overlay moves the camera itself.
+- Sessions, roulette state, and translation windows live in process memory and are lost on restart.
 
-| File | Purpose |
-|------|---------|
-| `emotes.ts` | Preserve emotes (Kappa, LUL, KEKW), URLs, mentions |
-| `provider.ts` | `TranslationProvider` interface |
-| `mock-provider.ts` | Fake translations with dictionary + prefixes |
-| `service.ts` | Cache, metrics, `TranslationBubble` output |
-| `index.ts` | Module exports |
+## Phase 3 work on the same branches (not part of Phase 2)
 
-### Features
-- ✅ Message fragmentation (emotes don't get translated)
-- ✅ In-memory cache with 5-minute TTL
-- ✅ Metrics tracking (requests, cache hits, avg latency)
-- ✅ Compatible with `shared/` `TranslationBubble` schema
+The `railway` branch adds Twitch OAuth, sessions, Helix reads, and a candidate discovery panel. These are real Twitch integrations, but they are **not connected to the roulette**: the roulette still uses synthetic channels and simulated raids, and EventSub chat exists only as unconnected code. The discovery panel is available only in `?mode=interactive`. See [PHASE_STATUS.md](../PHASE_STATUS.md) and [raid candidate discovery](raid-candidate-discovery.md).
 
-### Emote Preservation
-```typescript
-// Input:  "hello Kappa friend"
-// Output: "hola Kappa amigo"  ← Kappa preserved
-```
+## Phase 4 work already started
 
----
+- Module 3: a confirmed arrival opens a 15-minute translation window on the destination (`5a2deed`).
+- Module 6: the overlay shows translation bubbles while the window is active (`b24440d`).
 
-## 🧪 Tests
+Neither receives real chat yet; that needs Phase 3 EventSub.
 
-| Suite | Tests | Status |
-|-------|-------|--------|
-| Twitch (Module B) | 35 | ✅ Pass |
-| Translation (Module C) | 23 | ✅ Pass |
-| Original suite | 63 | ✅ Pass |
-| **Total** | **121** | ✅ |
+## Close-out
 
----
+- [x] Modules A–D implemented and connected in simulation.
+- [x] Type checking, tests, build, and audit pass.
+- [x] Browser and OBS verification.
+- [ ] Review by the module owners of the files changed outside their own module (`roulette.ts`, `memory.ts`, `view-state.ts`, `main.ts`, `index.html`, `styles.css`, `composition.ts`, `demo.ts`).
+- [ ] Merge into `main` through a reviewed pull request. Decide whether the Phase 3 work from `railway` goes in the same pull request or a separate one.
+- [ ] Re-run type checking, tests, build, and audit on `main` after the merge.
 
-## 🔒 What This PR Does NOT Touch
+## Branches and commits
 
-- `overlay/` — Untouched
-- `server/src/app.ts` — Untouched
-- `server/src/ws/` — Untouched
-- `shared/` — Only imports types, no modifications
-
----
-
-## 🔜 Next Steps (After Merge)
-
-1. **Module D** can import these to connect commands → state machine
-2. **Module A** can use candidate types for globe rendering
-3. **Phase 3:** Replace `SimulatedRaidGateway` with real Twitch API
-4. **Phase 4:** Replace `MockTranslationProvider` with GPT-4o-mini
-
----
-
-## 📁 Files Added
-
-```
-server/src/
-├── twitch/
-│   ├── commands.ts      # Command parser
-│   ├── candidates.ts    # Synthetic streamers
-│   ├── raids.ts         # Simulated raid gateway
-│   └── index.ts
-├── translation/
-│   ├── emotes.ts        # Emote preservation
-│   ├── provider.ts      # Provider interface
-│   ├── mock-provider.ts # Mock translations
-│   ├── service.ts       # Translation service
-│   └── index.ts
-└── __tests__/
-    ├── twitch.test.ts      # 35 tests
-    └── translation.test.ts # 23 tests
-```
-
----
-
-## 👥 Team Review Requested
-
-Please review PR #3 and approve if the implementation looks good.
+| Branch | Contains |
+| --- | --- |
+| `main` | Phase 1 and Module D (PR #4) |
+| `fix_twitch-integration` | Modules B and C (Batches 1–3B) and their adapters to Module D (`c2e6b4f`) |
+| `railway` | Phase 3 OAuth, Helix discovery, and deployment configuration |
+| `Test` | `railway` merged with `fix_twitch-integration`, plus the `@fastify/static` security upgrade (`46650ae`) |
+| `feature/phase4-translation` | `Test` plus the translation window (`5a2deed`), translation bubbles (`b24440d`), and the completed Phase 2 overlay (`e7c598c`) |
