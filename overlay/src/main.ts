@@ -4,6 +4,8 @@ import type { ConnectionStatus } from './connection';
 import { coarseCountryPoint } from './location';
 import { applyEvent, describeView, initialViewState, needsTick } from './view-state';
 import { createSearchPanel } from './search-panel';
+import { createTranslationLayer } from './translation-bubbles';
+import { applyTranslationEvent, initialTranslationView, pruneTranslationView } from './translation-view';
 import './styles.css';
 
 const container = document.querySelector<HTMLElement>('#globe');
@@ -13,8 +15,10 @@ const status = document.querySelector<HTMLElement>('#connection-status');
 const badge = document.querySelector<HTMLElement>('.badge');
 const locateCountry = document.querySelector<HTMLButtonElement>('#locate-country');
 const locationStatus = document.querySelector<HTMLElement>('#location-status');
+const translationWindow = document.querySelector<HTMLElement>('#translation-window');
+const bubbleList = document.querySelector<HTMLOListElement>('#bubbles');
 
-if (!container || !headline || !detail || !status || !locateCountry || !locationStatus) {
+if (!container || !headline || !detail || !status || !locateCountry || !locationStatus || !translationWindow || !bubbleList) {
   throw new Error('The overlay is missing its required elements.');
 }
 
@@ -177,6 +181,13 @@ try {
 
 // Text only: event data comes from the network and is never interpreted as HTML.
 let view = initialViewState;
+let translationView = initialTranslationView;
+const translations = createTranslationLayer(translationWindow, bubbleList);
+const renderTranslations = (): void => {
+  const nowMs = Date.now();
+  translationView = pruneTranslationView(translationView, nowMs);
+  translations.render(translationView, nowMs);
+};
 const render = (): void => {
   const text = describeView(view, Date.now());
   headline.textContent = text.headline;
@@ -196,13 +207,20 @@ if (target) {
   const stop = connectToChannel(target, {
     onEvent: (event) => {
       view = applyEvent(view, event);
+      translationView = applyTranslationEvent(translationView, event, Date.now());
       render();
+      renderTranslations();
     },
     onStatus: (connection) => { status.textContent = describeStatus(connection); },
   });
   const ticker = window.setInterval(() => { if (needsTick(view)) render(); }, 1_000);
+  // Fine-grained only while something is shown, so bubbles fade on time.
+  const translationTicker = window.setInterval(() => {
+    if (translationView.window || translationView.bubbles.length > 0) renderTranslations();
+  }, 250);
   window.addEventListener('pagehide', () => {
     window.clearInterval(ticker);
+    window.clearInterval(translationTicker);
     stop();
   }, { once: true });
   render();

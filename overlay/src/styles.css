@@ -622,3 +622,68 @@ h1 {
   .filter-row { flex-wrap: wrap; }
   .filter-row select { min-width: calc(50% - 4px); }
 }
+
+/* Translation bubbles (Phase 4, module 6). */
+.translations {
+  position: absolute;
+  /* Below the location panel, growing downwards, so the status panel's height never matters. */
+  top: calc(clamp(20px, 3vh, 42px) + 104px);
+  left: clamp(24px, 4vw, 72px);
+  width: min(560px, calc(100vw - 48px));
+  display: grid;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.translation-window {
+  justify-self: start;
+  margin: 0;
+  padding: 6px 12px;
+  border: 1px solid rgb(185 168 255 / 45%);
+  border-radius: 999px;
+  background: rgb(22 14 48 / 88%);
+  color: #d9cfff;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+
+.translation-window[hidden] { display: none; }
+
+.bubbles {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bubble {
+  padding: 14px 18px;
+  border: 1px solid rgb(185 168 255 / 40%);
+  border-radius: 16px;
+  background: linear-gradient(145deg, rgb(64 38 140 / 92%), rgb(36 22 84 / 90%));
+  box-shadow: 0 16px 40px rgb(0 0 0 / 38%);
+  overflow-wrap: anywhere;
+  animation: bubble-in 220ms ease-out;
+  transition: opacity 600ms ease, transform 600ms ease;
+}
+
+.bubble.leaving { opacity: 0; transform: translateY(6px); }
+.bubble[data-status='unavailable'] { background: linear-gradient(145deg, rgb(48 42 70 / 92%), rgb(30 26 46 / 90%)); }
+
+.bubble p { margin: 0; }
+.bubble-header { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
+.bubble-name { color: #f1ecff; font-weight: 800; }
+.bubble-languages { color: #c7baff; font-weight: 700; letter-spacing: .04em; }
+.bubble-primary { margin-top: 6px !important; color: #ffffff; font-size: 20px; font-weight: 650; line-height: 1.35; }
+.bubble-secondary { margin-top: 4px !important; color: rgb(232 226 255 / 62%); font-size: 14px; line-height: 1.4; }
+
+@keyframes bubble-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bubble { animation: none; transition: none; }
+}
