@@ -1,17 +1,24 @@
 import { randomUUID } from 'node:crypto';
-import type { Candidate, IllustrativeCountry, PublicRouletteState, ServerEvent, Streamer } from '@raidsphere/shared';
-import type { RouletteRepository, StoredRouletteSession, StreamerRepository } from '../persistence/contracts.js';
+import type {
+  Candidate, IllustrativeCountry, LanguageCode, PublicRouletteState, ServerEvent, Streamer, TranslationWindow,
+} from '@raidsphere/shared';
+import type {
+  RouletteRepository, StoredRouletteSession, StreamerRepository, TranslationWindowRepository,
+} from '../persistence/contracts.js';
+import { InMemoryTranslationWindowRepository } from '../persistence/memory.js';
 import { buildPool, eligibleChannels } from './eligibility.js';
 import type {
   CandidateSource, ChatCommand, Clock, RaidArrival, RaidGateway, RandomSource, Scheduler, TimerHandle,
 } from './ports.js';
 import type { EventListener, EventPublisher } from './publisher.js';
 import { pickCandidate, poolLanguages, winningLanguage } from './selection.js';
+import { TRANSLATION_WINDOW_MS, effectiveWindow, expireWindow, openWindow } from './translation-window.js';
 import { castVote } from './votes.js';
 
 // Authoritative roulette coordinator: state machine (D2-07), commands (D2-05), vote
-// broadcasts (D2-08), raid request and arrival (D2-15). Work for one channel runs strictly
-// one task at a time, so commands, timers, and arrivals never interleave.
+// broadcasts (D2-08), raid request and arrival (D2-15), and the translation window that a
+// confirmed arrival opens on the destination (Phase 4, module 3). Work for one channel runs
+// strictly one task at a time, so commands, timers, arrivals, and windows never interleave.
 
 export interface RouletteConfig {
   votingDurationMs: number;
@@ -20,6 +27,8 @@ export interface RouletteConfig {
   gatewayTimeoutMs: number;
   // Added to the estimated countdown before a missing arrival becomes unknown.
   arrivalGraceMs: number;
+  // How long a confirmed arrival keeps translation active on the destination.
+  translationWindowMs: number;
 }
 
 export const DEFAULT_ROULETTE_CONFIG: RouletteConfig = {
@@ -27,6 +36,7 @@ export const DEFAULT_ROULETTE_CONFIG: RouletteConfig = {
   voteBroadcastIntervalMs: 1_000,
   gatewayTimeoutMs: 10_000,
   arrivalGraceMs: 60_000,
+  translationWindowMs: TRANSLATION_WINDOW_MS,
 };
 
 export interface RouletteDependencies {
@@ -38,6 +48,8 @@ export interface RouletteDependencies {
   candidates: CandidateSource;
   raids: RaidGateway;
   publisher: EventPublisher;
+  // Defaults to process memory, like the other Phase 2 repositories.
+  windows?: TranslationWindowRepository;
   // Reports carry no content, so chat data never reaches logs.
   onError: (kind: 'task_failed') => void;
   config?: Partial<RouletteConfig>;
@@ -64,6 +76,8 @@ export class RouletteCoordinator {
   readonly #deps: RouletteDependencies;
   readonly #config: RouletteConfig;
   readonly #createSessionId: () => string;
+  readonly #windows: TranslationWindowRepository;
+  readonly #windowTimers = new Map<string, TimerHandle>();
   readonly #queues = new Map<string, Promise<void>>();
   readonly #runtimes = new Map<string, SessionRuntime>();
   readonly #seenMessages = new Map<string, Set<string>>();
@@ -73,6 +87,10 @@ export class RouletteCoordinator {
     this.#deps = dependencies;
     this.#config = { ...DEFAULT_ROULETTE_CONFIG, ...dependencies.config };
     this.#createSessionId = dependencies.createSessionId ?? randomUUID;
+    this.#windows = dependencies.windows ?? new InMemoryTranslationWindowRepository();
+    if (!Number.isSafeInteger(this.#config.translationWindowMs) || this.#config.translationWindowMs <= 0) {
+      throw new Error('The translation window must last a positive whole number of milliseconds.');
+    }
   }
 
   handleCommand(command: ChatCommand): Promise<void> {
@@ -84,9 +102,14 @@ export class RouletteCoordinator {
   }
 
   // Latest session, active or terminal, for per-connection snapshots (D2-07 rule 7).
-  async snapshot(channelId: string): Promise<{ roulette: PublicRouletteState | null; translationWindow: null }> {
+  async snapshot(channelId: string): Promise<{ roulette: PublicRouletteState | null; translationWindow: TranslationWindow | null }> {
     const latest = await this.#deps.sessions.findLatestByChannel(channelId);
-    return { roulette: latest?.publicState ?? null, translationWindow: null };
+    return { roulette: latest?.publicState ?? null, translationWindow: await this.translationWindow(channelId) };
+  }
+
+  // The channel's latest window, reported as expired once its deadline has passed.
+  async translationWindow(channelId: string): Promise<TranslationWindow | null> {
+    return effectiveWindow(await this.#windows.findByChannel(channelId), this.#deps.clock.now());
   }
 
   // Reads the state, issues the snapshot, and subscribes within one channel task, so no
@@ -95,8 +118,9 @@ export class RouletteCoordinator {
     let view: { snapshot: ServerEvent; close: () => void } | null = null;
     await this.#exclusive(channelId, async () => {
       const latest = await this.#deps.sessions.findLatestByChannel(channelId);
+      const translationWindow = await this.translationWindow(channelId);
       const snapshot = this.#deps.publisher.issue({
-        type: 'state:snapshot', channelId, payload: { roulette: latest?.publicState ?? null, translationWindow: null },
+        type: 'state:snapshot', channelId, payload: { roulette: latest?.publicState ?? null, translationWindow },
       });
       if (snapshot) view = { snapshot, close: this.#deps.publisher.subscribe(channelId, listener) };
     });
@@ -106,6 +130,8 @@ export class RouletteCoordinator {
   close(): void {
     for (const runtime of this.#runtimes.values()) this.#clearTimers(runtime);
     this.#runtimes.clear();
+    for (const timer of this.#windowTimers.values()) timer.cancel();
+    this.#windowTimers.clear();
   }
 
   #exclusive(channelId: string, task: () => Promise<void>): Promise<void> {
@@ -302,8 +328,33 @@ export class RouletteCoordinator {
     });
     // raid:arrived only reaches the destination, so the source gets its final state as a snapshot (D2-19).
     this.#deps.publisher.publish({
-      type: 'state:snapshot', channelId: arrival.fromChannelId, payload: { roulette: done.publicState, translationWindow: null },
+      type: 'state:snapshot', channelId: arrival.fromChannelId,
+      payload: { roulette: done.publicState, translationWindow: await this.translationWindow(arrival.fromChannelId) },
     });
+    const targetLanguage = done.publicState.chosenCandidate?.language;
+    // The window belongs to the destination, so it opens in the destination's channel queue.
+    if (targetLanguage) void this.#exclusive(arrival.toChannelId, () => this.#openWindow(arrival.toChannelId, targetLanguage));
+  }
+
+  // A later arrival replaces an active window and restarts its full duration.
+  async #openWindow(channelId: string, targetLanguage: LanguageCode): Promise<void> {
+    const window = openWindow(channelId, targetLanguage, this.#deps.clock.now(), this.#config.translationWindowMs);
+    await this.#windows.save(window);
+    this.#windowTimers.get(channelId)?.cancel();
+    this.#windowTimers.set(channelId, this.#deps.scheduler.schedule(this.#config.translationWindowMs, () => {
+      void this.#exclusive(channelId, () => this.#expireWindow(channelId, window.activatedAtMs));
+    }));
+    this.#deps.publisher.publish({ type: 'translation:window', channelId, payload: window });
+  }
+
+  // A stale timer finds a replaced window and does nothing.
+  async #expireWindow(channelId: string, activatedAtMs: number): Promise<void> {
+    const current = await this.#windows.findByChannel(channelId);
+    if (!current || current.status !== 'active' || current.activatedAtMs !== activatedAtMs) return;
+    this.#windowTimers.delete(channelId);
+    const expired = expireWindow(current);
+    await this.#windows.save(expired);
+    this.#deps.publisher.publish({ type: 'translation:window', channelId, payload: expired });
   }
 
   // Moves a session to a terminal state, stops its timers, and publishes the matching event.

@@ -1,9 +1,11 @@
 import { z } from 'zod';
 import {
-  identifierSchema, languageCodeSchema, publicRouletteStateSchema, streamerSchema,
+  identifierSchema, languageCodeSchema, publicRouletteStateSchema, streamerSchema, translationWindowSchema,
 } from '@raidsphere/shared';
-import type { LanguageCode, RouletteStatus, Streamer } from '@raidsphere/shared';
-import type { RouletteRepository, StoredRouletteSession, StreamerRepository } from './contracts.js';
+import type { LanguageCode, RouletteStatus, Streamer, TranslationWindow } from '@raidsphere/shared';
+import type {
+  RouletteRepository, StoredRouletteSession, StreamerRepository, TranslationWindowRepository,
+} from './contracts.js';
 
 // Process-memory repositories for Phase 2 (D2-12). No files, databases, or other persistence I/O.
 // Records are validated on write and on read; Zod parsing also returns fresh copies,
@@ -90,5 +92,20 @@ export class InMemoryRouletteRepository implements RouletteRepository {
     }
     this.#latestByChannel.set(channelId, next);
     return true;
+  }
+}
+
+// Keeps only the latest window per channel (Phase 4, module 3).
+export class InMemoryTranslationWindowRepository implements TranslationWindowRepository {
+  readonly #byChannel = new Map<string, TranslationWindow>();
+
+  async findByChannel(channelId: string): Promise<TranslationWindow | null> {
+    const stored = this.#byChannel.get(channelId);
+    return stored ? translationWindowSchema.parse(stored) : null;
+  }
+
+  async save(window: TranslationWindow): Promise<void> {
+    const valid = translationWindowSchema.parse(window);
+    this.#byChannel.set(valid.channelId, valid);
   }
 }
