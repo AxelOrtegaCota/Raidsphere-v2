@@ -140,12 +140,12 @@ const TWITCH_API_BASE_URL = 'https://api.twitch.tv/helix';
 /**
  * Required OAuth scopes for RaidSphere functionality:
  * - channel:manage:raids: Execute raids on behalf of the user
- * - chat:read: Read chat messages for command parsing
+ * - user:read:chat: Receive chat messages through EventSub
  * - user:read:email: Access user email for account identification
  */
 const REQUIRED_SCOPES = [
   'channel:manage:raids',
-  'chat:read',
+  'user:read:chat',
   'user:read:email',
 ] as const;
 

@@ -23,6 +23,7 @@ export interface RuntimeOptions {
   roulette?: Partial<RouletteConfig>;
   simulatedRaid?: Partial<SimulatedRaidOptions>;
   viewingLimits?: Partial<ViewingLimits>;
+  overlayRoot?: string;
 }
 
 export function createRuntime(options: RuntimeOptions) {
@@ -49,6 +50,8 @@ export function createRuntime(options: RuntimeOptions) {
       views: rouletteCoordinator, credentials,
       ...(options.viewingLimits ? { limits: options.viewingLimits } : {}),
     },
+    ...(options.overlayRoot ? { overlayRoot: options.overlayRoot } : {}),
+    issueViewingCredential: (channelId) => credentials.issueForChannel(channelId),
   });
   app.addHook('onClose', async () => {
     rouletteCoordinator.close();

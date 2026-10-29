@@ -8,8 +8,13 @@
   </head>
   <body>
     <main id="app" aria-label="RaidSphere overlay">
+      <div class="stars" aria-hidden="true"></div>
       <div id="globe" aria-hidden="true"></div>
       <p class="badge">Simulation</p>
+      <section class="location-panel" aria-label="Country location">
+        <button id="locate-country" type="button">Locate my country</button>
+        <p id="location-status">Optional · processed only in this browser</p>
+      </section>
       <section class="status" aria-live="polite">
         <p class="brand">RaidSphere</p>
         <h1 id="headline">Raids without language barriers</h1>

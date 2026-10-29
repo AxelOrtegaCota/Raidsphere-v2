@@ -3,8 +3,10 @@ import type { ServerEvent } from '@raidsphere/shared';
 
 // Read-only WebSocket client for the overlay (D2-11 rules 7 and 8). It never sends commands.
 
-// Matches the server's default loopback port; change it if the server runs on another PORT.
-export const SERVER_URL = 'ws://127.0.0.1:3000/ws';
+export function webSocketUrl(location: Pick<Location, 'protocol' | 'host'>): string {
+  const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${protocol}//${location.host}/ws`;
+}
 
 const POLICY_VIOLATION = 1008;
 const MAX_RETRY_MS = 30_000;
@@ -23,8 +25,10 @@ export type ConnectionStatus =
 // Reads the channel from the path and the credential from the fragment, then removes the
 // fragment from the address bar. The credential stays only in memory.
 export function readOverlayTarget(location: Location, history: History): OverlayTarget | null {
-  const channelId = /^\/([A-Za-z0-9_]{1,25})\/overlay\/?$/.exec(location.pathname)?.[1];
-  const credential = new URLSearchParams(location.hash.slice(1)).get('cred');
+  const pathChannel = /^\/([A-Za-z0-9_]{1,25})\/overlay\/?$/.exec(location.pathname)?.[1];
+  const fragment = new URLSearchParams(location.hash.slice(1));
+  const channelId = fragment.get('channel') ?? pathChannel;
+  const credential = fragment.get('cred');
   if (location.hash) history.replaceState(null, '', `${location.pathname}${location.search}`);
   return channelId && credential ? { channelId, credential } : null;
 }
@@ -40,7 +44,7 @@ export function connectToChannel(
 
   const open = (): void => {
     handlers.onStatus({ kind: 'connecting' });
-    const current = new WebSocket(SERVER_URL);
+    const current = new WebSocket(webSocketUrl(window.location));
     socket = current;
     current.addEventListener('open', () => {
       current.send(JSON.stringify({

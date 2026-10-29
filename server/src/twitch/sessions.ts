@@ -16,6 +16,10 @@ export interface UserSession {
   userId: string;
   user: TwitchUser;
   tokens: TwitchTokens;
+  overlay: {
+    channelId: string;
+    viewingCredential: string;
+  };
   createdAt: number;
   lastAccessedAt: number;
 }
@@ -41,7 +45,8 @@ const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 export function createSession(
   sessionId: string,
   user: TwitchUser,
-  tokens: TwitchTokens
+  tokens: TwitchTokens,
+  overlay: UserSession['overlay'],
 ): UserSession {
   // Remove old session if exists
   const oldSessionId = userToSession.get(user.id);
@@ -54,6 +59,7 @@ export function createSession(
     userId: user.id,
     user,
     tokens,
+    overlay,
     createdAt: Date.now(),
     lastAccessedAt: Date.now(),
   };

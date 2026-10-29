@@ -1,52 +1,153 @@
 :root {
   color-scheme: dark;
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
-  color: #f5f3ff;
-  background: transparent;
+  color: #f8f7ff;
+  background: #02030a;
 }
 
 * { box-sizing: border-box; }
-html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: transparent; }
+html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #02030a; }
+button { font: inherit; }
 
 #app {
   position: relative;
   width: 100vw;
   height: 100vh;
   isolation: isolate;
+  overflow: hidden;
+  background: #02030a;
 }
 
-#globe { position: absolute; inset: 0; pointer-events: none; }
+.stars {
+  position: absolute;
+  inset: -4%;
+  z-index: -2;
+  background-color: #02030a;
+  background-image: url('/textures/night-sky.png');
+  background-position: center;
+  background-size: cover;
+  filter: saturate(.82) contrast(1.08) brightness(.72);
+  transform: scale(1.04);
+}
+
+.stars::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 50% 46%, transparent 0 22%, rgb(2 3 10 / 18%) 50%, rgb(2 3 10 / 76%) 100%),
+    linear-gradient(90deg, rgb(2 3 10 / 72%) 0, transparent 38% 70%, rgb(2 3 10 / 28%) 100%);
+}
+
+#globe {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  filter: drop-shadow(0 28px 72px rgb(40 90 255 / 22%));
+}
 
 .status {
   position: absolute;
-  left: 4vw;
-  bottom: 5vh;
-  width: min(620px, 80vw);
-  padding: 24px 28px;
-  border: 1px solid rgb(196 181 253 / 35%);
+  left: clamp(24px, 4vw, 72px);
+  bottom: clamp(28px, 6vh, 72px);
+  width: min(650px, calc(100vw - 48px));
+  padding: 26px 30px 28px;
+  border: 1px solid rgb(174 194 255 / 28%);
   border-radius: 18px;
-  background: rgb(21 13 38 / 90%);
+  background: linear-gradient(145deg, rgb(8 10 24 / 94%), rgb(13 11 31 / 86%));
+  box-shadow: 0 24px 70px rgb(0 0 0 / 44%);
+  backdrop-filter: blur(14px);
 }
 
-.brand { margin: 0 0 10px; color: #c4b5fd; font-weight: 700; letter-spacing: 0.08em; }
-h1 { margin: 0 0 12px; font-size: clamp(20px, 2vw, 36px); line-height: 1.15; }
-#detail { margin: 0 0 12px; color: #f5f3ff; font-size: clamp(16px, 1.4vw, 26px); line-height: 1.4; }
-#detail:empty { display: none; }
-#connection-status { margin: 0; color: #ddd6fe; font-size: clamp(12px, 0.9vw, 16px); line-height: 1.5; }
+.brand {
+  margin: 0 0 10px;
+  color: #bfcaff;
+  font-weight: 760;
+  letter-spacing: .08em;
+}
 
-/* Always visible in Phase 2: nothing shown here is a real raid (D2-15). */
+h1 {
+  max-width: 18ch;
+  margin: 0 0 12px;
+  font-size: clamp(24px, 2.25vw, 42px);
+  line-height: 1.08;
+  letter-spacing: -.035em;
+  text-wrap: balance;
+}
+
+#detail {
+  margin: 0 0 12px;
+  color: #f8f7ff;
+  font-size: clamp(16px, 1.35vw, 25px);
+  line-height: 1.42;
+}
+#detail:empty { display: none; }
+
+#connection-status {
+  margin: 0;
+  color: #c8c7dc;
+  font-size: clamp(12px, .9vw, 16px);
+  line-height: 1.5;
+}
+
 .badge {
   position: absolute;
-  top: 3vh;
-  right: 3vw;
+  top: clamp(20px, 3vh, 42px);
+  right: clamp(20px, 3vw, 52px);
   margin: 0;
-  padding: 6px 14px;
+  padding: 7px 14px;
+  border: 1px solid rgb(255 190 86 / 52%);
   border-radius: 999px;
-  background: #f59e0b;
-  color: #1c1300;
+  background: rgb(36 23 7 / 88%);
+  color: #ffd798;
+  font-size: 13px;
   font-weight: 800;
-  letter-spacing: 0.08em;
+  letter-spacing: .09em;
   text-transform: uppercase;
+  box-shadow: 0 12px 34px rgb(0 0 0 / 32%);
+}
+
+.location-panel {
+  position: absolute;
+  top: clamp(20px, 3vh, 42px);
+  left: clamp(20px, 3vw, 52px);
+  display: grid;
+  gap: 8px;
+  max-width: min(330px, calc(100vw - 150px));
+}
+
+#locate-country {
+  min-height: 44px;
+  width: max-content;
+  padding: 0 17px;
+  border: 1px solid rgb(174 194 255 / 45%);
+  border-radius: 10px;
+  background: rgb(8 10 24 / 88%);
+  color: #f8f7ff;
+  font-weight: 760;
+  cursor: pointer;
+  box-shadow: 0 16px 38px rgb(0 0 0 / 30%);
+  transition: border-color 160ms ease, background-color 160ms ease, transform 160ms ease;
+}
+
+#locate-country:hover { border-color: #c6d0ff; background: rgb(21 25 54 / 94%); transform: translateY(-1px); }
+#locate-country:focus-visible { outline: 3px solid #fff; outline-offset: 4px; }
+#locate-country:disabled { cursor: wait; opacity: .72; transform: none; }
+
+#location-status {
+  margin: 0;
+  color: #c8c7dc;
+  font-size: 12px;
+  line-height: 1.45;
+  text-shadow: 0 1px 12px #000;
+}
+
+::selection { background: #b9c5ff; color: #080a18; }
+
+@media (max-width: 720px) {
+  .status { padding: 20px 22px; }
+  .location-panel { max-width: calc(100vw - 132px); }
+  #location-status { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -58,7 +58,7 @@ export function registerWebSocketBoundary(app: FastifyInstance, dependencies: Vi
     socket.on('error', () => socket.destroy());
     if (request.url?.split('?')[0] !== '/ws') {
       rejectUpgrade(socket, '404 Not Found', 'Not found.\n');
-    } else if (request.headers.origin !== OVERLAY_ORIGIN) {
+    } else if (!isAllowedOverlayOrigin(request)) {
       rejectUpgrade(socket, '403 Forbidden', 'Forbidden.\n');
     } else if (webSocketServer.clients.size >= limits.maxConnections) {
       rejectUpgrade(socket, '503 Service Unavailable', 'Too many connections.\n');
@@ -162,6 +162,19 @@ export function registerWebSocketBoundary(app: FastifyInstance, dependencies: Vi
     for (const viewer of webSocketServer.clients) viewer.terminate();
     await new Promise<void>((resolve) => webSocketServer.close(() => resolve()));
   });
+}
+
+function isAllowedOverlayOrigin(request: IncomingMessage): boolean {
+  const origin = request.headers.origin;
+  if (origin === OVERLAY_ORIGIN) return true;
+  const host = request.headers.host;
+  if (!origin || !host) return false;
+  try {
+    const parsed = new URL(origin);
+    return (parsed.protocol === 'https:' || parsed.protocol === 'http:') && parsed.host === host;
+  } catch {
+    return false;
+  }
 }
 
 function parseJson(data: RawData): unknown {
