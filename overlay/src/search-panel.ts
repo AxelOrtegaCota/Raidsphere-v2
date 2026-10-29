@@ -1,6 +1,7 @@
 /**
  * Search Panel for discovering raid candidates via Helix API
  */
+import { TWITCH_LANGUAGES, getLanguageMeta } from './languages.js';
 
 export interface Candidate {
   id: string;
@@ -11,6 +12,7 @@ export interface Candidate {
   viewers: number;
   language: string;
   thumbnailUrl: string;
+  profileImageUrl: string;
   isLive: boolean;
 }
 
@@ -57,15 +59,9 @@ export function createSearchPanel(container: HTMLElement, config: SearchPanelCon
       <div class="filter-row">
         <select id="filter-language" aria-label="Language">
           <option value="">All languages</option>
-          <option value="es">Spanish</option>
-          <option value="en">English</option>
-          <option value="ja">Japanese</option>
-          <option value="ko">Korean</option>
-          <option value="pt">Portuguese</option>
-          <option value="fr">French</option>
-          <option value="de">German</option>
-          <option value="ru">Russian</option>
-          <option value="zh">Chinese</option>
+          ${TWITCH_LANGUAGES.map(language => (
+            `<option value="${language.code}">${language.flag} ${language.name}</option>`
+          )).join('')}
         </select>
         <input type="text" id="filter-category" placeholder="Category (e.g. Minecraft)" aria-label="Category" autocomplete="off">
         <div id="category-suggestions" class="suggestions-dropdown"></div>
@@ -186,6 +182,7 @@ export function createSearchPanel(container: HTMLElement, config: SearchPanelCon
             viewers: s.viewers || 0,
             language: s.language || '',
             thumbnailUrl: s.thumbnailUrl || '',
+            profileImageUrl: s.profileImageUrl || '',
             isLive: true,
           });
         }
@@ -205,6 +202,7 @@ export function createSearchPanel(container: HTMLElement, config: SearchPanelCon
               viewers: ch.viewers || 0,
               language: ch.language || '',
               thumbnailUrl: '',
+              profileImageUrl: ch.profileImageUrl || '',
               isLive: ch.isLive,
             });
           }
@@ -225,19 +223,32 @@ export function createSearchPanel(container: HTMLElement, config: SearchPanelCon
       return;
     }
 
-    candidatesList.innerHTML = candidates.map(c => `
-      <div class="candidate-item" data-id="${c.id}" data-login="${c.login}">
-        <div class="candidate-info">
-          <span class="candidate-name">${escapeHtml(c.displayName)}</span>
-          <span class="candidate-game">${escapeHtml(c.game)}</span>
-        </div>
-        <div class="candidate-meta">
-          <span class="candidate-status ${c.isLive ? 'live' : 'offline'}">${c.isLive ? '🔴' : '⚫'}</span>
-          <span class="candidate-viewers">${c.viewers > 0 ? c.viewers + ' viewers' : ''}</span>
-          <span class="candidate-lang">${c.language}</span>
-        </div>
-      </div>
-    `).join('');
+    candidatesList.innerHTML = candidates.map(candidate => {
+      const language = getLanguageMeta(candidate.language);
+      const imageUrl = candidate.profileImageUrl || candidate.thumbnailUrl;
+      const initial = escapeHtml(candidate.displayName.charAt(0).toUpperCase());
+
+      return `
+        <div class="candidate-item" data-id="${escapeHtml(candidate.id)}" data-login="${escapeHtml(candidate.login)}">
+          <div class="candidate-avatar-wrap">
+            <span class="candidate-avatar-fallback" aria-hidden="true">${initial}</span>
+            ${imageUrl ? `<img class="candidate-avatar" src="${escapeHtml(imageUrl)}" alt="" loading="lazy">` : ''}
+          </div>
+          <div class="candidate-info">
+            <span class="candidate-name">${escapeHtml(candidate.displayName)}</span>
+            <span class="candidate-game">${escapeHtml(candidate.game)}</span>
+          </div>
+          <div class="candidate-meta">
+            <span class="candidate-status ${candidate.isLive ? 'live' : 'offline'}">${candidate.isLive ? '🔴' : '⚫'}</span>
+            <span class="candidate-viewers">${candidate.viewers > 0 ? candidate.viewers.toLocaleString() : ''}</span>
+            <span class="candidate-lang" title="${escapeHtml(language.name)} stream language; flag is representative, not location">${language.flag} ${escapeHtml(language.code.toUpperCase())}</span>
+          </div>
+        </div>`;
+    }).join('');
+
+    candidatesList.querySelectorAll<HTMLImageElement>('.candidate-avatar').forEach(image => {
+      image.addEventListener('error', () => image.remove());
+    });
 
     // Add click listeners
     candidatesList.querySelectorAll('.candidate-item').forEach(item => {
@@ -260,18 +271,21 @@ export function createSearchPanel(container: HTMLElement, config: SearchPanelCon
     countdownSeconds = 10;
 
     const canRaid = userStatus.authenticated && userStatus.isLive && candidate.isLive;
+    const language = getLanguageMeta(candidate.language);
+    const imageUrl = candidate.profileImageUrl || candidate.thumbnailUrl;
+    const initial = escapeHtml(candidate.displayName.charAt(0).toUpperCase());
 
     detailContent.innerHTML = `
       <div class="detail-avatar">
-        <img src="https://static-cdn.jtvnw.net/jtv_user_pictures/${candidate.login}-profile_image-70x70.png" 
-             alt="${escapeHtml(candidate.displayName)}" 
-             onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect fill=%22%23333%22 width=%22100%22 height=%22100%22/><text x=%2250%22 y=%2255%22 font-size=%2240%22 text-anchor=%22middle%22 fill=%22%23fff%22>${candidate.displayName.charAt(0)}</text></svg>'">
+        <span class="detail-avatar-fallback" aria-hidden="true">${initial}</span>
+        ${imageUrl ? `<img src="${escapeHtml(imageUrl)}" alt="" loading="lazy">` : ''}
       </div>
       <h3>${escapeHtml(candidate.displayName)}</h3>
       <p class="detail-status ${candidate.isLive ? 'live' : 'offline'}">
         ${candidate.isLive ? '🔴 LIVE' : '⚫ OFFLINE'}
       </p>
-      <p class="detail-game">${escapeHtml(candidate.game)} • ${candidate.viewers} viewers</p>
+      <p class="detail-language" title="Flag is representative of the stream language, not streamer location">${language.flag} ${escapeHtml(language.name)}</p>
+      <p class="detail-game">${escapeHtml(candidate.game)} • ${candidate.viewers.toLocaleString()} viewers</p>
       <p class="detail-title">${escapeHtml(candidate.title)}</p>
       
       <div class="detail-countdown">
@@ -287,6 +301,9 @@ export function createSearchPanel(container: HTMLElement, config: SearchPanelCon
       </div>
       ${!canRaid ? `<p class="raid-warning">${getRaidWarning(candidate)}</p>` : ''}
     `;
+
+    detailContent.querySelector<HTMLImageElement>('.detail-avatar img')
+      ?.addEventListener('error', event => (event.currentTarget as HTMLImageElement).remove());
 
     // Start countdown
     startCountdown(candidate);

@@ -247,12 +247,45 @@ h1 {
 }
 .candidate-item:hover { background: rgb(255 255 255 / 8%); }
 
-.candidate-info { display: flex; flex-direction: column; gap: 2px; }
+.candidate-avatar-wrap {
+  position: relative;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  overflow: hidden;
+  border: 1px solid rgb(174 194 255 / 24%);
+  border-radius: 50%;
+  background: #252843;
+}
+
+.candidate-avatar,
+.candidate-avatar-fallback {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.candidate-avatar {
+  z-index: 1;
+  object-fit: cover;
+}
+
+.candidate-avatar-fallback {
+  display: grid;
+  place-items: center;
+  color: #f5f6ff;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.candidate-info { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; margin-left: 10px; }
 .candidate-name { font-weight: 600; font-size: 14px; }
-.candidate-game { font-size: 12px; color: #a8a8c0; }
+.candidate-game { overflow: hidden; color: #a8a8c0; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 
 .candidate-meta {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   gap: 8px;
   font-size: 12px;
@@ -288,6 +321,7 @@ h1 {
 }
 
 .detail-avatar {
+  position: relative;
   width: 80px;
   height: 80px;
   margin: 0 auto 12px;
@@ -295,7 +329,28 @@ h1 {
   overflow: hidden;
   border: 3px solid rgb(174 194 255 / 35%);
 }
-.detail-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.detail-avatar img,
+.detail-avatar-fallback {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.detail-avatar img { z-index: 1; object-fit: cover; }
+.detail-avatar-fallback {
+  display: grid;
+  place-items: center;
+  background: #252843;
+  color: #f5f6ff;
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.detail-language {
+  margin: 0 0 8px;
+  color: #d7dcff;
+  font-size: 13px;
+}
 
 .detail-content h3 {
   margin: 0 0 6px;

@@ -15,6 +15,7 @@ import {
   searchChannels,
   getStreams,
   getStreamsFiltered,
+  getUsers,
   searchCategories,
   type HelixRequestConfig,
 } from '../twitch/helix.js';
@@ -209,6 +210,14 @@ export function registerAuthRoutes(app: FastifyInstance, dependencies: AuthRoute
         s.viewerCount >= minViewers && s.viewerCount <= maxViewers
       );
 
+      const streamUsers = await getUsers(
+        helixConfig,
+        filteredStreams.map(stream => stream.userId),
+      );
+      const profileImageByUserId = new Map(
+        streamUsers.map(user => [user.id, user.profileImageUrl] as const),
+      );
+
       // If search query provided, also search channels
       let channelResults: Array<{
         id: string;
@@ -219,6 +228,7 @@ export function registerAuthRoutes(app: FastifyInstance, dependencies: AuthRoute
         isLive: boolean;
         language: string;
         viewers: number;
+        profileImageUrl: string;
       }> = [];
 
       if (searchQuery) {
@@ -232,6 +242,7 @@ export function registerAuthRoutes(app: FastifyInstance, dependencies: AuthRoute
           isLive: ch.isLive,
           language: ch.broadcasterLanguage,
           viewers: 0,
+          profileImageUrl: ch.thumbnailUrl,
         }));
       }
 
@@ -255,6 +266,7 @@ export function registerAuthRoutes(app: FastifyInstance, dependencies: AuthRoute
           language: s.language,
           isLive: true,
           thumbnailUrl: s.thumbnailUrl.replace('{width}', '320').replace('{height}', '180'),
+          profileImageUrl: profileImageByUserId.get(s.userId) ?? '',
         })),
         search_results: channelResults,
       };

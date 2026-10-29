@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createRuntime } from '../src/composition.js';
 import { createSession, destroySession } from '../src/twitch/sessions.js';
 import type { TwitchTokens, TwitchUser } from '../src/twitch/oauth.js';
@@ -37,6 +37,8 @@ const tokens: TwitchTokens = {
 };
 
 afterEach(async () => {
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
   destroySession('test-session');
   await Promise.all(temporaryRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
@@ -91,6 +93,71 @@ describe('authenticated web entry points', () => {
       expect(response.body).toContain('TheMask957');
       expect(response.body).toContain('/themask957/overlay#channel=123456789&amp;cred=');
       expect(response.body).toContain('!roulette');
+    } finally {
+      await runtime.app.close();
+    }
+  });
+
+  it('returns profile image URLs for discovered live streamers', async () => {
+    vi.stubEnv('TWITCH_CLIENT_ID', 'test-client');
+    vi.stubEnv('TWITCH_CLIENT_SECRET', 'test-secret');
+    vi.stubEnv('TWITCH_REDIRECT_URI', 'http://localhost/auth/callback');
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
+      const url = new URL(String(input));
+      if (url.pathname === '/helix/streams') {
+        return new Response(JSON.stringify({
+          data: [{
+            id: 'stream-1',
+            user_id: 'streamer-1',
+            user_login: 'streamerone',
+            user_name: 'StreamerOne',
+            game_id: 'game-1',
+            game_name: 'Just Chatting',
+            type: 'live',
+            title: 'A live stream',
+            viewer_count: 42,
+            started_at: '2026-01-01T00:00:00Z',
+            language: 'en',
+            thumbnail_url: 'https://static-cdn.jtvnw.net/preview-{width}x{height}.jpg',
+            tags: [],
+            is_mature: false,
+          }],
+          pagination: {},
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+
+      if (url.pathname === '/helix/users') {
+        return new Response(JSON.stringify({
+          data: [{
+            id: 'streamer-1',
+            login: 'streamerone',
+            display_name: 'StreamerOne',
+            profile_image_url: 'https://static-cdn.jtvnw.net/avatar.png',
+          }],
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+
+      return new Response('Not found', { status: 404 });
+    }));
+
+    const overlayRoot = await overlayFixture();
+    const runtime = createRuntime({ reportError: () => undefined, overlayRoot });
+    createSession('test-session', user, tokens, {
+      channelId: user.id,
+      viewingCredential: 'x'.repeat(43),
+    });
+
+    try {
+      const response = await runtime.app.inject({
+        method: 'GET',
+        url: '/api/test-helix',
+        headers: { cookie: 'raidsphere_session=test-session' },
+      });
+      expect(response.statusCode).toBe(200);
+      expect(response.json().streams[0]).toMatchObject({
+        id: 'streamer-1',
+        profileImageUrl: 'https://static-cdn.jtvnw.net/avatar.png',
+      });
     } finally {
       await runtime.app.close();
     }

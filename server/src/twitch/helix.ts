@@ -57,6 +57,14 @@ export interface Stream {
   readonly isMature: boolean;
 }
 
+/** Public Twitch user data used to render channel identity. */
+export interface HelixUser {
+  readonly id: string;
+  readonly login: string;
+  readonly displayName: string;
+  readonly profileImageUrl: string;
+}
+
 /**
  * Response from the Twitch raid API.
  */
@@ -146,6 +154,17 @@ const getStreamsResponseSchema = z.object({
   pagination: z.object({
     cursor: z.string().optional(),
   }).optional(),
+});
+
+const userDataSchema = z.object({
+  id: z.string(),
+  login: z.string(),
+  display_name: z.string(),
+  profile_image_url: z.string(),
+});
+
+const getUsersResponseSchema = z.object({
+  data: z.array(userDataSchema),
 });
 
 const gameDataSchema = z.object({
@@ -462,6 +481,36 @@ export async function getStreams(
 
   const streams = response.data.map(mapStreamData);
   return Object.freeze(streams);
+}
+
+/**
+ * Get public user profiles for streamer IDs.
+ * Twitch's streams endpoint only exposes stream preview thumbnails; profile
+ * avatars come from Get Users.
+ */
+export async function getUsers(
+  config: HelixRequestConfig,
+  userIds: readonly string[],
+): Promise<readonly HelixUser[]> {
+  const uniqueIds = [...new Set(userIds.filter(Boolean))].slice(0, 100);
+  if (uniqueIds.length === 0) {
+    return Object.freeze([]);
+  }
+
+  const params = new URLSearchParams();
+  for (const id of uniqueIds) {
+    params.append('id', id);
+  }
+
+  const url = `${HELIX_BASE_URL}/users?${params.toString()}`;
+  const response = await helixFetch(url, config, { method: 'GET' }, getUsersResponseSchema);
+
+  return Object.freeze(response.data.map(user => Object.freeze({
+    id: user.id,
+    login: user.login,
+    displayName: user.display_name,
+    profileImageUrl: user.profile_image_url,
+  })));
 }
 
 /**

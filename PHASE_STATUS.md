@@ -24,7 +24,7 @@
 | File | Lines | Status | Description |
 |------|-------|--------|-------------|
 | `oauth.ts` | 590 | ✅ Working E2E | Login, tokens, refresh, revoke |
-| `helix.ts` | 489 | ⚠️ Code exists | API client (search channels, raids) — NOT TESTED |
+| `helix.ts` | — | ✅ Tested reads | Streams, users/avatars, channels, categories, language/game filters |
 | `eventsub.ts` | 406 | ⚠️ Code exists | WebSocket EventSub — NOT CONNECTED |
 | `raids.ts` | 394 | ⚠️ Code exists | Raid gateway — SIMULATED |
 | `commands.ts` | 220 | ⚠️ Code exists | Parser `!roulette`, `!vote`, `!cancel` |
@@ -51,6 +51,9 @@
 | Geolocation | ✅ Working | Auto-detect + manual button |
 | Interactive Controls | ✅ Working | Zoom, rotate, drag |
 | Simulation Badge | ✅ Working | Hides when authenticated |
+| Raid Candidate Discovery | ✅ Implemented | Live Helix candidates, category autocomplete, language and viewer filters |
+| Candidate Identity | ✅ Implemented | Twitch avatars with stream-preview and initial fallbacks |
+| Stream Language Markers | ✅ Implemented | All Twitch broadcast language codes plus `other`; flags are not location |
 
 ---
 
@@ -102,18 +105,15 @@
 3. Globe should render with stars, auto-rotate, ask for location
 ```
 
-### 3. Helix API (Code exists, needs testing)
-```bash
-# Get your access token from a session (or use the test endpoint)
-curl -X GET "https://raidsphere.up.railway.app/auth/me" \
-  -H "Cookie: raidsphere_session=<your_session_cookie>"
-
-# The server can call Helix internally with that token
-# To test channel search manually:
-curl -X GET "https://api.twitch.tv/helix/streams?language=es&first=10" \
-  -H "Authorization: Bearer <access_token>" \
-  -H "Client-Id: <client_id>"
+### 3. Helix Candidate Discovery
+```text
+1. Log in at https://raidsphere.up.railway.app/auth/twitch
+2. Open the private overlay URL from the dashboard
+3. Filter by language, category, channel name, or viewer range
+4. Confirm candidate avatars, stream-language markers, and live viewer counts
 ```
+
+Implementation and API details: `docs/raid-candidate-discovery.md`.
 
 ### 4. EventSub (Code exists, not connected)
 ```
@@ -153,12 +153,16 @@ Currently: Code exists in server/src/twitch/raids.ts but is simulated
 - `overlay/src/connection.ts` — WebSocket client
 - `overlay/src/view-state.ts` — Event handling
 - `overlay/src/styles.css` — Dark theme, stars
+- `overlay/src/search-panel.ts` — Raid candidate discovery UI
+- `overlay/src/languages.ts` — Twitch language catalog and representative markers
 
 ### Tests
 - `server/test/auth-ui.test.ts` — OAuth/overlay routes
 - `server/test/credentials.test.ts` — Viewing credentials
 - `overlay/test/connection.test.ts` — WebSocket URL
 - `overlay/test/location.test.ts` — Geolocation
+- `server/test/helix-users.test.ts` — Twitch profile-image retrieval
+- `overlay/test/languages.test.ts` — Complete language catalog
 
 ---
 
