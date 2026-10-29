@@ -687,3 +687,78 @@ h1 {
 @media (prefers-reduced-motion: reduce) {
   .bubble { animation: none; transition: none; }
 }
+
+/* OBS mode (default): a transparent, non-interactive scene. Discovery tools stay in
+   interactive mode (?mode=interactive), which keeps the starry backdrop. */
+html[data-mode='obs'],
+html[data-mode='obs'] body,
+html[data-mode='obs'] #app { background: transparent; }
+html[data-mode='obs'] .stars,
+html[data-mode='obs'] .location-panel { display: none; }
+html[data-mode='obs'] #globe { pointer-events: none; }
+.badge[hidden] { display: none; }
+
+/* Roulette votes and winner (Phase 2, Module A). */
+.roulette {
+  position: absolute;
+  top: calc(clamp(20px, 3vh, 42px) + 52px);
+  right: clamp(20px, 3vw, 52px);
+  width: min(420px, calc(100vw - 48px));
+  display: grid;
+  gap: 12px;
+  pointer-events: none;
+}
+
+.roulette[hidden] { display: none; }
+html[data-mode='interactive'] .roulette { right: auto; left: 50%; transform: translateX(-50%); }
+
+.winner-card,
+.vote-rows {
+  border: 1px solid rgb(174 194 255 / 28%);
+  border-radius: 16px;
+  background: linear-gradient(145deg, rgb(8 10 24 / 92%), rgb(13 11 31 / 86%));
+  box-shadow: 0 18px 50px rgb(0 0 0 / 40%);
+}
+
+.winner-card {
+  padding: 16px 20px;
+  border-color: rgb(255 209 102 / 60%);
+  animation: winner-in 420ms ease-out;
+}
+
+.winner-card p { margin: 0; overflow-wrap: anywhere; }
+.winner-label { color: #ffd166; font-size: 13px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.winner-name { margin-top: 6px !important; font-size: 26px; font-weight: 800; letter-spacing: -.02em; }
+.winner-detail { margin-top: 2px !important; color: #d8d4ec; font-size: 15px; }
+.winner-title { margin-top: 6px !important; color: rgb(216 212 236 / 70%); font-size: 14px; }
+
+.vote-rows {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 16px 20px;
+  list-style: none;
+}
+
+.vote-row { display: grid; gap: 6px; }
+.vote-row.chosen .vote-language { color: #ffd166; }
+.vote-row.chosen .vote-fill { background: linear-gradient(90deg, #ffd166, #ffb347); }
+.vote-header { display: flex; justify-content: space-between; margin: 0; font-size: 16px; font-weight: 800; }
+.vote-count { font-variant-numeric: tabular-nums; }
+.vote-bar { height: 8px; border-radius: 999px; background: rgb(255 255 255 / 10%); overflow: hidden; }
+.vote-fill { height: 100%; border-radius: inherit; background: linear-gradient(90deg, #9f87ff, #6f8dff); transition: width 400ms ease; }
+.vote-channels { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.vote-channel { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
+.channel-name { color: #ecebf7; font-weight: 650; overflow-wrap: anywhere; }
+.channel-detail { color: rgb(216 212 236 / 64%); white-space: nowrap; }
+.vote-more { color: rgb(216 212 236 / 64%); font-size: 12px; }
+
+@keyframes winner-in {
+  from { opacity: 0; transform: scale(.96); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .winner-card { animation: none; }
+  .vote-fill { transition: none; }
+}

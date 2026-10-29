@@ -1,11 +1,15 @@
 import Globe from 'globe.gl';
 import { connectToChannel, readOverlayTarget } from './connection';
 import type { ConnectionStatus } from './connection';
+import { EMPTY_SCENE, globeScene, interpolateView } from './globe-session';
+import type { CameraView, GlobeScene } from './globe-session';
 import { coarseCountryPoint } from './location';
-import { applyEvent, describeView, initialViewState, needsTick } from './view-state';
+import { readOverlayMode, showsSimulationLabel } from './overlay-mode';
+import { describeRoulettePanel, renderRoulettePanel } from './roulette-panel';
 import { createSearchPanel } from './search-panel';
 import { createTranslationLayer } from './translation-bubbles';
 import { applyTranslationEvent, initialTranslationView, pruneTranslationView } from './translation-view';
+import { applyEvent, describeView, initialViewState, needsTick } from './view-state';
 import './styles.css';
 
 const container = document.querySelector<HTMLElement>('#globe');
@@ -17,163 +21,30 @@ const locateCountry = document.querySelector<HTMLButtonElement>('#locate-country
 const locationStatus = document.querySelector<HTMLElement>('#location-status');
 const translationWindow = document.querySelector<HTMLElement>('#translation-window');
 const bubbleList = document.querySelector<HTMLOListElement>('#bubbles');
+const roulettePanel = document.querySelector<HTMLElement>('#roulette');
+const app = document.querySelector<HTMLElement>('#app');
 
-if (!container || !headline || !detail || !status || !locateCountry || !locationStatus || !translationWindow || !bubbleList) {
+if (!container || !headline || !detail || !status || !badge || !locateCountry || !locationStatus ||
+    !translationWindow || !bubbleList || !roulettePanel || !app) {
   throw new Error('The overlay is missing its required elements.');
 }
 
-// Hide simulation badge when authenticated (credential present means authenticated)
+const mode = readOverlayMode(window.location.search);
+document.documentElement.dataset.mode = mode;
 const target = readOverlayTarget(window.location, window.history);
-if (target?.credential && badge) {
-  badge.style.display = 'none';
-}
-
-// Determine API base URL
 const apiBaseUrl = window.location.origin;
 
-// Create search panel (always open in overlay)
-const app = document.querySelector<HTMLElement>('#app')!;
-const searchPanel = createSearchPanel(app, {
-  apiBaseUrl,
-  isOverlay: true, // Always open in overlay
-  onRaid: (candidate) => {
-    console.log('Raid requested for:', candidate.login);
-    // TODO: Call raid API
-    alert(`Raid to ${candidate.displayName} would start here (not implemented yet)`);
-  },
-});
+// The label is removed only when the server positively reports live mode.
+void fetch(`${apiBaseUrl}/health`, { cache: 'no-store' })
+  .then((response) => response.json())
+  .then((health: unknown) => { badge.hidden = !showsSimulationLabel(health); })
+  .catch(() => { badge.hidden = false; });
 
-// Check user status and update panel
-const checkUserStatus = async () => {
-  try {
-    const response = await fetch(`${apiBaseUrl}/auth/status`, { credentials: 'include' });
-    const data = await response.json();
-    
-    if (data.authenticated) {
-      // Check if user is live
-      const meResponse = await fetch(`${apiBaseUrl}/auth/me`, { credentials: 'include' });
-      const meData = await meResponse.json();
-      
-      // For now assume not live (would need to check Helix)
-      searchPanel.updateUserStatus({
-        authenticated: true,
-        isLive: false, // TODO: Check via Helix if user is streaming
-        login: data.user,
-      });
-    } else {
-      searchPanel.updateUserStatus({ authenticated: false, isLive: false });
-    }
-  } catch {
-    searchPanel.updateUserStatus({ authenticated: false, isLive: false });
-  }
-};
-checkUserStatus();
+if (mode === 'interactive') startDiscovery(app);
 
-let userLocationPoint: { lat: number; lng: number } | null = null;
-
+let applyScene: (scene: GlobeScene) => void = () => undefined;
 try {
-  const globe = Globe({ animateIn: false })(container)
-    .backgroundColor('rgba(0, 0, 0, 0)')
-    .backgroundImageUrl('/textures/night-sky.png')
-    .globeImageUrl('/textures/earth-night.jpg')
-    .showGraticules(false)
-    .showAtmosphere(true)
-    .atmosphereColor('#6f8dff')
-    .atmosphereAltitude(0.2)
-    .pointsData([])
-    .pointLat('lat')
-    .pointLng('lng')
-    .pointColor('color')
-    .pointAltitude(0.035)
-    .pointRadius(0.52)
-    .width(container.clientWidth)
-    .height(container.clientHeight);
-
-  // Enable interactive controls - user can rotate/zoom the globe
-  globe.controls().enableZoom = true;
-  globe.controls().enableRotate = true;
-  globe.controls().autoRotate = true;
-  globe.controls().autoRotateSpeed = 0.3;
-  globe.pointOfView({ lat: 18, lng: -30, altitude: 2.35 });
-
-  // Keep animation running for interactivity, but throttle when idle
-  const SETTLE_MS = 3000;
-  let settleTimer: number | undefined;
-  const renderBriefly = (durationMs = SETTLE_MS): void => {
-    globe.resumeAnimation();
-    window.clearTimeout(settleTimer);
-    settleTimer = window.setTimeout(() => {
-      // Keep auto-rotate but reduce frame rate when not interacting
-      globe.controls().autoRotateSpeed = 0.15;
-    }, durationMs);
-  };
-
-  // Resume full speed on interaction
-  container.addEventListener('pointerdown', () => {
-    globe.controls().autoRotateSpeed = 0.3;
-    renderBriefly();
-  });
-
-  globe.onGlobeReady(renderBriefly);
-  const resize = new ResizeObserver(() => {
-    globe.width(container.clientWidth).height(container.clientHeight);
-    renderBriefly();
-  });
-  resize.observe(container);
-
-  const setUserLocation = (point: { lat: number; lng: number }) => {
-    userLocationPoint = point;
-    globe.pointsData([{ ...point, color: '#ffd166' }]);
-    globe.controls().autoRotate = false;
-    globe.pointOfView({ ...point, altitude: 1.7 }, 1_400);
-    renderBriefly(1_650);
-    locateCountry.textContent = 'Country located';
-    locateCountry.disabled = true;
-    locationStatus.textContent = 'Approximate area only · precise coordinates discarded';
-  };
-
-  // Auto-detect location on load if geolocation available
-  if ('geolocation' in navigator) {
-    locationStatus.textContent = 'Detecting location…';
-    navigator.geolocation.getCurrentPosition(
-      ({ coords }) => {
-        const point = coarseCountryPoint(coords);
-        setUserLocation(point);
-      },
-      () => {
-        // Auto-detect failed silently, user can still click button
-        locationStatus.textContent = 'Click to share your country area (optional)';
-        locateCountry.disabled = false;
-      },
-      { enableHighAccuracy: false, timeout: 8_000, maximumAge: 3_600_000 }
-    );
-
-    locateCountry.addEventListener('click', () => {
-      if (userLocationPoint) return; // Already located
-      locateCountry.disabled = true;
-      locationStatus.textContent = 'Waiting for browser permission…';
-      navigator.geolocation.getCurrentPosition(
-        ({ coords }) => {
-          const point = coarseCountryPoint(coords);
-          setUserLocation(point);
-        },
-        () => {
-          locateCountry.disabled = false;
-          locationStatus.textContent = 'Location was not shared. The overlay still works normally.';
-        },
-        { enableHighAccuracy: false, timeout: 10_000, maximumAge: 3_600_000 }
-      );
-    });
-  } else {
-    locateCountry.disabled = true;
-    locationStatus.textContent = 'Country location is not available in this browser.';
-  }
-
-  window.addEventListener('pagehide', () => {
-    window.clearTimeout(settleTimer);
-    resize.disconnect();
-    globe.pauseAnimation();
-  }, { once: true });
+  applyScene = startGlobe(container, mode, { button: locateCountry, status: locationStatus });
 } catch {
   container.hidden = true;
   locationStatus.textContent = '3D rendering is unavailable; the overlay remains connected.';
@@ -193,6 +64,11 @@ const render = (): void => {
   headline.textContent = text.headline;
   detail.textContent = text.detail;
 };
+const renderSession = (): void => {
+  render();
+  renderRoulettePanel(roulettePanel, describeRoulettePanel(view));
+  applyScene(globeScene(view));
+};
 
 const describeStatus = (connection: ConnectionStatus): string => {
   switch (connection.kind) {
@@ -208,7 +84,7 @@ if (target) {
     onEvent: (event) => {
       view = applyEvent(view, event);
       translationView = applyTranslationEvent(translationView, event, Date.now());
-      render();
+      renderSession();
       renderTranslations();
     },
     onStatus: (connection) => { status.textContent = describeStatus(connection); },
@@ -223,7 +99,173 @@ if (target) {
     window.clearInterval(translationTicker);
     stop();
   }, { once: true });
-  render();
+  renderSession();
 } else {
   status.textContent = 'No viewing credential. Open the overlay URL printed by the RaidSphere server.';
+}
+
+// Returns the function that applies session scenes. OBS mode renders only while something
+// moves; interactive mode keeps the rotating, draggable globe.
+function startGlobe(
+  element: HTMLElement,
+  overlayMode: typeof mode,
+  location: { button: HTMLButtonElement; status: HTMLElement },
+): (scene: GlobeScene) => void {
+  const interactive = overlayMode === 'interactive';
+  const globe = Globe({ animateIn: false })(element)
+    .backgroundColor('rgba(0, 0, 0, 0)')
+    .backgroundImageUrl(interactive ? '/textures/night-sky.png' : null)
+    .globeImageUrl('/textures/earth-night.jpg')
+    .showGraticules(false)
+    .showAtmosphere(true)
+    .atmosphereColor('#6f8dff')
+    .atmosphereAltitude(0.2)
+    .pointsData([])
+    .pointLat('lat')
+    .pointLng('lng')
+    .pointColor('color')
+    .pointRadius('radius')
+    .pointAltitude(0.035)
+    .arcsData([])
+    .arcColor('color')
+    .arcStroke(0.7)
+    .arcAltitudeAutoScale(0.45)
+    .arcDashLength(0.45)
+    .arcDashGap(0.2)
+    .arcDashAnimateTime(1_800)
+    .width(element.clientWidth)
+    .height(element.clientHeight);
+
+  const controls = globe.controls();
+  controls.enabled = interactive;
+  controls.autoRotate = interactive;
+  controls.autoRotateSpeed = 0.3;
+  globe.pointOfView({ lat: 18, lng: -30, altitude: 2.35 });
+
+  // Property updates and camera moves apply asynchronously, so render briefly before pausing.
+  let animated = false;
+  let settleTimer: number | undefined;
+  let pauseAtMs = 0;
+  // Never brings a pending pause forward, so a short render cannot cut a camera transition.
+  const renderFor = (durationMs: number): void => {
+    globe.resumeAnimation();
+    window.clearTimeout(settleTimer);
+    if (interactive || animated) return;
+    pauseAtMs = Math.max(pauseAtMs, Date.now() + durationMs);
+    settleTimer = window.setTimeout(() => globe.pauseAnimation(), pauseAtMs - Date.now());
+  };
+
+  // Moves the camera frame by frame with instant updates, which globe.gl applies reliably.
+  let flight: number | undefined;
+  const flyTo = (to: CameraView, durationMs: number): void => {
+    window.cancelAnimationFrame(flight ?? 0);
+    const from = globe.pointOfView();
+    const startedAtMs = performance.now();
+    renderFor(durationMs + 300);
+    const step = (nowMs: number): void => {
+      const k = (nowMs - startedAtMs) / durationMs;
+      globe.pointOfView(interpolateView(from, to, k));
+      if (k < 1) flight = window.requestAnimationFrame(step);
+    };
+    flight = window.requestAnimationFrame(step);
+  };
+
+  globe.onGlobeReady(() => renderFor(500));
+  const resize = new ResizeObserver(() => {
+    globe.width(element.clientWidth).height(element.clientHeight);
+    renderFor(500);
+  });
+  resize.observe(element);
+
+  let scene = EMPTY_SCENE;
+  let userPoint: { lat: number; lng: number; color: string; radius: number } | null = null;
+  const draw = (): void => {
+    globe.pointsData(userPoint ? [...scene.points, userPoint] : scene.points).arcsData(scene.arcs);
+  };
+
+  if (interactive) {
+    element.addEventListener('pointerdown', () => { controls.autoRotateSpeed = 0.3; });
+    startLocation(globe, location, (point) => {
+      userPoint = { ...point, color: '#ffd166', radius: 0.52 };
+      controls.autoRotate = false;
+      draw();
+    }, (view) => flyTo(view, 1_400));
+  }
+
+  window.addEventListener('pagehide', () => {
+    window.clearTimeout(settleTimer);
+    window.cancelAnimationFrame(flight ?? 0);
+    resize.disconnect();
+    globe.pauseAnimation();
+  }, { once: true });
+
+  return (next) => {
+    const focusChanged = JSON.stringify(next.focus) !== JSON.stringify(scene.focus);
+    scene = next;
+    animated = next.animated;
+    draw();
+    if (interactive && next.focus) controls.autoRotate = false;
+    renderFor(1_500);
+    if (focusChanged && next.focus) flyTo(next.focus, 1_200);
+  };
+}
+
+function startLocation(
+  globe: ReturnType<typeof Globe>,
+  { button: locateCountry, status: locationStatus }: { button: HTMLButtonElement; status: HTMLElement },
+  onLocated: (point: { lat: number; lng: number }) => void,
+  onFly: (view: CameraView) => void,
+): void {
+  let located = false;
+  const locate = (point: { lat: number; lng: number }): void => {
+    located = true;
+    onLocated(point);
+    onFly({ ...point, altitude: 1.7 });
+    locateCountry.textContent = 'Country located';
+    locateCountry.disabled = true;
+    locationStatus.textContent = 'Approximate area only · precise coordinates discarded';
+  };
+  if (!('geolocation' in navigator)) {
+    locateCountry.disabled = true;
+    locationStatus.textContent = 'Country location is not available in this browser.';
+    return;
+  }
+  locationStatus.textContent = 'Click to share your country area (optional)';
+  locateCountry.addEventListener('click', () => {
+    if (located) return;
+    locateCountry.disabled = true;
+    locationStatus.textContent = 'Waiting for browser permission…';
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => locate(coarseCountryPoint(coords)),
+      () => {
+        locateCountry.disabled = false;
+        locationStatus.textContent = 'Location was not shared. The overlay still works normally.';
+      },
+      { enableHighAccuracy: false, timeout: 10_000, maximumAge: 3_600_000 },
+    );
+  });
+}
+
+// Discovery belongs to the broadcaster's browser tab, never to the OBS scene.
+function startDiscovery(root: HTMLElement): void {
+  const searchPanel = createSearchPanel(root, {
+    apiBaseUrl,
+    isOverlay: true,
+    onRaid: (candidate) => {
+      // Real raids are not wired to discovery yet; nothing is requested.
+      window.alert(`Starting a raid to ${candidate.displayName} is not available yet.`);
+    },
+  });
+  void (async () => {
+    try {
+      const response = await fetch(`${apiBaseUrl}/auth/status`, { credentials: 'include' });
+      const data: unknown = await response.json();
+      const authenticated = typeof data === 'object' && data !== null && 'authenticated' in data && data.authenticated === true;
+      const login = authenticated && 'user' in data && typeof data.user === 'string' ? data.user : undefined;
+      // Live status is not checked through Helix yet.
+      searchPanel.updateUserStatus(authenticated ? { authenticated: true, isLive: false, ...(login ? { login } : {}) } : { authenticated: false, isLive: false });
+    } catch {
+      searchPanel.updateUserStatus({ authenticated: false, isLive: false });
+    }
+  })();
 }
