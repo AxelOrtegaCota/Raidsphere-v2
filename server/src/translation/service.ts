@@ -127,8 +127,8 @@ export function translateMessage(
 }
 
 async function translateTracked(
-  options: TranslateMessageOptions, provider: TranslationProvider | undefined,
-  execution: TranslationExecutionOptions, retainForBatch?: (job: Job) => void
+  options: TranslateMessageOptions | Input, provider: TranslationProvider | undefined,
+  execution: TranslationExecutionOptions | z.infer<typeof executionSchema>, retainForBatch?: (job: Job) => void
 ): Promise<TranslationBubble | null> {
   const input = parseInput(options);
   const parsedExecution = executionSchema.safeParse(execution);
@@ -253,7 +253,7 @@ function deliveryResult(job: Job, bubble: TranslationBubble | null): Translation
   return bubble;
 }
 
-function parseInput(options: TranslateMessageOptions): Input {
+function parseInput(options: TranslateMessageOptions | Input): Input {
   const parsed = optionsSchema.safeParse(options);
   if (!parsed.success) throw new TypeError('Invalid translation message options.');
   return parsed.data;
