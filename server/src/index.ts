@@ -2,7 +2,7 @@ import { createRuntime, demoOverlayUrls } from './composition.js';
 import { loadServerConfig } from './config.js';
 
 async function start(): Promise<void> {
-  const config = loadServerConfig(process.env.PORT === undefined ? {} : { PORT: process.env.PORT });
+  const config = loadServerConfig(process.env.PORT === undefined && process.env.HOST === undefined ? {} : { PORT: process.env.PORT, HOST: process.env.HOST });
   const { app, issuedCredentials } = createRuntime({ reportError: (message) => console.error(message) });
   const shutdown = async (): Promise<void> => {
     await app.close();
