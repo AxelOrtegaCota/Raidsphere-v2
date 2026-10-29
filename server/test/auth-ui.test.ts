@@ -12,6 +12,7 @@ async function overlayFixture(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), 'raidsphere-overlay-'));
   temporaryRoots.push(root);
   await writeFile(join(root, 'index.html'), '<!doctype html><title>RaidSphere Overlay</title>', 'utf8');
+  await mkdir(join(root, 'assets'));
   await mkdir(join(root, 'textures'));
   await writeFile(join(root, 'textures', 'earth-night.jpg'), 'fixture', 'utf8');
   return root;
@@ -46,6 +47,9 @@ describe('authenticated web entry points', () => {
     const runtime = createRuntime({ reportError: () => undefined, overlayRoot });
     try {
       const response = await runtime.app.inject({ method: 'GET', url: '/themask957/overlay' });
+      if (response.statusCode !== 200) {
+        console.error('Overlay route failed:', response.statusCode, response.body);
+      }
       expect(response.statusCode).toBe(200);
       expect(response.headers['content-type']).toContain('text/html');
       expect(response.body).toContain('RaidSphere Overlay');

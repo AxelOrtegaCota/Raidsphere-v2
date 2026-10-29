@@ -19,8 +19,13 @@ export function createApp(dependencies: AppDependencies) {
   if (dependencies.overlayRoot) {
     void app.register(fastifyStatic, {
       root: dependencies.overlayRoot,
-      prefix: '/assets/',
+      prefix: '/__overlay__/',
       decorateReply: true,
+    });
+    void app.register(fastifyStatic, {
+      root: join(dependencies.overlayRoot, 'assets'),
+      prefix: '/assets/',
+      decorateReply: false,
     });
     void app.register(fastifyStatic, {
       root: join(dependencies.overlayRoot, 'textures'),
@@ -32,7 +37,7 @@ export function createApp(dependencies: AppDependencies) {
         return reply.code(404).send({ error: 'Not found.' });
       }
       reply.header('Cache-Control', 'no-store');
-      return reply.type('text/html; charset=utf-8').sendFile('index.html');
+      return reply.type('text/html; charset=utf-8').sendFile('index.html', dependencies.overlayRoot);
     });
   }
 
