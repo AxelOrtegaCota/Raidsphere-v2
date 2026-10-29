@@ -178,6 +178,7 @@ export function registerAuthRoutes(app: FastifyInstance, dependencies: AuthRoute
     const query = (request.query as Record<string, string>);
     const language = query.language || '';
     const category = query.category || '';
+    const directGameId = query.gameId || '';
     const searchQuery = query.q || '';
     const viewerRange = query.viewers || '0-10000000';
 
@@ -186,10 +187,10 @@ export function registerAuthRoutes(app: FastifyInstance, dependencies: AuthRoute
     const maxViewers = parseInt(viewerParts[1] ?? '10000000', 10) || 10000000;
 
     try {
-      let gameId: string | undefined;
+      let gameId: string | undefined = directGameId || undefined;
 
-      // If category is provided, search for its game_id
-      if (category) {
+      // If category name is provided (not direct gameId), search for its game_id
+      if (!gameId && category) {
         const categories = await searchCategories(category, helixConfig, 1);
         if (categories.length > 0 && categories[0]) {
           gameId = categories[0].id;

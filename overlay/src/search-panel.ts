@@ -67,7 +67,8 @@ export function createSearchPanel(container: HTMLElement, config: SearchPanelCon
           <option value="ru">Russian</option>
           <option value="zh">Chinese</option>
         </select>
-        <input type="text" id="filter-category" placeholder="Category (e.g. Minecraft)" aria-label="Category">
+        <input type="text" id="filter-category" placeholder="Category (e.g. Minecraft)" aria-label="Category" autocomplete="off">
+        <div id="category-suggestions" class="suggestions-dropdown"></div>
       </div>
       <div class="filter-row">
         <input type="text" id="filter-search" placeholder="🔍 Search channel..." aria-label="Search channel">
@@ -108,8 +109,13 @@ export function createSearchPanel(container: HTMLElement, config: SearchPanelCon
   // Filters
   const languageFilter = panel.querySelector<HTMLSelectElement>('#filter-language')!;
   const categoryFilter = panel.querySelector<HTMLInputElement>('#filter-category')!;
+  const categorySuggestions = panel.querySelector<HTMLElement>('#category-suggestions')!;
   const searchFilter = panel.querySelector<HTMLInputElement>('#filter-search')!;
   const viewersFilter = panel.querySelector<HTMLSelectElement>('#filter-viewers')!;
+
+  // Category autocomplete state
+  let selectedCategoryId: string | null = null;
+  let autocompleteTimeout: number | null = null;
 
   // State
   let isOpen = config.isOverlay;
@@ -148,7 +154,12 @@ export function createSearchPanel(container: HTMLElement, config: SearchPanelCon
   const fetchCandidates = async (): Promise<Candidate[]> => {
     const params = new URLSearchParams();
     if (languageFilter.value) params.set('language', languageFilter.value);
-    if (categoryFilter.value) params.set('category', categoryFilter.value);
+    // Use gameId if we have it from autocomplete, otherwise use category name
+    if (selectedCategoryId) {
+      params.set('gameId', selectedCategoryId);
+    } else if (categoryFilter.value) {
+      params.set('category', categoryFilter.value);
+    }
     if (searchFilter.value) params.set('q', searchFilter.value);
     if (viewersFilter.value) params.set('viewers', viewersFilter.value);
 
@@ -378,6 +389,72 @@ export function createSearchPanel(container: HTMLElement, config: SearchPanelCon
   applyFilters.addEventListener('click', refresh);
   searchFilter.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') refresh();
+  });
+
+  // Category autocomplete
+  const fetchCategorySuggestions = async (query: string) => {
+    if (query.length < 2) {
+      categorySuggestions.innerHTML = '';
+      categorySuggestions.classList.remove('visible');
+      return;
+    }
+
+    try {
+      const response = await fetch(`${config.apiBaseUrl}/api/categories?q=${encodeURIComponent(query)}`, {
+        credentials: 'include',
+      });
+      if (!response.ok) return;
+      
+      const data = await response.json();
+      if (data.categories && data.categories.length > 0) {
+        categorySuggestions.innerHTML = data.categories.map((c: { id: string; name: string; boxArtUrl: string }) => `
+          <div class="suggestion-item" data-id="${c.id}" data-name="${escapeHtml(c.name)}">
+            <img src="${c.boxArtUrl}" alt="" onerror="this.style.display='none'">
+            <span>${escapeHtml(c.name)}</span>
+          </div>
+        `).join('');
+        categorySuggestions.classList.add('visible');
+
+        // Add click listeners to suggestions
+        categorySuggestions.querySelectorAll('.suggestion-item').forEach(item => {
+          item.addEventListener('click', () => {
+            const id = item.getAttribute('data-id')!;
+            const name = item.getAttribute('data-name')!;
+            categoryFilter.value = name;
+            selectedCategoryId = id;
+            categorySuggestions.innerHTML = '';
+            categorySuggestions.classList.remove('visible');
+          });
+        });
+      } else {
+        categorySuggestions.innerHTML = '<div class="suggestion-empty">No categories found</div>';
+        categorySuggestions.classList.add('visible');
+      }
+    } catch {
+      categorySuggestions.innerHTML = '';
+      categorySuggestions.classList.remove('visible');
+    }
+  };
+
+  categoryFilter.addEventListener('input', () => {
+    selectedCategoryId = null; // Reset selected ID when typing
+    if (autocompleteTimeout) clearTimeout(autocompleteTimeout);
+    autocompleteTimeout = window.setTimeout(() => {
+      fetchCategorySuggestions(categoryFilter.value);
+    }, 300);
+  });
+
+  categoryFilter.addEventListener('blur', () => {
+    // Delay hiding to allow click on suggestion
+    setTimeout(() => {
+      categorySuggestions.classList.remove('visible');
+    }, 200);
+  });
+
+  categoryFilter.addEventListener('focus', () => {
+    if (categoryFilter.value.length >= 2) {
+      fetchCategorySuggestions(categoryFilter.value);
+    }
   });
 
   // Initial load
