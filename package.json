@@ -17,7 +17,8 @@
     "dev:server": "npm run build:shared && npm run dev --workspace=@raidsphere/server",
     "dev:overlay": "npm run build:shared && npm run dev --workspace=@raidsphere/overlay",
     "demo": "npm run build:shared && npm run build --workspace=@raidsphere/server && node server/dist/simulation/demo.js",
-    "demo:auto": "npm run demo -- --auto"
+    "demo:auto": "npm run demo -- --auto",
+    "start": "node server/dist/index.js"
   },
   "devDependencies": {
     "@types/node": "^20.17.19",
