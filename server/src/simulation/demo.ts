@@ -2,11 +2,12 @@ import { createInterface } from 'node:readline';
 import type { LanguageCode, ServerEvent } from '@raidsphere/shared';
 import { createRuntime, demoOverlayUrls } from '../composition.js';
 import { loadServerConfig } from '../config.js';
-import { CommandSimulator } from './commands.js';
+import { SimulatedChat } from '../twitch/simulated-chat.js';
 import { DEMO_SOURCE_ID } from './fixtures.js';
 
 // Local Phase 2 demo (plan step 9). Everything runs in this process: the keyboard of this
 // terminal drives the simulated chat, and no network endpoint accepts commands (D2-05 rule 5).
+// Chat text goes through the Module B parser; raids use the Module B simulated gateway.
 // Usage: `npm run demo` (interactive) or `npm run demo:auto` (one automatic round).
 
 // [seconds after !roulette, synthetic viewer, vote]. The last two are ignored by design (D2-04).
@@ -15,13 +16,17 @@ const VOTE_SCRIPT: readonly (readonly [number, string, LanguageCode])[] = [
   [10, 'viewer_01', 'en'], [12, 'viewer_05', 'de'],
 ];
 const AUTO_START_DELAY_MS = 3_000;
+// The demo raid is always accepted and arrives after a fixed, visible countdown.
+const DEMO_RAID = {
+  acceptRate: 1, arrivalRate: 1, minCountdownMs: 10_000, maxCountdownMs: 10_000, observationTimeoutMs: 20_000,
+} as const;
 
 async function main(): Promise<void> {
   const auto = process.argv.includes('--auto');
   const config = loadServerConfig(process.env.PORT === undefined ? {} : { PORT: process.env.PORT });
   const { app, coordinator, issuedCredentials } = createRuntime({
     reportError: (message) => console.error(message),
-    simulatedRaid: { countdownSeconds: 10 },
+    simulatedRaid: DEMO_RAID,
   });
   await app.listen(config);
   const startedAtMs = Date.now();
@@ -60,17 +65,17 @@ async function main(): Promise<void> {
     if (view) views.push(view);
   }
 
-  const chat = new CommandSimulator(coordinator, DEMO_SOURCE_ID);
+  const chat = new SimulatedChat(coordinator, DEMO_SOURCE_ID);
   const startRound = async (): Promise<void> => {
     const before = (await coordinator.snapshot(DEMO_SOURCE_ID)).roulette?.sessionId;
-    await chat.roulette();
+    await chat.say(chat.broadcaster, '!roulette');
     const after = (await coordinator.snapshot(DEMO_SOURCE_ID)).roulette;
     // Only a newly started session gets the vote script.
     if (after?.status !== 'voting' || after.sessionId === before) return;
     for (const [seconds, userId, language] of VOTE_SCRIPT) {
       const timer = setTimeout(() => {
         voteTimers.delete(timer);
-        void chat.vote(userId, language);
+        void chat.say({ userId }, `!vote ${language}`);
       }, seconds * 1_000);
       voteTimers.add(timer);
     }
@@ -90,7 +95,7 @@ async function main(): Promise<void> {
     if (key === '') void startRound();
     else if (key === 'c') {
       clearVotes();
-      void chat.cancel();
+      void chat.say(chat.broadcaster, '!cancel');
     } else if (key === 'q') void stop();
   });
 }

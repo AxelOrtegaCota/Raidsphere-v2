@@ -50,3 +50,11 @@ export {
   type RaidCancellationResult,
   type SimulationConfig,
 } from './raids.js';
+
+// Adapters to the Module D application ports
+export {
+  commandRole,
+  toChatCommand,
+  RaidGatewayAdapter,
+  type RaidGatewayAdapterDependencies,
+} from './adapters.js';
