@@ -30,6 +30,9 @@
   },
   "overrides": {
     "vite": "$vite",
-    "light-my-request": "6.6.0"
+    "light-my-request": "6.6.0",
+    "@fastify/static": {
+      "content-disposition": "2.0.1"
+    }
   }
 }
