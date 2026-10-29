@@ -1,8 +1,13 @@
 import Fastify from 'fastify';
 import { PROTOCOL_VERSION } from '@raidsphere/shared';
 import { registerWebSocketBoundary } from './websocket.js';
+import type { ViewingDependencies } from './websocket.js';
 
-export function createApp() {
+export interface AppDependencies {
+  viewing: ViewingDependencies;
+}
+
+export function createApp(dependencies: AppDependencies) {
   // Request logging stays disabled until redaction and retention are designed.
   const app = Fastify({ logger: false, bodyLimit: 16 * 1024, requestTimeout: 10_000 });
 
@@ -12,7 +17,10 @@ export function createApp() {
       application: 'RaidSphere',
       status: 'ok',
       protocolVersion: PROTOCOL_VERSION,
-      capabilities: { channelSubscriptions: false, controlCommands: false },
+      // Phase 2 runs only with synthetic channels and simulated raids (D2-15).
+      mode: 'simulation',
+      // Read-only channel subscriptions exist; no remote control path does (D2-11).
+      capabilities: { channelSubscriptions: true, controlCommands: false },
     };
   });
 
@@ -24,7 +32,7 @@ export function createApp() {
     reply.code(404).send({ error: 'Not found.' });
   });
 
-  registerWebSocketBoundary(app);
+  registerWebSocketBoundary(app, dependencies.viewing);
   return app;
 }
 

@@ -92,6 +92,44 @@ describe('server event boundary', () => {
     })).success).toBe(false);
   });
 
+  it('requires the destination country to match the selected candidate', () => {
+    for (const toCountry of ['JP', null]) {
+      expect(serverEventSchema.safeParse(event('roulette:chosen', {
+        candidate, winningLanguage: 'en', fromCountry: 'MX', toCountry,
+      })).success).toBe(false);
+    }
+    expect(serverEventSchema.safeParse(event('roulette:chosen', {
+      candidate: { ...candidate, illustrativeCountry: null }, winningLanguage: 'en', fromCountry: 'MX', toCountry: null,
+    })).success).toBe(true);
+  });
+
+  it('accepts every supported language in one roulette', () => {
+    const languages = ['en', 'es', 'pt', 'fr', 'de', 'ja', 'ko'] as const;
+    const candidates = languages.map((language, index) => ({
+      ...candidate, streamerId: `fixture-destination-${index}`, language,
+    }));
+    expect(serverEventSchema.safeParse(event('roulette:start', {
+      candidates, languages, votingEndsAtMs: 31000,
+    })).success).toBe(true);
+  });
+
+  it('requires a session on raid errors', () => {
+    for (const code of ['RAID_REJECTED', 'RAID_OUTCOME_UNKNOWN']) {
+      expect(serverEventSchema.safeParse(event('error', {
+        code, message: 'Fixture raid error.', recoverable: false,
+      }, false)).success).toBe(false);
+    }
+    expect(serverEventSchema.safeParse(event('error', {
+      code: 'INTERNAL_ERROR', message: 'Fixture internal error.', recoverable: false,
+    }, false)).success).toBe(true);
+  });
+
+  it('reports missing candidates without a session', () => {
+    const payload = { code: 'NO_ELIGIBLE_CANDIDATES', message: 'No eligible channel is live.', recoverable: true };
+    expect(serverEventSchema.safeParse(event('error', payload, false)).success).toBe(true);
+    expect(serverEventSchema.safeParse(event('error', payload)).success).toBe(false);
+  });
+
   it('rejects another channel in translation windows and snapshots', () => {
     const otherWindow = { ...windowState, channelId: 'fixture-other' };
     expect(serverEventSchema.safeParse(event('translation:window', otherWindow, false)).success).toBe(false);

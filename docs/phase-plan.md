@@ -1,6 +1,6 @@
 # RaidSphere phase plan and progress
 
-As of 2026-10-27. Phase 1 is complete and merged into `main`, which is the base for all later work. Next: every module owner branches from `main`, and the team starts Phase 2 (local MVP).
+As of 2026-10-28. Phase 1 is complete and merged into `main`. Phase 2 (local MVP) is complete on `feature/backend-core` for the backend and a text overlay; the visual globe synchronization is deferred to later Module A work. Next: review and merge Phase 2 into `main`, then plan Phase 3 (real Twitch).
 
 ## Current status
 
@@ -8,13 +8,15 @@ As of 2026-10-27. Phase 1 is complete and merged into `main`, which is the base 
 | --- | --- |
 | Codebase | Three workspaces: `shared/`, `server/`, and `overlay/`; strict TypeScript and npm workspaces. |
 | Contracts | Zod 4 schemas and versioned events; F1–F5 included. Event names, fields, and rules unchanged. |
-| Backend | Fastify; `/health` returns 200 with `no-store`; `/ws` returns 503 until authorization exists; typed error handler (V4). Listens only on `127.0.0.1`. |
-| Overlay | Globe centered at load and after resizing (V5–V7); transparent background verified in a browser and in OBS 32.2.2 (~1% CPU at 30 FPS). |
+| Backend | Fastify, loopback only. Roulette coordinator with authoritative in-memory state, 30 s voting, selection, and simulated raids (Phase 2). `/ws` is read-only with per-channel viewing credentials (D2-11); `/health` reports `mode: 'simulation'`. Local demo: `npm run demo`. |
+| Overlay | Globe centered at load and after resizing (V5–V7); transparent background verified in a browser and in OBS 32.2.2 (~1% CPU at 30 FPS) in Phase 1. Phase 2: read-only WebSocket client with a text panel and a permanent Simulation label, verified in a browser; not yet checked in OBS. The globe does not show session data yet. |
 | Dependencies | Lockfile included; `light-my-request` 6.6.0 override (V1), Vitest 4.1.12 (V2), Zod 4.6.7 (V3); `npm audit` 0 vulnerabilities (previously 4). |
-| Checks | 63/63 tests (38 contract, 25 server), typecheck, and build pass, with no test modifications; repeated on `main` after the merge. |
+| Checks | Phase 1: 63/63 tests, typecheck, and build on `main` after the merge. Phase 2 on `feature/backend-core`: 155/155 tests, typecheck, and build. |
 | Version control | Phase 1 merged into `main` through PR #1 (`b89ed23`). `main` is the official base; `feature/project-foundation` (`4219a21`) is obsolete. |
 
-This status is based on local verification, Git history, and [Phase 1 decisions](phase-1-decisions.md). Twitch, raids, translation, and deployment are not implemented yet.
+This status is based on local verification, Git history, [Phase 1 decisions](phase-1-decisions.md), and [Phase 2 backend decisions](phase-2-backend-decisions.md). Real Twitch integration, real raids, translation, persistence, and deployment are not implemented yet.
+
+Phase 2 backend decisions are recorded in [Phase 2 backend decisions](phase-2-backend-decisions.md), and their build order and progress in the [Phase 2 backend plan](phase-2-backend-plan.md).
 
 ## Development phases
 
@@ -22,8 +24,8 @@ This status is based on local verification, Git history, and [Phase 1 decisions]
 | --- | --- | --- |
 | Phase 0 — Definition | Proposal, MVP scope, modules A/B/C/D, architecture, and collaboration. | Essentially complete |
 | Phase 1 — Foundation | Workspaces, contracts, minimal backend, static overlay, tests, and verification. | Complete; merged into `main` |
-| Phase 2 — Local MVP | End-to-end roulette with synthetic channels, 30 s voting, selection, and a synchronized globe. | Next |
-| Phase 3 — Real Twitch | OAuth, EventSub/chat, commands, eligibility, raid requests, and observed arrivals. | Pending |
+| Phase 2 — Local MVP | End-to-end roulette with synthetic channels, 30 s voting, selection, and a synchronized globe. | Complete on `feature/backend-core` (backend and text overlay); globe visuals deferred to Module A; pending merge into `main` |
+| Phase 3 — Real Twitch | OAuth, EventSub/chat, commands, eligibility, raid requests, and observed arrivals. | Next |
 | Phase 4 — AI translation | Bilingual messages, emote preservation, moderation, and the 15-minute window. | Pending |
 | Phase 5 — Final integration | QA, OBS performance, security, demo, documentation, and hackathon submission. | Pending |
 
@@ -57,8 +59,8 @@ This status is based on local verification, Git history, and [Phase 1 decisions]
 | Milestone | Visible success criterion | Status |
 | --- | --- | --- |
 | M1 — Integrated base | Phase 1 reviewed and merged; docs, rules, and lockfile aligned. | Done |
-| M2 — Controlled simulation | `!roulette` starts in local mode, voting lasts 30 s, and the backend counts valid votes. | Next |
-| M3 — Connected overlay | The globe shows the session, languages, countdown, and chosen candidate from validated events. | Pending |
+| M2 — Controlled simulation | `!roulette` starts in local mode, voting lasts 30 s, and the backend counts valid votes. | Done (Phase 2: tests and `npm run demo:auto`) |
+| M3 — Connected overlay | The globe shows the session, languages, countdown, and chosen candidate from validated events. | Partly done: the overlay shows them as text from validated events (browser check); globe markers and arcs deferred to Module A |
 | M4 — Twitch integration | Real flow only for authorized participating channels; raid requests are distinguished from observed arrivals. | Pending |
 | M5 — Translation and demo | Original/translated messages, 15-minute expiry, moderation, and demo rehearsal. | Pending |
 
@@ -68,7 +70,7 @@ Phases 2–5 and the milestone order are a recommended plan, not completed deliv
 
 | Priority | Risk | Response |
 | --- | --- | --- |
-| High | Mistaking the skeleton tests for functional tests of the roulette, Twitch, or translation. | Report implemented and verified work separately; those features do not exist yet. |
+| High | Mistaking the simulated Phase 2 flow for real Twitch behavior. | Report implemented and verified work separately; Twitch, real raids, and translation do not exist yet, and simulated timings must be recalibrated against Twitch in Phase 3. |
 | High | Using outdated Twitch scopes or permissions. | Validate them before integrating OAuth or starting raids; limit to authorized participating channels. |
 | Medium | Branching from the obsolete `feature/project-foundation` (`4219a21`). | Always branch from the latest `main`; that branch lacks V1–V7 and the lockfile. |
 | Medium | ~2.04 MB overlay bundle (~578 kB gzip) and a low-contrast purple halo. | Code splitting and visual tuning in Module A. |
@@ -77,6 +79,7 @@ Phases 2–5 and the milestone order are a recommended plan, not completed deliv
 
 ## Next actions
 
-1. **Whole team:** create module branches from `main` (`feature/globe-overlay`, `feature/twitch-integration`, `feature/ai-translation`, `feature/backend-core`) and agree on the three contract adjustments and the internal B/C/D contracts.
-2. **A + D owners:** first build a local roulette with synthetic candidates and visible states on the globe (M2–M3).
-3. **B + C owners:** prepare adapters and services against the contracts without blocking the initial prototype.
+1. **Project owner:** review `feature/backend-core` and merge Phase 2 into `main` through a pull request.
+2. **Module A:** draw the session on the globe (candidates, chosen channel, raid arc) from the same validated events, and check the overlay in OBS.
+3. **Modules B and D:** plan Phase 3 (OAuth, EventSub chat, Helix streams and raids, `channel.raid` arrivals) as adapters for the existing ports in `server/src/application/ports.ts`, decided one question at a time as in Phase 2.
+4. **Module C:** prepare the translation interface against the contracts without blocking Phase 3.
