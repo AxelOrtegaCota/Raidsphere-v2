@@ -22,7 +22,7 @@ function notification<TName extends string, TPayload extends z.ZodType>(type: TN
 
 const rouletteStartEventSchema = notification('roulette:start', z.object({
   candidates: z.array(candidateSchema).min(1).max(100),
-  languages: z.array(languageCodeSchema).min(1).max(7),
+  languages: z.array(languageCodeSchema).min(1).max(languageCodeSchema.options.length),
   votingEndsAtMs: timestampSchema,
 }).strict()).extend({ sessionId: identifierSchema });
 
@@ -74,7 +74,7 @@ const stateSnapshotEventSchema = notification('state:snapshot', z.object({
 const errorEventSchema = notification('error', z.object({
   code: z.enum([
     'UNAUTHORIZED', 'INVALID_MESSAGE', 'UNSUPPORTED_VERSION', 'AUTHORIZATION_UNAVAILABLE',
-    'RAID_REJECTED', 'RAID_OUTCOME_UNKNOWN', 'INTERNAL_ERROR',
+    'RAID_REJECTED', 'RAID_OUTCOME_UNKNOWN', 'NO_ELIGIBLE_CANDIDATES', 'INTERNAL_ERROR',
   ]),
   message: z.string().min(1).max(200),
   recoverable: z.boolean(),
@@ -111,6 +111,16 @@ export const serverEventSchema = serverEventUnion.superRefine((event, context) =
   }
   if (event.type === 'roulette:chosen' && event.payload.candidate.language !== event.payload.winningLanguage) {
     issue(['payload', 'winningLanguage'], 'The selected candidate must use the winning language.');
+  }
+  if (event.type === 'roulette:chosen' && event.payload.toCountry !== event.payload.candidate.illustrativeCountry) {
+    issue(['payload', 'toCountry'], 'The destination country must match the selected candidate.');
+  }
+  if (event.type === 'error') {
+    const isRaidError = event.payload.code === 'RAID_REJECTED' || event.payload.code === 'RAID_OUTCOME_UNKNOWN';
+    if (isRaidError && event.sessionId === undefined) issue(['sessionId'], 'Raid errors must identify their session.');
+    if (event.payload.code === 'NO_ELIGIBLE_CANDIDATES' && event.sessionId !== undefined) {
+      issue(['sessionId'], 'No session exists when no candidate is eligible.');
+    }
   }
   if (event.type === 'raid:arrived' && event.payload.toStreamerId !== event.channelId) {
     issue(['channelId'], 'An arrival must target the destination channel.');

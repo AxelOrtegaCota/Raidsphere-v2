@@ -1,9 +1,9 @@
-import { createApp } from './app.js';
+import { createRuntime, demoOverlayUrls } from './composition.js';
 import { loadServerConfig } from './config.js';
 
 async function start(): Promise<void> {
   const config = loadServerConfig(process.env.PORT === undefined ? {} : { PORT: process.env.PORT });
-  const app = createApp();
+  const { app, issuedCredentials } = createRuntime({ reportError: (message) => console.error(message) });
   const shutdown = async (): Promise<void> => {
     await app.close();
   };
@@ -12,11 +12,14 @@ async function start(): Promise<void> {
 
   try {
     await app.listen(config);
-    console.info(`RaidSphere foundation is listening on loopback port ${config.port}.`);
   } catch {
     await app.close();
     throw new Error('Server startup failed.');
   }
+  console.info(`RaidSphere is listening on loopback port ${config.port} in simulation mode.`);
+  // Printed once, locally only (D2-11 rule 7, D2-16). Each URL contains a read-only viewing credential.
+  console.info('OBS overlay URLs (do not share or screen-share; valid until the server restarts):');
+  for (const { channelId, url } of demoOverlayUrls(issuedCredentials)) console.info(`  ${channelId}: ${url}`);
 }
 
 void start().catch(() => {

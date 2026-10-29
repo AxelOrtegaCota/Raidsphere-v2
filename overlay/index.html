@@ -4,15 +4,17 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="referrer" content="no-referrer" />
-    <title>RaidSphere Overlay Foundation</title>
+    <title>RaidSphere Overlay</title>
   </head>
   <body>
-    <main id="app" aria-label="RaidSphere overlay foundation">
+    <main id="app" aria-label="RaidSphere overlay">
       <div id="globe" aria-hidden="true"></div>
+      <p class="badge">Simulation</p>
       <section class="status" aria-live="polite">
         <p class="brand">RaidSphere</p>
-        <h1>Raids without language barriers</h1>
-        <p id="connection-status">Foundation preview. Channel authorization is pending.</p>
+        <h1 id="headline">Raids without language barriers</h1>
+        <p id="detail"></p>
+        <p id="connection-status">Starting.</p>
       </section>
     </main>
     <script type="module" src="/src/main.ts"></script>

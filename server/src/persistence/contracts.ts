@@ -17,6 +17,8 @@ export interface StreamerRepository {
 
 export interface RouletteRepository {
   findActiveByChannel(channelId: string): Promise<StoredRouletteSession | null>;
+  // The channel's most recent session, active or terminal, for snapshots (D2-07 rule 7).
+  findLatestByChannel(channelId: string): Promise<StoredRouletteSession | null>;
   // Implementations must atomically enforce the expected version and one active session.
   compareAndSave(session: StoredRouletteSession, expectedVersion: number | null): Promise<boolean>;
 }

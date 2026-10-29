@@ -2,18 +2,20 @@ import { IncomingMessage } from 'node:http';
 import { Socket } from 'node:net';
 import { PassThrough } from 'node:stream';
 import { describe, expect, it } from 'vitest';
-import { createApp } from '../src/app.js';
+import { createRuntime } from '../src/composition.js';
 import { loadServerConfig } from '../src/config.js';
 
-describe('foundation server boundaries', () => {
-  it('provides health without advertising implemented channel or control access', async () => {
+const createApp = () => createRuntime({ reportError: () => undefined }).app;
+
+describe('server boundaries', () => {
+  it('reports simulation mode and read-only subscriptions without control access', async () => {
     const app = createApp();
     try {
       const response = await app.inject({ method: 'GET', url: '/health' });
       expect(response.statusCode).toBe(200);
       expect(response.json()).toEqual({
-        application: 'RaidSphere', status: 'ok', protocolVersion: 1,
-        capabilities: { channelSubscriptions: false, controlCommands: false },
+        application: 'RaidSphere', status: 'ok', protocolVersion: 1, mode: 'simulation',
+        capabilities: { channelSubscriptions: true, controlCommands: false },
       });
       expect(response.headers['cache-control']).toBe('no-store');
       const missing = await app.inject({ method: 'GET', url: '/unknown' });
@@ -24,7 +26,10 @@ describe('foundation server boundaries', () => {
     }
   });
 
-  it('rejects an upgrade before creating a WebSocket or reflecting request data', async () => {
+  it.each([
+    ['/ws?fixture=must-not-be-reflected', '403 Forbidden'],
+    ['/other?fixture=must-not-be-reflected', '404 Not Found'],
+  ])('rejects the upgrade %s without an allowed origin and without reflecting request data', async (url, status) => {
     const app = createApp();
     const requestSocket = new Socket();
     const responseSocket = new PassThrough();
@@ -33,10 +38,10 @@ describe('foundation server boundaries', () => {
     try {
       await app.ready();
       const request = new IncomingMessage(requestSocket);
-      request.url = '/ws?fixture=must-not-be-reflected';
+      request.url = url;
       app.server.emit('upgrade', request, responseSocket, Buffer.alloc(0));
       const response = Buffer.concat(chunks).toString('utf8');
-      expect(response).toContain('503 Service Unavailable');
+      expect(response).toContain(status);
       expect(response).not.toContain('must-not-be-reflected');
       expect(response).not.toContain('101 Switching Protocols');
     } finally {
