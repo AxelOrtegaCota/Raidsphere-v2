@@ -9,12 +9,21 @@ const container = document.querySelector<HTMLElement>('#globe');
 const headline = document.querySelector<HTMLElement>('#headline');
 const detail = document.querySelector<HTMLElement>('#detail');
 const status = document.querySelector<HTMLElement>('#connection-status');
+const badge = document.querySelector<HTMLElement>('.badge');
 const locateCountry = document.querySelector<HTMLButtonElement>('#locate-country');
 const locationStatus = document.querySelector<HTMLElement>('#location-status');
 
 if (!container || !headline || !detail || !status || !locateCountry || !locationStatus) {
   throw new Error('The overlay is missing its required elements.');
 }
+
+// Hide simulation badge when authenticated (credential present means authenticated)
+const target = readOverlayTarget(window.location, window.history);
+if (target?.credential && badge) {
+  badge.style.display = 'none';
+}
+
+let userLocationPoint: { lat: number; lng: number } | null = null;
 
 try {
   const globe = Globe({ animateIn: false })(container)
@@ -34,17 +43,30 @@ try {
     .width(container.clientWidth)
     .height(container.clientHeight);
 
-  globe.controls().enabled = false;
+  // Enable interactive controls - user can rotate/zoom the globe
+  globe.controls().enableZoom = true;
+  globe.controls().enableRotate = true;
+  globe.controls().autoRotate = true;
+  globe.controls().autoRotateSpeed = 0.3;
   globe.pointOfView({ lat: 18, lng: -30, altitude: 2.35 });
 
-  // Property updates and camera transitions render briefly, then pause to keep OBS GPU usage bounded.
-  const SETTLE_MS = 250;
+  // Keep animation running for interactivity, but throttle when idle
+  const SETTLE_MS = 3000;
   let settleTimer: number | undefined;
   const renderBriefly = (durationMs = SETTLE_MS): void => {
     globe.resumeAnimation();
     window.clearTimeout(settleTimer);
-    settleTimer = window.setTimeout(() => globe.pauseAnimation(), durationMs);
+    settleTimer = window.setTimeout(() => {
+      // Keep auto-rotate but reduce frame rate when not interacting
+      globe.controls().autoRotateSpeed = 0.15;
+    }, durationMs);
   };
+
+  // Resume full speed on interaction
+  container.addEventListener('pointerdown', () => {
+    globe.controls().autoRotateSpeed = 0.3;
+    renderBriefly();
+  });
 
   globe.onGlobeReady(renderBriefly);
   const resize = new ResizeObserver(() => {
@@ -53,25 +75,52 @@ try {
   });
   resize.observe(container);
 
-  if (!('geolocation' in navigator)) {
+  const setUserLocation = (point: { lat: number; lng: number }) => {
+    userLocationPoint = point;
+    globe.pointsData([{ ...point, color: '#ffd166' }]);
+    globe.controls().autoRotate = false;
+    globe.pointOfView({ ...point, altitude: 1.7 }, 1_400);
+    renderBriefly(1_650);
+    locateCountry.textContent = 'Country located';
     locateCountry.disabled = true;
-    locationStatus.textContent = 'Country location is not available in this browser.';
-  } else {
+    locationStatus.textContent = 'Approximate area only · precise coordinates discarded';
+  };
+
+  // Auto-detect location on load if geolocation available
+  if ('geolocation' in navigator) {
+    locationStatus.textContent = 'Detecting location…';
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        const point = coarseCountryPoint(coords);
+        setUserLocation(point);
+      },
+      () => {
+        // Auto-detect failed silently, user can still click button
+        locationStatus.textContent = 'Click to share your country area (optional)';
+        locateCountry.disabled = false;
+      },
+      { enableHighAccuracy: false, timeout: 8_000, maximumAge: 3_600_000 }
+    );
+
     locateCountry.addEventListener('click', () => {
+      if (userLocationPoint) return; // Already located
       locateCountry.disabled = true;
       locationStatus.textContent = 'Waiting for browser permission…';
-      navigator.geolocation.getCurrentPosition(({ coords }) => {
-        const point = coarseCountryPoint(coords);
-        globe.pointsData([{ ...point, color: '#ffd166' }]);
-        globe.pointOfView({ ...point, altitude: 1.7 }, 1_400);
-        renderBriefly(1_650);
-        locateCountry.textContent = 'Country area located';
-        locationStatus.textContent = 'Approximate area only · precise coordinates discarded';
-      }, () => {
-        locateCountry.disabled = false;
-        locationStatus.textContent = 'Location was not shared. The overlay still works normally.';
-      }, { enableHighAccuracy: false, timeout: 10_000, maximumAge: 3_600_000 });
+      navigator.geolocation.getCurrentPosition(
+        ({ coords }) => {
+          const point = coarseCountryPoint(coords);
+          setUserLocation(point);
+        },
+        () => {
+          locateCountry.disabled = false;
+          locationStatus.textContent = 'Location was not shared. The overlay still works normally.';
+        },
+        { enableHighAccuracy: false, timeout: 10_000, maximumAge: 3_600_000 }
+      );
     });
+  } else {
+    locateCountry.disabled = true;
+    locationStatus.textContent = 'Country location is not available in this browser.';
   }
 
   window.addEventListener('pagehide', () => {
@@ -101,7 +150,6 @@ const describeStatus = (connection: ConnectionStatus): string => {
   }
 };
 
-const target = readOverlayTarget(window.location, window.history);
 if (target) {
   const stop = connectToChannel(target, {
     onEvent: (event) => {
