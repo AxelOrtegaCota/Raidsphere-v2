@@ -24,9 +24,9 @@ export interface TranslateMessageOptions {
   text: string;
   sourceLanguage: LanguageCode | null;
   targetLanguage: LanguageCode;
-  channelEmotes?: string[];
-  fragments?: ChatFragment[];
-  simulationMode?: boolean;
+  channelEmotes?: string[] | undefined;
+    fragments?: ChatFragment[] | undefined;
+      simulationMode?: boolean | undefined;
 }
 
 /** Opaque at runtime: copying these fields does not create a valid session handle. */

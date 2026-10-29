@@ -6,7 +6,8 @@
     "lib": ["ES2022"],
     "types": ["node"],
     "rootDir": "src",
-    "outDir": "dist"
+    "outDir": "dist",
+    "exactOptionalPropertyTypes": false
   },
   "include": ["src/**/*.ts"],
   "exclude": ["dist", "test", "src/**/__tests__/**", "src/**/*.test.ts", "src/**/*.spec.ts"]
