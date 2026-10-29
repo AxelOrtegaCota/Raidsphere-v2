@@ -14,6 +14,8 @@ import {
 import {
   searchChannels,
   getStreams,
+  getStreamsFiltered,
+  searchCategories,
   type HelixRequestConfig,
 } from '../twitch/helix.js';
 import {
@@ -174,45 +176,128 @@ export function registerAuthRoutes(app: FastifyInstance, dependencies: AuthRoute
     };
 
     const query = (request.query as Record<string, string>);
-    const language = query.language || 'es';
-    const searchQuery = query.q || 'just chatting';
+    const language = query.language || '';
+    const category = query.category || '';
+    const searchQuery = query.q || '';
+    const viewerRange = query.viewers || '0-10000000';
+
+    const viewerParts = viewerRange.split('-');
+    const minViewers = parseInt(viewerParts[0] ?? '0', 10) || 0;
+    const maxViewers = parseInt(viewerParts[1] ?? '10000000', 10) || 10000000;
 
     try {
-      // Search for live channels
-      const channels = await searchChannels(searchQuery, helixConfig, language, 10);
-      
-      // Get top streams (general)
-      const streams = await getStreams(helixConfig, undefined, 10);
+      let gameId: string | undefined;
+
+      // If category is provided, search for its game_id
+      if (category) {
+        const categories = await searchCategories(category, helixConfig, 1);
+        if (categories.length > 0 && categories[0]) {
+          gameId = categories[0].id;
+        }
+      }
+
+      // Get streams filtered by language and/or game
+      const streams = await getStreamsFiltered(helixConfig, {
+        language: language || undefined,
+        gameId,
+        first: 50,
+      });
+
+      // Filter by viewer range
+      const filteredStreams = streams.filter(s => 
+        s.viewerCount >= minViewers && s.viewerCount <= maxViewers
+      );
+
+      // If search query provided, also search channels
+      let channelResults: Array<{
+        id: string;
+        login: string;
+        displayName: string;
+        game: string;
+        title: string;
+        isLive: boolean;
+        language: string;
+        viewers: number;
+      }> = [];
+
+      if (searchQuery) {
+        const channels = await searchChannels(searchQuery, helixConfig, language || undefined, 20);
+        channelResults = channels.map(ch => ({
+          id: ch.id,
+          login: ch.login,
+          displayName: ch.displayName,
+          game: ch.gameName,
+          title: ch.title,
+          isLive: ch.isLive,
+          language: ch.broadcasterLanguage,
+          viewers: 0,
+        }));
+      }
 
       return {
         success: true,
         authenticated_as: session.user.login,
-        search: {
-          query: searchQuery,
-          language,
-          results: channels.map(ch => ({
-            id: ch.id,
-            login: ch.login,
-            displayName: ch.displayName,
-            game: ch.gameName,
-            title: ch.title,
-            isLive: ch.isLive,
-            language: ch.broadcasterLanguage,
-          })),
+        filters: {
+          language: language || 'all',
+          category: category || 'all',
+          gameId: gameId || null,
+          viewers: `${minViewers}-${maxViewers}`,
         },
-        top_streams: streams.slice(0, 5).map(s => ({
+        streams: filteredStreams.map(s => ({
           id: s.userId,
           login: s.userLogin,
-          name: s.userName,
+          displayName: s.userName,
           game: s.gameName,
+          gameId: s.gameId,
           title: s.title,
           viewers: s.viewerCount,
           language: s.language,
+          isLive: true,
+          thumbnailUrl: s.thumbnailUrl.replace('{width}', '320').replace('{height}', '180'),
         })),
+        search_results: channelResults,
       };
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
       return reply.status(500).send({ error: 'Helix API call failed', details: message });
+    }
+  });
+
+  // ==========================================================================
+  // Categories search endpoint
+  // ==========================================================================
+
+  app.get('/api/categories', async (request, reply) => {
+    const session = currentSession(request);
+    if (!session) {
+      return reply.status(401).send({ error: 'Not authenticated' });
+    }
+
+    const config = loadOAuthConfig(process.env);
+    const helixConfig: HelixRequestConfig = {
+      accessToken: session.tokens.access_token,
+      clientId: config.clientId,
+    };
+
+    const query = (request.query as Record<string, string>);
+    const searchQuery = query.q || '';
+
+    if (!searchQuery) {
+      return { categories: [] };
+    }
+
+    try {
+      const categories = await searchCategories(searchQuery, helixConfig, 10);
+      return {
+        categories: categories.map(c => ({
+          id: c.id,
+          name: c.name,
+          boxArtUrl: c.boxArtUrl.replace('{width}', '52').replace('{height}', '72'),
+        })),
+      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      return reply.status(500).send({ error: 'Category search failed', details: message });
     }
   });
 }

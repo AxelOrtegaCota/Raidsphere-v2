@@ -148,6 +148,20 @@ const getStreamsResponseSchema = z.object({
   }).optional(),
 });
 
+const gameDataSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  box_art_url: z.string(),
+  igdb_id: z.string().optional(),
+});
+
+const searchCategoriesResponseSchema = z.object({
+  data: z.array(gameDataSchema),
+  pagination: z.object({
+    cursor: z.string().optional(),
+  }).optional(),
+});
+
 const raidDataSchema = z.object({
   created_at: z.string(),
   is_mature: z.boolean(),
@@ -448,6 +462,80 @@ export async function getStreams(
 
   const streams = response.data.map(mapStreamData);
   return Object.freeze(streams);
+}
+
+/**
+ * Get streams with filters for language, game, and other criteria.
+ * 
+ * @param config - Request configuration with access token and client ID
+ * @param options - Filter options
+ * @returns Array of matching streams
+ * 
+ * @see https://dev.twitch.tv/docs/api/reference/#get-streams
+ */
+export async function getStreamsFiltered(
+  config: HelixRequestConfig,
+  options: {
+    language?: string;
+    gameId?: string;
+    first?: number;
+  } = {}
+): Promise<readonly Stream[]> {
+  const params = new URLSearchParams({
+    first: Math.min(Math.max(options.first ?? 50, 1), 100).toString(),
+  });
+
+  if (options.language) {
+    params.set('language', options.language.toLowerCase());
+  }
+
+  if (options.gameId) {
+    params.set('game_id', options.gameId);
+  }
+
+  const url = `${HELIX_BASE_URL}/streams?${params.toString()}`;
+  const response = await helixFetch(url, config, { method: 'GET' }, getStreamsResponseSchema);
+
+  const streams = response.data.map(mapStreamData);
+  return Object.freeze(streams);
+}
+
+/**
+ * Search for game/category by name.
+ * 
+ * @param query - Category name to search
+ * @param config - Request configuration with access token and client ID
+ * @param first - Number of results to return (1-100, default 10)
+ * @returns Array of matching categories with their IDs
+ * 
+ * @see https://dev.twitch.tv/docs/api/reference/#search-categories
+ */
+export interface Category {
+  readonly id: string;
+  readonly name: string;
+  readonly boxArtUrl: string;
+}
+
+export async function searchCategories(
+  query: string,
+  config: HelixRequestConfig,
+  first: number = 10
+): Promise<readonly Category[]> {
+  const params = new URLSearchParams({
+    query,
+    first: Math.min(Math.max(first, 1), 100).toString(),
+  });
+
+  const url = `${HELIX_BASE_URL}/search/categories?${params.toString()}`;
+  const response = await helixFetch(url, config, { method: 'GET' }, searchCategoriesResponseSchema);
+
+  const categories = response.data.map(data => Object.freeze({
+    id: data.id,
+    name: data.name,
+    boxArtUrl: data.box_art_url,
+  }));
+
+  return Object.freeze(categories);
 }
 
 // ============================================================================

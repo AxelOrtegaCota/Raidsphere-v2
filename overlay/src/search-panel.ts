@@ -67,23 +67,27 @@ export function createSearchPanel(container: HTMLElement, config: SearchPanelCon
           <option value="ru">Russian</option>
           <option value="zh">Chinese</option>
         </select>
-        <select id="filter-category" aria-label="Category">
-          <option value="">All categories</option>
-          <option value="just chatting">Just Chatting</option>
-          <option value="minecraft">Minecraft</option>
-          <option value="valorant">Valorant</option>
-          <option value="fortnite">Fortnite</option>
-          <option value="league of legends">League of Legends</option>
-        </select>
+        <input type="text" id="filter-category" placeholder="Category (e.g. Minecraft)" aria-label="Category">
       </div>
       <div class="filter-row">
         <input type="text" id="filter-search" placeholder="🔍 Search channel..." aria-label="Search channel">
       </div>
-      <div class="filter-row viewers-range">
+      <div class="filter-row">
         <label>Viewers:</label>
-        <input type="number" id="filter-min-viewers" value="5" min="0" aria-label="Min viewers">
-        <span>-</span>
-        <input type="number" id="filter-max-viewers" value="500" min="0" aria-label="Max viewers">
+        <select id="filter-viewers" aria-label="Viewer range">
+          <option value="0-10000000">All</option>
+          <option value="0-10">0 - 10</option>
+          <option value="10-50">10 - 50</option>
+          <option value="50-100">50 - 100</option>
+          <option value="100-500">100 - 500</option>
+          <option value="500-1000">500 - 1K</option>
+          <option value="1000-5000">1K - 5K</option>
+          <option value="5000-10000">5K - 10K</option>
+          <option value="10000-50000">10K - 50K</option>
+          <option value="50000-100000">50K - 100K</option>
+          <option value="100000-1000000">100K - 1M</option>
+          <option value="1000000-10000000">1M - 10M</option>
+        </select>
       </div>
       <button id="apply-filters" type="button">Apply Filters</button>
     </div>
@@ -103,10 +107,9 @@ export function createSearchPanel(container: HTMLElement, config: SearchPanelCon
 
   // Filters
   const languageFilter = panel.querySelector<HTMLSelectElement>('#filter-language')!;
-  const categoryFilter = panel.querySelector<HTMLSelectElement>('#filter-category')!;
+  const categoryFilter = panel.querySelector<HTMLInputElement>('#filter-category')!;
   const searchFilter = panel.querySelector<HTMLInputElement>('#filter-search')!;
-  const minViewers = panel.querySelector<HTMLInputElement>('#filter-min-viewers')!;
-  const maxViewers = panel.querySelector<HTMLInputElement>('#filter-max-viewers')!;
+  const viewersFilter = panel.querySelector<HTMLSelectElement>('#filter-viewers')!;
 
   // State
   let isOpen = config.isOverlay;
@@ -145,8 +148,9 @@ export function createSearchPanel(container: HTMLElement, config: SearchPanelCon
   const fetchCandidates = async (): Promise<Candidate[]> => {
     const params = new URLSearchParams();
     if (languageFilter.value) params.set('language', languageFilter.value);
-    if (categoryFilter.value) params.set('q', categoryFilter.value);
+    if (categoryFilter.value) params.set('category', categoryFilter.value);
     if (searchFilter.value) params.set('q', searchFilter.value);
+    if (viewersFilter.value) params.set('viewers', viewersFilter.value);
 
     try {
       const response = await fetch(`${config.apiBaseUrl}/api/test-helix?${params}`, {
@@ -157,48 +161,46 @@ export function createSearchPanel(container: HTMLElement, config: SearchPanelCon
       }
       const data = await response.json();
       
-      // Combine search results and top streams
       const candidates: Candidate[] = [];
       
-      if (data.search?.results) {
-        for (const ch of data.search.results) {
+      // Add streams (main results with viewers)
+      if (data.streams) {
+        for (const s of data.streams) {
           candidates.push({
-            id: ch.id,
-            login: ch.login,
-            displayName: ch.displayName,
-            game: ch.game || 'Unknown',
-            title: ch.title || '',
-            viewers: 0, // Search doesn't return viewers
-            language: ch.language || '',
-            thumbnailUrl: '',
-            isLive: ch.isLive,
+            id: s.id,
+            login: s.login,
+            displayName: s.displayName,
+            game: s.game || 'Unknown',
+            title: s.title || '',
+            viewers: s.viewers || 0,
+            language: s.language || '',
+            thumbnailUrl: s.thumbnailUrl || '',
+            isLive: true,
           });
         }
       }
       
-      if (data.top_streams) {
-        for (const s of data.top_streams) {
+      // Add search results if any (these might not have viewers)
+      if (data.search_results) {
+        for (const ch of data.search_results) {
           // Avoid duplicates
-          if (!candidates.find(c => c.id === s.id)) {
+          if (!candidates.find(c => c.id === ch.id)) {
             candidates.push({
-              id: s.id,
-              login: s.login,
-              displayName: s.name,
-              game: s.game || 'Unknown',
-              title: s.title || '',
-              viewers: s.viewers || 0,
-              language: s.language || '',
+              id: ch.id,
+              login: ch.login,
+              displayName: ch.displayName,
+              game: ch.game || 'Unknown',
+              title: ch.title || '',
+              viewers: ch.viewers || 0,
+              language: ch.language || '',
               thumbnailUrl: '',
-              isLive: true,
+              isLive: ch.isLive,
             });
           }
         }
       }
 
-      // Filter by viewer range
-      const minV = parseInt(minViewers.value) || 0;
-      const maxV = parseInt(maxViewers.value) || Infinity;
-      return candidates.filter(c => c.viewers >= minV && c.viewers <= maxV);
+      return candidates;
     } catch (err) {
       console.error('Failed to fetch candidates:', err);
       return [];
