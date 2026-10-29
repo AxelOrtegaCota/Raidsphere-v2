@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import { PROTOCOL_VERSION } from '@raidsphere/shared';
 import { registerWebSocketBoundary } from './websocket.js';
 import type { ViewingDependencies } from './websocket.js';
+import { registerAuthRoutes } from './routes/auth.js';
 
 export interface AppDependencies {
   viewing: ViewingDependencies;
@@ -33,7 +34,11 @@ export function createApp(dependencies: AppDependencies) {
   });
 
   registerWebSocketBoundary(app, dependencies.viewing);
-  return app;
+  
+    // Register auth routes (Phase 3)
+    void registerAuthRoutes(app);
+  
+    return app;
 }
 
 // Handler errors are untyped; only a bounded client status code is trusted.
