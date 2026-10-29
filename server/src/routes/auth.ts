@@ -12,6 +12,11 @@ import {
   revokeToken,
 } from '../twitch/oauth.js';
 import {
+  searchChannels,
+  getStreams,
+  type HelixRequestConfig,
+} from '../twitch/helix.js';
+import {
   createSession,
   destroySession,
   getSession,
@@ -150,6 +155,65 @@ export function registerAuthRoutes(app: FastifyInstance, dependencies: AuthRoute
     return session
       ? { authenticated: true, user: session.user.login }
       : { authenticated: false };
+  });
+
+  // ==========================================================================
+  // Test endpoint: Helix API
+  // ==========================================================================
+
+  app.get('/api/test-helix', async (request, reply) => {
+    const session = currentSession(request);
+    if (!session) {
+      return reply.status(401).send({ error: 'Not authenticated. Login first at /auth/twitch' });
+    }
+
+    const config = loadOAuthConfig(process.env);
+    const helixConfig: HelixRequestConfig = {
+      accessToken: session.tokens.access_token,
+      clientId: config.clientId,
+    };
+
+    const query = (request.query as Record<string, string>);
+    const language = query.language || 'es';
+    const searchQuery = query.q || 'just chatting';
+
+    try {
+      // Search for live channels
+      const channels = await searchChannels(searchQuery, helixConfig, language, 10);
+      
+      // Get top streams (general)
+      const streams = await getStreams(helixConfig, undefined, 10);
+
+      return {
+        success: true,
+        authenticated_as: session.user.login,
+        search: {
+          query: searchQuery,
+          language,
+          results: channels.map(ch => ({
+            id: ch.id,
+            login: ch.login,
+            displayName: ch.displayName,
+            game: ch.gameName,
+            title: ch.title,
+            isLive: ch.isLive,
+            language: ch.broadcasterLanguage,
+          })),
+        },
+        top_streams: streams.slice(0, 5).map(s => ({
+          id: s.userId,
+          login: s.userLogin,
+          name: s.userName,
+          game: s.gameName,
+          title: s.title,
+          viewers: s.viewerCount,
+          language: s.language,
+        })),
+      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      return reply.status(500).send({ error: 'Helix API call failed', details: message });
+    }
   });
 }
 
