@@ -3,6 +3,7 @@ import { connectToChannel, readOverlayTarget } from './connection';
 import type { ConnectionStatus } from './connection';
 import { coarseCountryPoint } from './location';
 import { applyEvent, describeView, initialViewState, needsTick } from './view-state';
+import { createSearchPanel } from './search-panel';
 import './styles.css';
 
 const container = document.querySelector<HTMLElement>('#globe');
@@ -22,6 +23,47 @@ const target = readOverlayTarget(window.location, window.history);
 if (target?.credential && badge) {
   badge.style.display = 'none';
 }
+
+// Determine API base URL
+const apiBaseUrl = window.location.origin;
+
+// Create search panel (always open in overlay)
+const app = document.querySelector<HTMLElement>('#app')!;
+const searchPanel = createSearchPanel(app, {
+  apiBaseUrl,
+  isOverlay: true, // Always open in overlay
+  onRaid: (candidate) => {
+    console.log('Raid requested for:', candidate.login);
+    // TODO: Call raid API
+    alert(`Raid to ${candidate.displayName} would start here (not implemented yet)`);
+  },
+});
+
+// Check user status and update panel
+const checkUserStatus = async () => {
+  try {
+    const response = await fetch(`${apiBaseUrl}/auth/status`, { credentials: 'include' });
+    const data = await response.json();
+    
+    if (data.authenticated) {
+      // Check if user is live
+      const meResponse = await fetch(`${apiBaseUrl}/auth/me`, { credentials: 'include' });
+      const meData = await meResponse.json();
+      
+      // For now assume not live (would need to check Helix)
+      searchPanel.updateUserStatus({
+        authenticated: true,
+        isLive: false, // TODO: Check via Helix if user is streaming
+        login: data.user,
+      });
+    } else {
+      searchPanel.updateUserStatus({ authenticated: false, isLive: false });
+    }
+  } catch {
+    searchPanel.updateUserStatus({ authenticated: false, isLive: false });
+  }
+};
+checkUserStatus();
 
 let userLocationPoint: { lat: number; lng: number } | null = null;
 
