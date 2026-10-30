@@ -762,3 +762,528 @@ html[data-mode='interactive'] .roulette { right: auto; left: 50%; transform: tra
   .winner-card { animation: none; }
   .vote-fill { transition: none; }
 }
+
+/* ============================================
+   View Toggle and Dual View System
+   ============================================ */
+
+.view-toggle {
+  position: absolute;
+  top: clamp(20px, 3vh, 42px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid rgb(174 194 255 / 28%);
+  border-radius: 12px;
+  background: linear-gradient(145deg, rgb(8 10 24 / 94%), rgb(13 11 31 / 86%));
+  backdrop-filter: blur(14px);
+}
+
+.view-btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #c8c7dc;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 200ms ease;
+}
+
+.view-btn:hover {
+  background: rgb(255 255 255 / 8%);
+  color: #f8f7ff;
+}
+
+.view-btn.active {
+  background: linear-gradient(145deg, #6f8dff, #9f87ff);
+  color: #fff;
+  box-shadow: 0 4px 12px rgb(111 141 255 / 40%);
+}
+
+html[data-mode='obs'] .view-toggle { display: none; }
+
+.view-panel {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 300ms ease, visibility 300ms;
+}
+
+.view-panel.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+.view-panel[hidden] { display: none; }
+
+#globe-view .location-panel {
+  position: absolute;
+  bottom: clamp(180px, 22vh, 260px);
+  left: clamp(24px, 4vw, 72px);
+}
+
+/* ============================================
+   Roulette Wheel View
+   ============================================ */
+
+#roulette-view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 24px 24px;
+}
+
+.roulette-wheel-container {
+  position: relative;
+  width: min(500px, 80vw);
+  height: min(500px, 80vw);
+  margin-bottom: 24px;
+}
+
+.roulette-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  width: min(400px, 90vw);
+}
+
+.roulette-mode-selector {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid rgb(174 194 255 / 28%);
+  border-radius: 10px;
+  background: rgb(8 10 24 / 80%);
+}
+
+.mode-btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #c8c7dc;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 200ms ease;
+}
+
+.mode-btn:hover { background: rgb(255 255 255 / 8%); }
+.mode-btn.active {
+  background: linear-gradient(145deg, #9f87ff, #6f8dff);
+  color: #fff;
+}
+
+.manual-candidates {
+  width: 100%;
+  padding: 16px;
+  border: 1px solid rgb(174 194 255 / 20%);
+  border-radius: 12px;
+  background: rgb(8 10 24 / 80%);
+}
+
+.manual-candidates p {
+  margin: 0 0 12px;
+  color: #c8c7dc;
+  font-size: 13px;
+}
+
+.candidate-selection-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.candidate-selection-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid rgb(174 194 255 / 20%);
+  border-radius: 8px;
+  background: rgb(255 255 255 / 4%);
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.candidate-selection-item:hover {
+  border-color: rgb(159 135 255 / 50%);
+  background: rgb(159 135 255 / 10%);
+}
+
+.candidate-selection-item.selected {
+  border-color: #9f87ff;
+  background: rgb(159 135 255 / 20%);
+}
+
+.candidate-selection-item input[type="checkbox"] {
+  accent-color: #9f87ff;
+}
+
+.roulette-actions {
+  margin-top: 8px;
+}
+
+.btn-spin {
+  padding: 14px 32px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(145deg, #ffd166, #ffb347);
+  color: #1a1a2e;
+  font-size: 18px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 200ms ease;
+  box-shadow: 0 6px 20px rgb(255 209 102 / 40%);
+}
+
+.btn-spin:hover:not(:disabled) {
+  transform: scale(1.05);
+  box-shadow: 0 8px 28px rgb(255 209 102 / 50%);
+}
+
+.btn-spin:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ============================================
+   Flag Competition Panel
+   ============================================ */
+
+.flag-panel {
+  position: absolute;
+  top: 50%;
+  right: clamp(20px, 3vw, 52px);
+  transform: translateY(-50%);
+  width: min(320px, calc(100vw - 48px));
+  padding: 20px;
+  border: 1px solid rgb(174 194 255 / 28%);
+  border-radius: 16px;
+  background: linear-gradient(145deg, rgb(8 10 24 / 94%), rgb(13 11 31 / 86%));
+  backdrop-filter: blur(14px);
+  box-shadow: 0 24px 70px rgb(0 0 0 / 44%);
+}
+
+.flag-panel[hidden] { display: none; }
+
+.flag-panel h3 {
+  margin: 0 0 16px;
+  font-size: 18px;
+  font-weight: 800;
+  color: #ffd166;
+}
+
+.flag-country-selector {
+  margin-bottom: 16px;
+}
+
+.flag-country-selector label {
+  display: block;
+  margin-bottom: 6px;
+  color: #c8c7dc;
+  font-size: 13px;
+}
+
+.flag-country-selector select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid rgb(174 194 255 / 30%);
+  border-radius: 8px;
+  background: rgb(8 10 24 / 80%);
+  color: #f8f7ff;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.flag-progress {
+  margin-bottom: 16px;
+}
+
+.flag-bar {
+  height: 12px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 10%);
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.flag-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #ff6b6b, #ffd166, #6ce0a1);
+  transition: width 500ms ease;
+}
+
+.flag-status {
+  margin: 0;
+  color: #c8c7dc;
+  font-size: 12px;
+  text-align: center;
+}
+
+.flag-leaderboard {
+  display: grid;
+  gap: 8px;
+}
+
+.flag-leader-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgb(255 255 255 / 4%);
+}
+
+.flag-leader-item.owner {
+  border: 1px solid rgb(255 209 102 / 50%);
+  background: rgb(255 209 102 / 10%);
+}
+
+.flag-leader-rank {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgb(159 135 255 / 30%);
+  color: #9f87ff;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.flag-leader-item.owner .flag-leader-rank {
+  background: rgb(255 209 102 / 30%);
+  color: #ffd166;
+}
+
+.flag-leader-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.flag-leader-name {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: #ecebf7;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flag-leader-points {
+  font-size: 12px;
+  color: #c8c7dc;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Roulette Wheel Canvas Styles */
+.roulette-wheel {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.roulette-wheel canvas {
+  width: 100%;
+  height: 100%;
+}
+
+.roulette-pointer {
+  position: absolute;
+  top: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 20px solid transparent;
+  border-right: 20px solid transparent;
+  border-top: 40px solid #ffd166;
+  filter: drop-shadow(0 4px 8px rgb(0 0 0 / 40%));
+  z-index: 10;
+}
+
+.roulette-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #1a1a2e, #2a2a4e);
+  border: 4px solid #ffd166;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  box-shadow: 0 4px 20px rgb(0 0 0 / 50%);
+  z-index: 5;
+}
+
+@keyframes wheel-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.roulette-wheel.spinning canvas {
+  animation: wheel-spin 0.1s linear infinite;
+}
+
+
+/* ============================================================================
+   Roulette Wheel
+   ============================================================================ */
+
+.roulette-wheel-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 500px;
+  aspect-ratio: 1;
+  margin: 0 auto;
+}
+
+.roulette-wheel-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 8px 40px rgb(40 90 255 / 25%));
+  transition: filter 400ms ease;
+}
+
+.roulette-wheel-wrapper.winner-revealed {
+  filter: drop-shadow(0 0 60px rgb(255 215 0 / 50%));
+}
+
+.roulette-wheel {
+  display: block;
+  border-radius: 50%;
+  transition: transform 100ms ease;
+}
+
+.roulette-pointer {
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 16px solid transparent;
+  border-right: 16px solid transparent;
+  border-top: 28px solid #ffd798;
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.5));
+  z-index: 10;
+}
+
+.roulette-pointer::before {
+  content: '';
+  position: absolute;
+  top: -30px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 12px solid transparent;
+  border-right: 12px solid transparent;
+  border-top: 22px solid #fff;
+}
+
+.roulette-segment {
+  /* Used if CSS-based segments are needed */
+}
+
+/* Winner announcement overlay */
+.roulette-winner-announcement {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transform: scale(0.8);
+  transition: opacity 400ms ease, transform 400ms ease;
+  pointer-events: none;
+}
+
+.roulette-winner-announcement.visible {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.winner-glow {
+  position: absolute;
+  inset: -20%;
+  background: radial-gradient(circle, rgb(255 215 0 / 30%) 0%, transparent 70%);
+  animation: winner-pulse 1.5s ease-in-out infinite;
+}
+
+.winner-text {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 24px 40px;
+  background: linear-gradient(145deg, rgb(8 10 24 / 95%), rgb(13 11 31 / 90%));
+  border: 2px solid rgb(255 215 0 / 60%);
+  border-radius: 16px;
+  box-shadow: 0 16px 48px rgb(0 0 0 / 50%);
+  animation: winner-bounce 600ms ease;
+}
+
+.winner-label {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #ffd798;
+}
+
+.winner-name {
+  font-size: 28px;
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 2px 12px rgb(255 215 0 / 40%);
+}
+
+@keyframes winner-pulse {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+
+@keyframes winner-bounce {
+  0% { transform: scale(0.5); opacity: 0; }
+  60% { transform: scale(1.1); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .roulette-wheel-wrapper,
+  .roulette-winner-announcement { transition: none; }
+  .winner-glow { animation: none; }
+  .winner-text { animation: none; }
+}

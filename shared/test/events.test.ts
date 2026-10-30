@@ -41,6 +41,7 @@ const validEvents: Record<ServerEvent['type'], unknown> = {
   'roulette:start': event('roulette:start', { candidates: [candidate], languages: ['en'], votingEndsAtMs: 31000 }),
   'roulette:votes': event('roulette:votes', { votes: { en: 1 }, totalVotes: 1 }),
   'roulette:chosen': event('roulette:chosen', { candidate, winningLanguage: 'en', fromCountry: 'MX', toCountry: 'US' }),
+  'roulette:configure': event('roulette:configure', { mode: 'manual', candidates: ['streamer-1', 'streamer-2'] }),
   'raid:started': event('raid:started', {
     toStreamerId: candidate.streamerId, toLogin: candidate.login, requestedAtMs: 1000, estimatedCountdownSeconds: null,
   }),
@@ -56,6 +57,19 @@ const validEvents: Record<ServerEvent['type'], unknown> = {
   'translate:clear': event('translate:clear', { scope: 'channel' }, false),
   'translation:window': event('translation:window', windowState, false),
   'state:snapshot': event('state:snapshot', { roulette, translationWindow: windowState }, false),
+  'flag:contribution': event('flag:contribution', {
+    streamerId: 'fixture-streamer', countryCode: 'US', points: 100, newTotal: 500, progress: 5,
+  }),
+  'flag:claimed': event('flag:claimed', {
+    countryCode: 'US', streamerId: 'fixture-streamer', displayName: 'Fixture Streamer', claimedAtMs: 1000,
+  }),
+  'flag:overtaken': event('flag:overtaken', {
+    countryCode: 'US', previousOwner: 'old-streamer-id', newOwner: 'new-streamer-id', margin: 100,
+  }),
+  'flag:decayed': event('flag:decayed', { countryCode: 'US', streamerId: 'fixture-streamer', reason: 'decay' }),
+  'globe:flags': event('globe:flags', {
+    flags: [{ countryCode: 'US', ownerStreamerId: 'fixture', ownerDisplayName: 'Fixture', progress: 50, color: '#ff0000' }],
+  }, false),
   error: event('error', { code: 'RAID_OUTCOME_UNKNOWN', message: 'Arrival has not been confirmed.', recoverable: false }),
 };
 
