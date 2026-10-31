@@ -71,7 +71,7 @@ npm run build
 
 Installation disables dependency lifecycle scripts; none was required. A dependency requiring a script needs separate review and approval. No automated fix or dependency upgrade is implied.
 
-Verified results: type checking passes, 599 of 599 tests pass, the build succeeds, and `npm audit` reports 0 vulnerabilities (2026-10-31, `main`, on Node.js 20.18.0 and npm 10.8.2). Vite warns that the overlay bundle exceeds 500 kB, mostly because of three.js; this is expected for now.
+Verified results: type checking passes, 600 of 600 tests pass, the build succeeds, and `npm audit` reports 0 vulnerabilities (2026-10-31, `main`, on Node.js 20.18.0 and npm 10.8.2). Vite warns that the overlay bundle exceeds 500 kB, mostly because of three.js; this is expected for now.
 
 The root scripts build shared exports before consumers. `npm run typecheck` therefore also writes shared declarations/JavaScript to `shared/dist/`, then checks all workspace source, shared/backend tests, and Vite configuration. Test/tooling configurations use `noEmit`; production builds continue excluding tests.
 

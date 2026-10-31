@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { PROTOCOL_VERSION, serverEventSchema } from '@raidsphere/shared';
 import type { Candidate, LanguageCode, ServerEvent } from '@raidsphere/shared';
@@ -171,5 +172,18 @@ describe('camera transition', () => {
   it('takes the short way round the antimeridian', () => {
     const halfway = interpolateView({ lat: 0, lng: 170, altitude: 2 }, { lat: 0, lng: -170, altitude: 2 }, 0.5);
     expect(Math.abs(halfway.lng)).toBeCloseTo(180);
+  });
+});
+
+describe('overlay markup', () => {
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const hiddenView = /<section id="roulette-view"[\s\S]*?<!-- Flag Competition Panel -->/.exec(html)?.[0] ?? '';
+
+  it('keeps every session panel outside the hidden roulette view', () => {
+    expect(hiddenView).not.toBe('');
+    for (const id of ['roulette', 'bubbles', 'translation-window', 'headline']) {
+      expect(html).toContain(`id="${id}"`);
+      expect(hiddenView).not.toContain(`id="${id}"`);
+    }
   });
 });
