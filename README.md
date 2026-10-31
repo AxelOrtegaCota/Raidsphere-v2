@@ -16,7 +16,7 @@ Before development, read [AGENTS.md](AGENTS.md), [docs/phase-1-decisions.md](doc
 
 ## Current status
 
-Phase 1 is complete and was merged into `main` through PR #1, and Module D through PR #4. The rest of Phase 2 and the Phase 3 and 4 work reached `main` through PR #2 of `AxelOrtegaCota/Raidsphere-v2`, the repository where development continues. `package-lock.json` records the resolved dependency graph; the `railway` work added `@fastify/static`, now at 10.1.8 with `content-disposition` pinned to 2.0.1 so it loads on Node 20.18 and `glob` pinned to 14.0.3 for a security advisory.
+Phases 1 and 2 are complete and merged into `main`: Phase 1 through PR #1, Module D through PR #4, and the rest of Phase 2 with the Phase 3 and 4 work through PRs #2 and #3 of `AxelOrtegaCota/Raidsphere-v2`, the repository where development continues. `package-lock.json` records the resolved dependency graph; the `railway` work added `@fastify/static`, now at 10.1.8 with `content-disposition` pinned to 2.0.1 so it loads on Node 20.18 and `glob` pinned to 14.0.3 for a security advisory.
 
 Included source:
 
