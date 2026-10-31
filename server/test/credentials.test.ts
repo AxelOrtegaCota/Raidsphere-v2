@@ -22,6 +22,15 @@ describe('viewing credentials', () => {
     expect(credentials.verify('rsdemo_unknown', '')).toBe(false);
   });
 
+  it('accepts a credential issued dynamically after startup', () => {
+    const { credentials } = ViewingCredentials.issue([]);
+    const credential = credentials.issueForChannel('themask957');
+
+    expect(credential).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(credentials.verify('themask957', credential)).toBe(true);
+    expect(credentials.verify('another_channel', credential)).toBe(false);
+  });
+
   it('does not retain plaintext credentials in the verifier', () => {
     const description = inspect(credentials, { showHidden: true, depth: 5 });
     expect(description).not.toContain(source);

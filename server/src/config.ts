@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const serverConfigSchema = z.object({
-  host: z.literal('127.0.0.1'),
+  host: z.enum(['127.0.0.1', '0.0.0.0']),
   port: z.number().int().min(1).max(65535),
 }).strict();
 
@@ -12,10 +12,11 @@ const decimalPortSchema = z.string().min(1).max(5).refine(
   'The port must contain only decimal digits.',
 );
 
-export function loadServerConfig(environment: { PORT?: string }): ServerConfig {
+export function loadServerConfig(environment: { PORT?: string | undefined; HOST?: string | undefined }): ServerConfig {
   const port = environment.PORT === undefined ? 3000 : Number(decimalPortSchema.parse(environment.PORT));
+  const host = environment.HOST === '0.0.0.0' ? '0.0.0.0' : '127.0.0.1';
   return serverConfigSchema.parse({
-    host: '127.0.0.1',
+    host,
     port,
   });
 }

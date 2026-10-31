@@ -1,4 +1,4 @@
-import type { PublicRouletteState, ServerEvent } from '@raidsphere/shared';
+import type { IllustrativeCountry, PublicRouletteState, ServerEvent } from '@raidsphere/shared';
 
 // Overlay display state, derived only from validated server events. The backend stays the
 // authoritative state owner; this mirror never decides anything.
@@ -8,14 +8,22 @@ export interface ViewState {
   raidArrivesAtMs: number | null;
   arrival: { fromLogin: string; viewers: number } | null;
   notice: string | null;
+  // Illustrative countries for the globe arc; known only from roulette:chosen.
+  route: { from: IllustrativeCountry | null; to: IllustrativeCountry | null } | null;
 }
 
-export const initialViewState: ViewState = { roulette: null, raidArrivesAtMs: null, arrival: null, notice: null };
+export const initialViewState: ViewState = {
+  roulette: null, raidArrivesAtMs: null, arrival: null, notice: null, route: null,
+};
 
 export function applyEvent(state: ViewState, event: ServerEvent): ViewState {
   switch (event.type) {
     case 'state:snapshot':
-      return { ...state, roulette: event.payload.roulette, notice: null };
+      // A snapshot of another session drops the route that belonged to the previous one.
+      return {
+        ...state, roulette: event.payload.roulette, notice: null,
+        route: event.payload.roulette?.sessionId === state.roulette?.sessionId ? state.route : null,
+      };
     case 'roulette:start':
       return {
         ...initialViewState,
@@ -27,8 +35,10 @@ export function applyEvent(state: ViewState, event: ServerEvent): ViewState {
       };
     case 'roulette:votes':
       return updateSession(state, event.sessionId, { votes: event.payload.votes });
-    case 'roulette:chosen':
-      return updateSession(state, event.sessionId, { status: 'chosen', chosenCandidate: event.payload.candidate });
+    case 'roulette:chosen': {
+      const next = updateSession(state, event.sessionId, { status: 'chosen', chosenCandidate: event.payload.candidate });
+      return next === state ? state : { ...next, route: { from: event.payload.fromCountry, to: event.payload.toCountry } };
+    }
     case 'raid:started': {
       const { requestedAtMs, estimatedCountdownSeconds } = event.payload;
       const next = updateSession(state, event.sessionId, { status: 'raid_pending' });

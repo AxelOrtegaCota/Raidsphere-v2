@@ -130,9 +130,12 @@ describe('simulated roulette end to end', () => {
     expect(events.filter((event) => event.channelId === SOURCE).map((event) => event.type)).toEqual([
       'roulette:start', 'roulette:votes', 'roulette:votes', 'roulette:chosen', 'raid:started', 'state:snapshot',
     ]);
-    expect(events.filter((event) => event.channelId === 'rsdemo_pt_01').map((event) => event.type)).toEqual(['raid:arrived']);
+    expect(events.filter((event) => event.channelId === 'rsdemo_pt_01').map((event) => event.type)).toEqual([
+      'raid:arrived', 'translation:window',
+    ]);
     expect((await coordinator.snapshot(SOURCE)).roulette?.status).toBe('done');
-    expect(time.pendingCount()).toBe(0);
+    // Only the destination's translation window expiry remains scheduled.
+    expect(time.pendingCount()).toBe(1);
     expect(errors).toEqual([]);
   });
 });

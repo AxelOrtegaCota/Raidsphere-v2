@@ -6,7 +6,7 @@ RaidSphere is being developed for the Codex × TwitchCon Hackathon 2026 by a fou
 
 ## Team Handoff — Phase 2 Local MVP
 
-Phase 2 adds a complete local roulette in simulation mode: the backend runs `!roulette`, 30-second voting, selection, and a simulated raid on synthetic channels, and the overlay follows it read-only over `/ws`. Decisions and evidence are in [Phase 2 backend decisions](docs/phase-2-backend-decisions.md) and the [Phase 2 backend plan](docs/phase-2-backend-plan.md). Twitch OAuth, real raids, AI translation, persistence, and the visual globe synchronization are not yet implemented.
+Phase 2 adds a complete local roulette in simulation mode: the backend runs `!roulette`, 30-second voting, selection, and a simulated raid on synthetic channels, and the OBS overlay follows it read-only over `/ws` with globe markers, a raid arc, vote bars, and a winner card. Status and evidence are in [Phase 2 progress](docs/PHASE2_PROGRESS.md), [Phase 2 backend decisions](docs/phase-2-backend-decisions.md), and the [Phase 2 backend plan](docs/phase-2-backend-plan.md). Real raids, real chat, AI translation, and persistence are not yet implemented; Twitch OAuth and Helix reads exist on the `railway` work but are not connected to the roulette.
 
 The Phase 1 foundation was verified with Node.js 20.18.0 and npm 10.8.2, including an OBS browser source check; see [Phase 1 verification results](docs/phase-1-decisions.md#phase-1-verification-results).
 
@@ -16,7 +16,7 @@ Before development, read [AGENTS.md](AGENTS.md), [docs/phase-1-decisions.md](doc
 
 ## Current status
 
-Phase 1 is complete and was merged into `main` through PR #1. Phase 2 is complete on `feature/backend-core` and pending review and merge into `main`. `package-lock.json` records the resolved dependency graph; Phase 2 added no dependencies.
+Phase 1 is complete and was merged into `main` through PR #1, and Module D through PR #4. The rest of Phase 2 is code complete and verified on `feature/phase4-translation`, pending review and merge into `main`. `package-lock.json` records the resolved dependency graph; the `railway` work added `@fastify/static`, now at 10.1.8 with `content-disposition` pinned to 2.0.1 so it loads on Node 20.18 and `glob` pinned to 14.0.3 for a security advisory.
 
 Included source:
 
@@ -25,13 +25,16 @@ Included source:
 - Fastify health entry point (`mode: 'simulation'`).
 - Roulette coordinator with authoritative in-memory state, vote rules, deadlines, selection, and simulated raid outcomes, behind ports that real Twitch adapters will implement.
 - Synthetic `rsdemo_` channels; no real channel data.
+- Module B chat command parser and simulated raid gateway, connected to the coordinator through adapters; a broadcaster flag counts only for the channel owner.
+- Module C translation service with emote preservation, caching, bounded concurrency, and invalidation, using a mock provider; simulated raider chat reaches it through the chat translation pipeline during a translation window.
+- A 15-minute translation window opened on the destination by a confirmed raid arrival.
 - Read-only `/ws` with per-channel viewing credentials generated at startup and kept in memory (D2-11).
-- Transparent globe overlay with a text panel, a permanent Simulation label, and a read-only WebSocket client.
+- Overlay in OBS mode by default: transparent, a globe that follows the session (candidate markers, winner, animated raid arc, camera moves), vote bars per language, a winner card, translation bubbles, a text status panel, and a Simulation label. `?mode=interactive` adds the discovery tools.
 - Persistence interfaces with in-memory implementations; contract, backend, and WebSocket tests.
 
 The earlier F1–F5 static-review corrections are covered by passing regression tests. Verification added dependency corrections (a `light-my-request` override, Vitest 4, Zod 4), a typed Fastify error handler, and three overlay rendering fixes.
 
-Pending functionality includes Twitch OAuth, EventSub, real chat commands, real candidate discovery, real raid execution/cancellation/arrival, the globe animation of the session, AI translation, broadcaster control over the network, and persistence. SQLite remains the future persistence target; Phase 1 does not install, configure, or open it.
+Pending functionality includes EventSub chat and moderation events, real candidate discovery for the roulette, real raid execution/cancellation/arrival, an AI translation provider, language detection, broadcaster control over the network, and persistence. SQLite remains the future persistence target; Phase 1 does not install, configure, or open it.
 
 ## Architecture and ownership
 
@@ -68,11 +71,11 @@ npm run build
 
 Installation disables dependency lifecycle scripts; none was required. A dependency requiring a script needs separate review and approval. No automated fix or dependency upgrade is implied.
 
-Verified results: type checking passes, 155 of 155 tests pass, and the build succeeds (Phase 2, 2026-10-28). `npm audit` reported 0 vulnerabilities in Phase 1; Phase 2 added no dependencies and did not re-run it. Vite warns that the overlay bundle exceeds 500 kB, mostly because of three.js; this is expected for now.
+Verified results: type checking passes, 599 of 599 tests pass, the build succeeds, and `npm audit` reports 0 vulnerabilities (2026-10-31, `feature/phase4-translation`, on Node.js 20.18.0 and npm 10.8.2). Vite warns that the overlay bundle exceeds 500 kB, mostly because of three.js; this is expected for now.
 
 The root scripts build shared exports before consumers. `npm run typecheck` therefore also writes shared declarations/JavaScript to `shared/dist/`, then checks all workspace source, shared/backend tests, and Vite configuration. Test/tooling configurations use `noEmit`; production builds continue excluding tests.
 
-Tests cover contract compatibility, invalid payloads, snapshot invariants, channel isolation, canonical validator exports, translation result states, strict decimal ports, health behavior, vote and selection rules, the roulette state machine, simulated raids, event publication, and the `/ws` origin, credential, handshake, and connection-limit checks.
+Tests cover contract compatibility, invalid payloads, snapshot invariants, channel isolation, canonical validator exports, translation result states, strict decimal ports, health behavior, vote and selection rules, the roulette state machine, simulated raids, the Module B adapters, the translation service and window, event publication, the `/ws` origin, credential, handshake, connection-limit, heartbeat, and outgoing-buffer checks, and the overlay display state and reconnection.
 
 Windows notes:
 
@@ -87,7 +90,7 @@ Snapshots reject empty voting/selection pools, unavailable vote languages, prema
 
 The shared contracts use Zod 4. New schemas in any module must use Zod 4 APIs; for example, partial records keyed by an enum use `z.partialRecord`.
 
-An explicitly supplied `PORT` must contain one to five ASCII decimal digits and represent a port from 1 to 65535. Missing `PORT` defaults to 3000. Leading zeroes within five characters are allowed; whitespace, signs, hexadecimal, exponent, fractional, and non-ASCII forms are rejected. The host remains loopback-only.
+An explicitly supplied `PORT` must contain one to five ASCII decimal digits and represent a port from 1 to 65535. Missing `PORT` defaults to 3000. Leading zeroes within five characters are allowed; whitespace, signs, hexadecimal, exponent, fractional, and non-ASCII forms are rejected. The host is loopback-only unless `HOST=0.0.0.0` is set for a hosted deployment. On that public binding the server does not print overlay URLs, because they contain viewing credentials and hosted logs are kept.
 
 ## Local demo
 
@@ -101,15 +104,17 @@ npm run demo
 npm run dev:overlay
 ```
 
-The demo starts the server in simulation mode on loopback port 3000 and prints one overlay URL per demo channel: the source `rsdemo_es_01` and its five possible destinations. In the demo terminal, press Enter for `!roulette`, `c` + Enter for `!cancel`, and `q` + Enter to quit. A round takes 30 seconds of scripted voting, then a simulated raid with a 10-second countdown. `npm run demo:auto` runs one round without the keyboard and stops.
+The demo starts the server in simulation mode on loopback port 3000 and prints one overlay URL per demo channel: the source `rsdemo_es_01` and its five possible destinations. In the demo terminal, press Enter for `!roulette`, `c` + Enter for `!cancel`, and `q` + Enter to quit. A round takes 30 seconds of scripted voting, then a simulated raid with a 10-second countdown; after the arrival, scripted raiders chat in the destination channel, their messages appear there as simulated translation bubbles, and simulated moderation removes two of them. `npm run demo:auto` runs one round without the keyboard and stops.
 
-Open the source URL, and optionally a destination URL, in a browser or as an OBS Browser source at 1920 × 1080. The source overlay shows the voting, the chosen channel, and the raid; a destination overlay shows the arrival. All channels and raids are synthetic.
+Open the source URL, and optionally a destination URL, in a browser or as an OBS Browser source at 1920 × 1080. The source overlay shows the voting, the chosen channel, and the raid on the globe; a destination overlay shows the arrival. All channels and raids are synthetic.
+
+The overlay runs in OBS mode by default: a transparent background, no discovery panel or location button, and a globe that pauses when idle. Verified in OBS 32.2.2 at 1920 × 1080 and 30 FPS with OBS CPU at 0.9–1.3% and no dropped frames. Add `?mode=interactive` before `#cred=` for the discovery tools in a browser tab.
 
 Notes:
 
 - **Exact origin.** Use the URL exactly as printed, with `127.0.0.1`. `localhost:5173` sends a different origin and is rejected.
 - **Credentials.** Each URL contains a read-only viewing credential after `#cred=`. Do not share the URLs or screen-share the terminal. Credentials change on every restart, so paste the new URLs after restarting.
-- **Reloading.** The overlay removes the credential from the address bar, so reloading a browser tab loses it; open the printed URL again. An OBS source keeps its configured URL, so it is expected to reconnect on refresh (not yet verified in OBS).
+- **Reloading.** The overlay removes the credential from the address bar, so reloading a browser tab loses it; open the printed URL again. An OBS source keeps its configured URL, so it is expected to reconnect on refresh (covered by automated client tests; not yet checked by hand in OBS). After a lost connection the overlay retries after 1, 2, 4, 8, 16, then 30 seconds; after a server restart the old credential is rejected and the overlay stops retrying, so paste the new URL.
 - **PowerShell.** Windows PowerShell removes a bare `--` before calling npm, so `npm run demo -- --auto` loses `--auto`; use `npm run demo:auto`.
 - **Vite development server only.** The built preview (`vite preview`) is not supported.
 

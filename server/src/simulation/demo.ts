@@ -2,11 +2,12 @@ import { createInterface } from 'node:readline';
 import type { LanguageCode, ServerEvent } from '@raidsphere/shared';
 import { createRuntime, demoOverlayUrls } from '../composition.js';
 import { loadServerConfig } from '../config.js';
-import { CommandSimulator } from './commands.js';
+import { SimulatedChat } from '../twitch/simulated-chat.js';
 import { DEMO_SOURCE_ID } from './fixtures.js';
 
 // Local Phase 2 demo (plan step 9). Everything runs in this process: the keyboard of this
 // terminal drives the simulated chat, and no network endpoint accepts commands (D2-05 rule 5).
+// Chat text goes through the Module B parser; raids use the Module B simulated gateway.
 // Usage: `npm run demo` (interactive) or `npm run demo:auto` (one automatic round).
 
 // [seconds after !roulette, synthetic viewer, vote]. The last two are ignored by design (D2-04).
@@ -14,14 +15,29 @@ const VOTE_SCRIPT: readonly (readonly [number, string, LanguageCode])[] = [
   [2, 'viewer_01', 'ja'], [4, 'viewer_02', 'pt'], [6, 'viewer_03', 'ja'], [8, 'viewer_04', 'ko'],
   [10, 'viewer_01', 'en'], [12, 'viewer_05', 'de'],
 ];
+// [seconds after the arrival, synthetic raider, language, text]. The last one is skipped by
+// design: a command is never translated.
+const RAIDER_SCRIPT: readonly (readonly [number, string, LanguageCode, string])[] = [
+  [2, 'raider_01', 'en', 'thanks for the raid'], [4, 'raider_02', 'es', 'hola a todos'],
+  [6, 'raider_03', 'pt', 'boa live'], [8, 'raider_04', 'fr', 'bonjour le chat'],
+  [10, 'raider_01', 'en', '!vote ja'],
+];
+// Simulated moderation: raider_04's message is deleted and raider_02 is timed out.
+const DELETE_MESSAGE_AT_S = 12;
+const CLEAR_USER_AT_S = 13;
+const AUTO_STOP_AFTER_ARRIVAL_MS = 16_000;
 const AUTO_START_DELAY_MS = 3_000;
+// The demo raid is always accepted and arrives after a fixed, visible countdown.
+const DEMO_RAID = {
+  acceptRate: 1, arrivalRate: 1, minCountdownMs: 10_000, maxCountdownMs: 10_000, observationTimeoutMs: 20_000,
+} as const;
 
 async function main(): Promise<void> {
   const auto = process.argv.includes('--auto');
   const config = loadServerConfig(process.env.PORT === undefined ? {} : { PORT: process.env.PORT });
-  const { app, coordinator, issuedCredentials } = createRuntime({
+  const { app, coordinator, chatMessages, issuedCredentials } = createRuntime({
     reportError: (message) => console.error(message),
-    simulatedRaid: { countdownSeconds: 10 },
+    simulatedRaid: DEMO_RAID,
   });
   await app.listen(config);
   const startedAtMs = Date.now();
@@ -53,24 +69,49 @@ async function main(): Promise<void> {
   const log = (event: ServerEvent): void => {
     const elapsed = ((Date.now() - startedAtMs) / 1_000).toFixed(1);
     console.info(`[+${elapsed}s] ${event.channelId.padEnd(13)} ${event.type.padEnd(15)} ${describe(event)}`);
-    if (auto && isTerminal(event)) setTimeout(() => { void stop(); }, 500);
+    if (event.type === 'raid:arrived') startRaiderChat(event.channelId);
+    if (auto && isTerminal(event)) {
+      setTimeout(() => { void stop(); }, event.type === 'raid:arrived' ? AUTO_STOP_AFTER_ARRIVAL_MS : 500);
+    }
+  };
+  const startRaiderChat = (channelId: string): void => {
+    const raiders = new SimulatedChat(coordinator, channelId, chatMessages);
+    const lastMessageByUser = new Map<string, string>();
+    const at = (seconds: number, action: () => void): void => {
+      const timer = setTimeout(() => {
+        voteTimers.delete(timer);
+        action();
+      }, seconds * 1_000);
+      voteTimers.add(timer);
+    };
+    for (const [seconds, userId, language, text] of RAIDER_SCRIPT) {
+      at(seconds, () => {
+        void raiders.say({ userId, language }, text);
+        lastMessageByUser.set(userId, raiders.lastMessageId);
+      });
+    }
+    at(DELETE_MESSAGE_AT_S, () => {
+      const messageId = lastMessageByUser.get('raider_04');
+      if (messageId) void raiders.deleteMessage(messageId);
+    });
+    at(CLEAR_USER_AT_S, () => { void raiders.clearUser('raider_02'); });
   };
   for (const { channelId } of urls) {
     const view = await coordinator.openView(channelId, log);
     if (view) views.push(view);
   }
 
-  const chat = new CommandSimulator(coordinator, DEMO_SOURCE_ID);
+  const chat = new SimulatedChat(coordinator, DEMO_SOURCE_ID);
   const startRound = async (): Promise<void> => {
     const before = (await coordinator.snapshot(DEMO_SOURCE_ID)).roulette?.sessionId;
-    await chat.roulette();
+    await chat.say(chat.broadcaster, '!roulette');
     const after = (await coordinator.snapshot(DEMO_SOURCE_ID)).roulette;
     // Only a newly started session gets the vote script.
     if (after?.status !== 'voting' || after.sessionId === before) return;
     for (const [seconds, userId, language] of VOTE_SCRIPT) {
       const timer = setTimeout(() => {
         voteTimers.delete(timer);
-        void chat.vote(userId, language);
+        void chat.say({ userId }, `!vote ${language}`);
       }, seconds * 1_000);
       voteTimers.add(timer);
     }
@@ -90,7 +131,7 @@ async function main(): Promise<void> {
     if (key === '') void startRound();
     else if (key === 'c') {
       clearVotes();
-      void chat.cancel();
+      void chat.say(chat.broadcaster, '!cancel');
     } else if (key === 'q') void stop();
   });
 }
@@ -117,6 +158,14 @@ function describe(event: ServerEvent): string {
       return event.payload.reason;
     case 'raid:arrived':
       return `from ${event.payload.fromLogin}, ${event.payload.viewers} viewers (simulated)`;
+    case 'translation:window':
+      return `${event.payload.status}, target ${event.payload.targetLanguage}`;
+    case 'translate:bubble':
+      return `${event.payload.status} ${event.payload.fromLanguage ?? '?'} -> ${event.payload.toLanguage} (simulated)`;
+    case 'translate:remove':
+      return 'message removed by moderation (simulated)';
+    case 'translate:clear':
+      return `${event.payload.scope} cleared by moderation (simulated)`;
     case 'error':
       return event.payload.code;
     default:

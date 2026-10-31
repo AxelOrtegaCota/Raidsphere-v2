@@ -100,7 +100,8 @@ describe('roulette flow', () => {
     expect(await h.status()).toBe('raid_pending');
 
     await h.arrive({ toChannelId: 'rsdemo_ja_01', observedAtMs: START + 40_000 });
-    expect(h.types('rsdemo_ja_01')).toEqual(['raid:arrived']);
+    // A confirmed arrival also opens the destination's translation window (Phase 4).
+    expect(h.types('rsdemo_ja_01')).toEqual(['raid:arrived', 'translation:window']);
     expect(h.last('raid:arrived')).toMatchObject({
       channelId: 'rsdemo_ja_01', sessionId: started?.sessionId,
       payload: {
@@ -111,7 +112,8 @@ describe('roulette flow', () => {
     expect(await h.status()).toBe('done');
     expect(h.types().at(-1)).toBe('state:snapshot');
     expect(h.last('state:snapshot')).toMatchObject({ channelId: SOURCE, payload: { roulette: { status: 'done' } } });
-    expect(h.time.pendingCount()).toBe(0);
+    // Only the destination's translation window expiry remains scheduled.
+    expect(h.time.pendingCount()).toBe(1);
     expect(h.errors).toEqual([]);
   });
 
@@ -280,7 +282,8 @@ describe('raid outcomes', () => {
     await h.arrive({ eventId: 'arrival-1' });
     await h.arrive({ eventId: 'arrival-1' });
     await h.arrive({ eventId: 'arrival-2' });
-    expect(h.types('rsdemo_en_01')).toEqual(['raid:arrived']);
+    // Duplicate arrivals open no second window.
+    expect(h.types('rsdemo_en_01')).toEqual(['raid:arrived', 'translation:window']);
     expect(h.types('rsdemo_ko_02')).toEqual([]);
     expect(await h.status()).toBe('done');
     expect(h.errors).toEqual([]);

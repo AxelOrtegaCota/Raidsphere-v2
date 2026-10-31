@@ -10,9 +10,9 @@ const digest = (value: string): Buffer => createHash('sha256').update(value, 'ut
 const UNKNOWN_CHANNEL_DIGEST = digest('');
 
 export class ViewingCredentials {
-  readonly #digests: ReadonlyMap<string, Buffer>;
+  readonly #digests: Map<string, Buffer>;
 
-  private constructor(digests: ReadonlyMap<string, Buffer>) {
+  private constructor(digests: Map<string, Buffer>) {
     this.#digests = digests;
   }
 
@@ -26,6 +26,14 @@ export class ViewingCredentials {
       digests.set(channelId, digest(credential));
     }
     return { credentials: new ViewingCredentials(digests), issued };
+  }
+
+  // Rotates the read-only credential for one authenticated channel. Only the
+  // digest is retained; the plaintext value is returned exactly once.
+  issueForChannel(channelId: string): string {
+    const credential = randomBytes(CREDENTIAL_BYTES).toString('base64url');
+    this.#digests.set(channelId, digest(credential));
+    return credential;
   }
 
   verify(channelId: string, credential: string): boolean {

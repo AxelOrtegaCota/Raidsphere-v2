@@ -4,8 +4,8 @@ import { WebSocket } from 'ws';
 import type { ServerEvent } from '@raidsphere/shared';
 import { createRuntime } from '../src/composition.js';
 import { CommandSimulator } from '../src/simulation/commands.js';
-import { OVERLAY_ORIGIN } from '../src/websocket.js';
-import type { ViewingLimits } from '../src/websocket.js';
+import { OVERLAY_ORIGIN, sendOrDrop } from '../src/websocket.js';
+import type { ViewerSocket, ViewingLimits } from '../src/websocket.js';
 
 // Real loopback server on a random port; all identifiers are synthetic fixtures.
 const SOURCE = 'rsdemo_es_01';
@@ -27,8 +27,8 @@ async function startServer(limits: Partial<ViewingLimits> = {}) {
   return { runtime, errors, url: `ws://127.0.0.1:${port}`, credential };
 }
 
-function connect(url: string, origin: string | null = OVERLAY_ORIGIN) {
-  const socket = new WebSocket(url, origin === null ? {} : { origin });
+function connect(url: string, origin: string | null = OVERLAY_ORIGIN, options: { autoPong?: boolean } = {}) {
+  const socket = new WebSocket(url, origin === null ? options : { ...options, origin });
   cleanups.push(() => socket.terminate());
   const events: ServerEvent[] = [];
   const checks = new Set<() => void>();
@@ -161,5 +161,95 @@ describe('viewing WebSocket delivery', () => {
     await viewer.received(1);
     viewer.socket.send('{}');
     expect(await viewer.closed).toEqual({ code: 1008, reason: '' });
+  });
+});
+
+describe('viewing WebSocket heartbeat', () => {
+  it('keeps a viewer that answers pings connected', async () => {
+    const { url, credential } = await startServer({ heartbeatIntervalMs: 20 });
+    const viewer = connect(`${url}/ws`);
+    let pings = 0;
+    viewer.socket.on('ping', () => { pings += 1; });
+    await viewer.opened;
+    viewer.auth(SOURCE, credential(SOURCE));
+    await viewer.received(1);
+    await pause(150);
+    expect(pings).toBeGreaterThanOrEqual(3);
+    expect(viewer.socket.readyState).toBe(WebSocket.OPEN);
+  });
+
+  it('drops a viewer that stops answering pings and frees its channel slot', async () => {
+    const { url, credential } = await startServer({ heartbeatIntervalMs: 20, maxConnectionsPerChannel: 1 });
+    const silent = connect(`${url}/ws`, OVERLAY_ORIGIN, { autoPong: false });
+    await silent.opened;
+    silent.auth(SOURCE, credential(SOURCE));
+    await silent.received(1);
+    // A terminated connection ends without a close frame.
+    expect((await silent.closed).code).toBe(1006);
+
+    const next = connect(`${url}/ws`);
+    await next.opened;
+    next.auth(SOURCE, credential(SOURCE));
+    const [snapshot] = await next.received(1);
+    expect(snapshot?.type).toBe('state:snapshot');
+  });
+});
+
+describe('viewing WebSocket shutdown', () => {
+  it('disconnects connected viewers so the server can close', async () => {
+    const runtime = createRuntime({ reportError: () => undefined });
+    await runtime.app.listen({ host: '127.0.0.1', port: 0 });
+    const { port } = runtime.app.server.address() as AddressInfo;
+    const viewer = connect(`ws://127.0.0.1:${port}/ws`);
+    await viewer.opened;
+    viewer.auth(SOURCE, runtime.issuedCredentials.get(SOURCE) ?? '');
+    await viewer.received(1);
+
+    const closedInTime = await Promise.race([
+      runtime.app.close().then(() => true),
+      pause(2_000).then(() => false),
+    ]);
+    expect(closedInTime).toBe(true);
+    // An abnormal close is not a credential rejection, so the overlay retries.
+    expect((await viewer.closed).code).toBe(1006);
+  });
+});
+
+describe('viewing WebSocket outgoing buffer limit', () => {
+  const event = {
+    version: 1, type: 'state:snapshot', eventId: '00000000-0000-4000-8000-000000000000', channelId: SOURCE,
+    occurredAtMs: 1_000_000, sequence: 0, payload: { roulette: null, translationWindow: null },
+  } as ServerEvent;
+
+  function fakeViewer(bufferedAmount: number, readyState: number = WebSocket.OPEN) {
+    const sent: string[] = [];
+    let terminated = false;
+    const viewer = {
+      readyState, bufferedAmount,
+      send: (data: string) => { sent.push(data); },
+      terminate: () => { terminated = true; },
+    } as unknown as ViewerSocket;
+    return { viewer, sent, terminated: () => terminated };
+  }
+
+  it('sends while the buffer is within the limit', () => {
+    const { viewer, sent, terminated } = fakeViewer(1_024);
+    sendOrDrop(viewer, event, 1_024);
+    expect(sent).toEqual([JSON.stringify(event)]);
+    expect(terminated()).toBe(false);
+  });
+
+  it('terminates instead of sending once the buffer exceeds the limit', () => {
+    const { viewer, sent, terminated } = fakeViewer(1_025);
+    sendOrDrop(viewer, event, 1_024);
+    expect(sent).toEqual([]);
+    expect(terminated()).toBe(true);
+  });
+
+  it('does nothing on a socket that is not open', () => {
+    const { viewer, sent, terminated } = fakeViewer(0, WebSocket.CLOSING);
+    sendOrDrop(viewer, event, 1_024);
+    expect(sent).toEqual([]);
+    expect(terminated()).toBe(false);
   });
 });

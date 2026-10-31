@@ -12,12 +12,14 @@
   "scripts": {
     "build:shared": "npm run build --workspace=@raidsphere/shared",
     "typecheck": "npm run build:shared && npm run typecheck --workspaces",
-    "test": "npm run build:shared && vitest run shared/test server/test",
+    "test": "npm run build:shared && vitest run shared/test server/test server/src/__tests__ overlay/test",
     "build": "npm run build:shared && npm run build --workspace=@raidsphere/server && npm run build --workspace=@raidsphere/overlay",
+    "build:all": "npm run build:shared && npm run build --workspace=@raidsphere/server && npm run build --workspace=@raidsphere/overlay",
     "dev:server": "npm run build:shared && npm run dev --workspace=@raidsphere/server",
     "dev:overlay": "npm run build:shared && npm run dev --workspace=@raidsphere/overlay",
     "demo": "npm run build:shared && npm run build --workspace=@raidsphere/server && node server/dist/simulation/demo.js",
-    "demo:auto": "npm run demo -- --auto"
+    "demo:auto": "npm run demo -- --auto",
+    "start": "node server/dist/index.js"
   },
   "devDependencies": {
     "@types/node": "^20.17.19",
@@ -28,6 +30,10 @@
   },
   "overrides": {
     "vite": "$vite",
-    "light-my-request": "6.6.0"
+    "light-my-request": "6.6.0",
+    "@fastify/static": {
+      "content-disposition": "2.0.1",
+      "glob": "14.0.3"
+    }
   }
 }
