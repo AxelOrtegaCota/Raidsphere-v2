@@ -1,6 +1,6 @@
 # Phase 2 progress — local MVP
 
-As of 2026-10-30. Phase 2 code is complete and verified locally and in OBS. It is not yet merged into `main`: the integration work is on `feature/phase4-translation`, which still needs a reviewed pull request (see [Close-out](#close-out)). That branch includes the Batch 4 and 5 close-out: disconnection tests, hosted-deployment hardening, and documentation.
+As of 2026-10-31. Phase 2 is merged into `main` through PR #2 of `AxelOrtegaCota/Raidsphere-v2` (`852e4e2`), including the Batch 4 and 5 close-out, and it is deployed on Railway. The remaining items are listed under [Close-out](#close-out).
 
 Everything in Phase 2 runs in **simulation mode**: synthetic `rsdemo_` channels, a simulated chat, simulated raids, and a mock translation provider. No Twitch request, real raid, or AI call happens in the Phase 2 flow. Real Twitch work belongs to Phase 3 and is reported separately below.
 
@@ -78,14 +78,16 @@ All of this runs on simulated chat and the mock provider; real chat needs Phase 
 - [x] Secret scan of tracked files and Git history: no credential found; `.env` is ignored and was never committed.
 - [ ] Rotate the Twitch client secret reported as exposed (Twitch developer console; owner action).
 - [ ] Review by the module owners of the files changed outside their own module (`roulette.ts`, `memory.ts`, `view-state.ts`, `main.ts`, `index.html`, `styles.css`, `composition.ts`, `demo.ts`).
-- [ ] Merge into `main` through a reviewed pull request. Decide whether the Phase 3 work from `railway` goes in the same pull request or a separate one.
-- [ ] Re-run type checking, tests, build, and audit on `main` after the merge.
+- [x] Merge into `main` (PR #2, `852e4e2`), together with the Phase 3 and 4 work.
+- [x] Re-run type checking, tests, build, and audit on `main` after the merge: 599/599 tests on Node.js 20.18.0 and npm 10.8.2, audit 0 vulnerabilities (`6e27b5b`).
+- [x] Deploy from `main` on Railway. The first attempt failed because `npm ci` cannot remove Railway's mounted `node_modules/.cache`; the build uses `npm install` (`6e27b5b`).
+- [ ] Repeat the OBS check after the translation bubble queue changes, and check reconnection after a refresh.
 
 ## Branches and commits
 
 | Branch | Contains |
 | --- | --- |
-| `main` | Phase 1 and Module D (PR #4) |
+| `main` | Current work: Phases 1 and 2, and the Phase 3 and 4 work (PR #2 of `Raidsphere-v2`) |
 | `fix_twitch-integration` | Modules B and C (Batches 1–3B) and their adapters to Module D (`c2e6b4f`) |
 | `railway` | Phase 3 OAuth, Helix discovery, and deployment configuration |
 | `Test` | `railway` merged with `fix_twitch-integration`, plus the `@fastify/static` security upgrade (`46650ae`) |

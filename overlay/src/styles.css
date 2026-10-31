@@ -853,12 +853,6 @@ html[data-mode='obs'] .view-toggle { display: none; }
 
 .view-panel[hidden] { display: none; }
 
-#globe-view .location-panel {
-  position: absolute;
-  bottom: clamp(180px, 22vh, 260px);
-  left: clamp(24px, 4vw, 72px);
-}
-
 /* ============================================
    Roulette Wheel View
    ============================================ */

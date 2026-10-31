@@ -1,6 +1,6 @@
 # RaidSphere — Phase Status Report
 
-> **Branch:** `feature/phase4-translation`\
+> **Branch:** `main`\
 > **Last updated:** 2026-10-30\
 > **Deployed at:** https://raidsphere.up.railway.app
 
@@ -187,6 +187,6 @@ curl https://raidsphere.up.railway.app/health
 
 1. **Client Secret was exposed** — Must rotate in Twitch Developer Console before production
 2. **Sessions are in-memory** — Lost on every Railway deploy/restart
-3. **`main` has Phase 1 and Module D** — The rest of Phase 2 and this work are on `feature/phase4-translation`, pending review
+3. **`main` holds the current work** — Phase 1, Phase 2, and the Phase 3 and 4 work reached it through PR #2 of `AxelOrtegaCota/Raidsphere-v2`
 4. **Mode is `simulation`** — Real raids are disabled for safety
 5. **No credential URLs in hosted logs** — A server bound to `0.0.0.0` does not print overlay URLs; take the overlay URL from the dashboard
