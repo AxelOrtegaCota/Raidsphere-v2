@@ -1,9 +1,9 @@
 /**
  * Module B: Twitch Channel Points adapter for the flag competition system.
- * 
+ *
  * Channel Points are configured by streamers in their Twitch dashboard.
  * We listen for redemptions via EventSub and forward them to the FlagManager.
- * 
+ *
  * EventSub subscription type: channel.channel_points_custom_reward_redemption.add
  * Required scope: channel:read:redemptions or channel:manage:redemptions
  */
@@ -80,7 +80,7 @@ export function toPointContribution(
   if (event.status === 'canceled') return null;
 
   const countryCode = parseCountryFromInput(event.user_input);
-  
+
   return {
     eventId: event.id,
     channelId: event.broadcaster_user_id,
@@ -162,7 +162,7 @@ export class ChannelPointsHandler {
 /**
  * Create an EventSub subscription for channel point redemptions.
  * This would be called when setting up the webhook.
- * 
+ *
  * Note: This is the subscription request shape, not the actual API call.
  */
 export function createRedemptionSubscription(broadcasterId: string) {

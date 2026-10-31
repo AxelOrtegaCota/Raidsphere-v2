@@ -63,10 +63,10 @@ export function createApp(dependencies: AppDependencies) {
   });
 
   registerWebSocketBoundary(app, dependencies.viewing);
-  
+
     // Register auth routes (Phase 3)
     registerAuthRoutes(app, { issueViewingCredential: dependencies.issueViewingCredential });
-  
+
     return app;
 }
 

@@ -1,6 +1,6 @@
 /**
  * Module C: Translation index
- * 
+ *
  * Exports all translation functionality for Phase 2.
  */
 

@@ -1,6 +1,6 @@
 /**
  * Session Manager — In-memory storage for authenticated users
- * 
+ *
  * Stores Twitch tokens and user info per session.
  * In production, this would be backed by Redis or a database.
  */
@@ -53,7 +53,7 @@ export function createSession(
   if (oldSessionId) {
     sessions.delete(oldSessionId);
   }
-  
+
   const session: UserSession = {
     sessionId,
     userId: user.id,
@@ -63,10 +63,10 @@ export function createSession(
     createdAt: Date.now(),
     lastAccessedAt: Date.now(),
   };
-  
+
   sessions.set(sessionId, session);
   userToSession.set(user.id, sessionId);
-  
+
   console.info(`[Session] Created session for ${user.display_name} (${user.id})`);
   return session;
 }
@@ -78,13 +78,13 @@ export function createSession(
 export function getSession(sessionId: string): UserSession | null {
   const session = sessions.get(sessionId);
   if (!session) return null;
-  
+
   // Check expiry
   if (Date.now() - session.createdAt > SESSION_TTL_MS) {
     destroySession(sessionId);
     return null;
   }
-  
+
   // Update last accessed
   session.lastAccessedAt = Date.now();
   return session;
@@ -105,7 +105,7 @@ export function getSessionByUserId(userId: string): UserSession | null {
 export function updateSessionTokens(sessionId: string, tokens: TwitchTokens): boolean {
   const session = sessions.get(sessionId);
   if (!session) return false;
-  
+
   session.tokens = tokens;
   session.lastAccessedAt = Date.now();
   return true;
@@ -117,7 +117,7 @@ export function updateSessionTokens(sessionId: string, tokens: TwitchTokens): bo
 export function destroySession(sessionId: string): boolean {
   const session = sessions.get(sessionId);
   if (!session) return false;
-  
+
   sessions.delete(sessionId);
   userToSession.delete(session.userId);
   console.info(`[Session] Destroyed session for user ${session.userId}`);
@@ -138,20 +138,21 @@ export function getAllSessions(): UserSession[] {
 export function cleanupExpiredSessions(): number {
   const now = Date.now();
   let count = 0;
-  
+
   for (const [sessionId, session] of sessions) {
     if (now - session.createdAt > SESSION_TTL_MS) {
       destroySession(sessionId);
       count++;
     }
   }
-  
+
   if (count > 0) {
     console.info(`[Session] Cleaned up ${count} expired sessions`);
   }
-  
+
   return count;
 }
 
-// Run cleanup every hour
-setInterval(cleanupExpiredSessions, 60 * 60 * 1000);
+// Run cleanup every hour. The timer is unreferenced so it never keeps a stopped process alive;
+// a running server stays alive through its own listener.
+setInterval(cleanupExpiredSessions, 60 * 60 * 1000).unref();

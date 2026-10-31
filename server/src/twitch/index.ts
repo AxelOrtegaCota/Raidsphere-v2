@@ -1,6 +1,6 @@
 /**
  * Module B: Twitch integration index
- * 
+ *
  * Exports all Twitch-related functionality.
  * Phase 2: simulated adapters. Phase 3: real Twitch integration.
  */

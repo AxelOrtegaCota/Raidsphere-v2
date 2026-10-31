@@ -4,6 +4,7 @@ import { PassThrough } from 'node:stream';
 import { describe, expect, it } from 'vitest';
 import { createRuntime } from '../src/composition.js';
 import { loadServerConfig } from '../src/config.js';
+import { startupLines } from '../src/startup.js';
 
 const createApp = () => createRuntime({ reportError: () => undefined }).app;
 
@@ -70,5 +71,22 @@ describe('server boundaries', () => {
     'invalid', '\u0663\u0660\u0660\u0660',
   ])('rejects a port that is not a bounded decimal port: %j', (PORT) => {
     expect(() => loadServerConfig({ PORT })).toThrow();
+  });
+});
+
+describe('startup log', () => {
+  const urls = [{ channelId: 'rsdemo_es_01', url: `http://127.0.0.1:5173/rsdemo_es_01/overlay#cred=${'x'.repeat(43)}` }];
+
+  it('prints overlay URLs with their credentials on a loopback binding', () => {
+    const lines = startupLines(loadServerConfig({}), urls);
+    expect(lines[0]).toContain('loopback port 3000');
+    expect(lines).toContain(`  rsdemo_es_01: ${urls[0]?.url ?? ''}`);
+  });
+
+  it('never prints a viewing credential on a public binding', () => {
+    const lines = startupLines(loadServerConfig({ HOST: '0.0.0.0', PORT: '8080' }), urls);
+    expect(lines.join('\n')).not.toContain('#cred=');
+    expect(lines.join('\n')).not.toContain('x'.repeat(43));
+    expect(lines[0]).not.toContain('loopback');
   });
 });

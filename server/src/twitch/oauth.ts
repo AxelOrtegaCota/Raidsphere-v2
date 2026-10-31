@@ -281,7 +281,7 @@ export function buildAuthorizationUrl(config: OAuthConfig, state: string): strin
 
 /**
  * Generates the Twitch OAuth authorization URL.
- * 
+ *
  * Alternative signature using environment variables directly.
  *
  * @param state - Optional state parameter for CSRF protection (recommended)
@@ -576,7 +576,7 @@ export async function validateToken(
  * // With config:
  * const config = loadOAuthConfig(process.env);
  * await revokeToken(config, session.accessToken);
- * 
+ *
  * // Or just token:
  * await revokeToken(session.accessToken);
  * ```
@@ -587,7 +587,7 @@ export async function revokeToken(
 ): Promise<void> {
   let config: OAuthConfig;
   let token: string;
-  
+
   if (typeof configOrToken === 'string') {
     // Single argument: just the token
     config = loadOAuthConfig(process.env);
@@ -597,7 +597,7 @@ export async function revokeToken(
     config = configOrToken;
     token = accessToken!;
   }
-  
+
   const params = new URLSearchParams({
     client_id: config.clientId,
     token: token,
