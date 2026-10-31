@@ -1,6 +1,6 @@
 /**
  * Module B: Chat command parser
- * 
+ *
  * Parses !roulette, !vote <language>, and !cancel commands from chat messages.
  * Normalizes and validates commands before passing to the roulette state machine.
  */
@@ -83,7 +83,7 @@ export type ChatMessage = z.infer<typeof chatMessageSchema>;
 
 /**
  * Parse a chat message for RaidSphere commands.
- * 
+ *
  * @param message - Normalized chat message
  * @returns ParsedCommand if valid command, ParseError if invalid, null if not a command
  */
@@ -94,37 +94,37 @@ export function parseCommand(message: ChatMessage): ParseResult {
   }
   const validatedMessage = parsed.data;
   const text = validatedMessage.text.trim();
-  
+
   // Must start with ! to be a command
   if (!text.startsWith('!')) {
     return null;
   }
-  
+
   const parts = text.slice(1).toLowerCase().split(/\s+/);
   const command = parts[0];
-  
+
   if (!command) {
     return null;
   }
-  
+
   const baseContext = {
     userId: validatedMessage.userId,
     userLogin: validatedMessage.userLogin,
     channelId: validatedMessage.channelId,
   };
-  
+
   switch (command) {
     case 'roulette':
     case 'raidsphere':
     case 'spin':
     case 'ruleta':
       return { type: 'roulette', ...baseContext };
-    
+
     case 'vote':
     case 'votar':
     case 'v': {
       const languageArg = parts[1];
-      
+
       if (!languageArg) {
         return {
           type: 'error',
@@ -133,9 +133,9 @@ export function parseCommand(message: ChatMessage): ParseResult {
           originalText: text,
         };
       }
-      
+
       const normalizedLang = normalizeLanguage(languageArg);
-      
+
       if (!normalizedLang) {
         return {
           type: 'error',
@@ -144,15 +144,15 @@ export function parseCommand(message: ChatMessage): ParseResult {
           originalText: text,
         };
       }
-      
+
       return { type: 'vote', language: normalizedLang, ...baseContext };
     }
-    
+
     case 'cancel':
     case 'cancelar':
     case 'stop':
       return { type: 'cancel', ...baseContext };
-    
+
     default:
       // Not a RaidSphere command
       return null;

@@ -36,7 +36,7 @@ describe('Command Parser', () => {
     text: '',
     timestamp: Date.now(),
   };
-  
+
   describe('parseCommand', () => {
     it('should parse !roulette command', () => {
       const result = parseCommand({ ...baseMessage, text: '!roulette' });
@@ -47,22 +47,22 @@ describe('Command Parser', () => {
         channelId: 'channel_456',
       });
     });
-    
+
     it('should parse !raidsphere alias', () => {
       const result = parseCommand({ ...baseMessage, text: '!raidsphere' });
       expect(result?.type).toBe('roulette');
     });
-    
+
     it('should parse !spin alias', () => {
       const result = parseCommand({ ...baseMessage, text: '!spin' });
       expect(result?.type).toBe('roulette');
     });
-    
+
     it('should parse !ruleta (Spanish alias)', () => {
       const result = parseCommand({ ...baseMessage, text: '!ruleta' });
       expect(result?.type).toBe('roulette');
     });
-    
+
     it('should parse !vote with language code', () => {
       const result = parseCommand({ ...baseMessage, text: '!vote es' });
       expect(result).toEqual({
@@ -73,17 +73,17 @@ describe('Command Parser', () => {
         language: 'es',
       });
     });
-    
+
     it('should parse !vote with full language name', () => {
       const result = parseCommand({ ...baseMessage, text: '!vote spanish' });
       expect(result).toMatchObject({ type: 'vote', language: 'es' });
     });
-    
+
     it('should parse !votar (Spanish alias)', () => {
       const result = parseCommand({ ...baseMessage, text: '!votar español' });
       expect(result).toMatchObject({ type: 'vote', language: 'es' });
     });
-    
+
     it('should return error for !vote without language', () => {
       const result = parseCommand({ ...baseMessage, text: '!vote' });
       expect(result).toMatchObject({
@@ -91,7 +91,7 @@ describe('Command Parser', () => {
         code: 'MISSING_ARGUMENT',
       });
     });
-    
+
     it('should return error for !vote with invalid language', () => {
       const result = parseCommand({ ...baseMessage, text: '!vote xyz' });
       expect(result).toMatchObject({
@@ -99,56 +99,56 @@ describe('Command Parser', () => {
         code: 'INVALID_LANGUAGE',
       });
     });
-    
+
     it('should parse !cancel command', () => {
       const result = parseCommand({ ...baseMessage, text: '!cancel' });
       expect(result?.type).toBe('cancel');
     });
-    
+
     it('should return null for non-commands', () => {
       expect(parseCommand({ ...baseMessage, text: 'hello everyone' })).toBeNull();
       expect(parseCommand({ ...baseMessage, text: 'roulette' })).toBeNull();
     });
-    
+
     it('should be case-insensitive', () => {
       const result = parseCommand({ ...baseMessage, text: '!ROULETTE' });
       expect(result?.type).toBe('roulette');
     });
   });
-  
+
   describe('normalizeLanguage', () => {
     it('should normalize language codes', () => {
       expect(normalizeLanguage('en')).toBe('en');
       expect(normalizeLanguage('ES')).toBe('es');
       expect(normalizeLanguage('pt')).toBe('pt');
     });
-    
+
     it('should normalize full names', () => {
       expect(normalizeLanguage('english')).toBe('en');
       expect(normalizeLanguage('Spanish')).toBe('es');
       expect(normalizeLanguage('portuguese')).toBe('pt');
     });
-    
+
     it('should normalize aliases', () => {
       expect(normalizeLanguage('br')).toBe('pt');
       expect(normalizeLanguage('jp')).toBe('ja');
       expect(normalizeLanguage('kr')).toBe('ko');
     });
-    
+
     it('should return null for unknown', () => {
       expect(normalizeLanguage('xyz')).toBeNull();
     });
   });
-  
+
   describe('hasControlPermission', () => {
     it('should allow broadcaster', () => {
       expect(hasControlPermission({ ...baseMessage, isBroadcaster: true })).toBe(true);
     });
-    
+
     it('should allow moderator', () => {
       expect(hasControlPermission({ ...baseMessage, isModerator: true })).toBe(true);
     });
-    
+
     it('should deny regular user', () => {
       expect(hasControlPermission(baseMessage)).toBe(false);
     });
@@ -161,28 +161,28 @@ describe('Synthetic Candidates', () => {
       const candidates = getSyntheticCandidates();
       expect(candidates.length).toBeGreaterThan(0);
     });
-    
+
     it('should filter by language', () => {
       const candidates = getSyntheticCandidates({ languages: ['es'] });
       expect(candidates.every(c => c.language === 'es')).toBe(true);
     });
-    
+
     it('should filter by viewer range', () => {
       const candidates = getSyntheticCandidates({ minViewers: 30, maxViewers: 50 });
       expect(candidates.every(c => c.viewers >= 30 && c.viewers <= 50)).toBe(true);
     });
-    
+
     it('should exclude specific streamer', () => {
       const candidates = getSyntheticCandidates({ excludeStreamerId: 'synth_001' });
       expect(candidates.find(c => c.streamerId === 'synth_001')).toBeUndefined();
     });
-    
+
     it('should respect limit', () => {
       const candidates = getSyntheticCandidates({ limit: 5 });
       expect(candidates.length).toBeLessThanOrEqual(5);
     });
   });
-  
+
   describe('getAvailableLanguages', () => {
     it('should return unique languages', () => {
       const candidates = getSyntheticCandidates();
@@ -190,7 +190,7 @@ describe('Synthetic Candidates', () => {
       expect(new Set(languages).size).toBe(languages.length);
     });
   });
-  
+
   describe('selectRandomCandidate', () => {
     it('should return a candidate', () => {
       const candidates = getSyntheticCandidates();
@@ -198,14 +198,14 @@ describe('Synthetic Candidates', () => {
       expect(selected).not.toBeNull();
       expect(candidates).toContain(selected);
     });
-    
+
     it('should use injectable random', () => {
       const candidates = getSyntheticCandidates({ limit: 5 });
       const mockRandom = () => 0; // Always first
       const selected = selectRandomCandidate(candidates, mockRandom);
       expect(selected).toBe(candidates[0]);
     });
-    
+
     it('should return null for empty array', () => {
       expect(selectRandomCandidate([])).toBeNull();
     });

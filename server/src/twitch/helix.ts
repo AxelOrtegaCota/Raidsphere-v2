@@ -1,6 +1,6 @@
 /**
  * Module B: Twitch Helix API client
- * 
+ *
  * Provides typed access to Twitch Helix API endpoints for channel search,
  * stream information, and raid operations. All functions require an access
  * token and handle rate limits and API errors appropriately.
@@ -79,7 +79,7 @@ export interface RaidResponse {
 export interface HelixApiError {
   readonly status: number;
   readonly message: string;
-  readonly error?: string;
+  readonly error?: string | undefined;
 }
 
 /**
@@ -196,7 +196,7 @@ const startRaidResponseSchema = z.object({
 
 export class HelixError extends Error {
   readonly status: number;
-  readonly apiError?: string;
+  readonly apiError: string | undefined;
 
   constructor(message: string, status: number, apiError?: string) {
     super(message);
@@ -319,13 +319,13 @@ function sleep(ms: number): Promise<void> {
 
 /**
  * Search for channels by name or game. Returns channels matching the query.
- * 
+ *
  * @param query - Search query (channel name, game name, etc.)
  * @param config - Request configuration with access token and client ID
  * @param language - Optional language filter (ISO 639-1 code)
  * @param first - Number of results to return (1-100, default 20)
  * @returns Array of matching channels
- * 
+ *
  * @see https://dev.twitch.tv/docs/api/reference/#search-channels
  */
 export async function searchChannels(
@@ -350,7 +350,7 @@ export async function searchChannels(
 
   // Filter by language if specified (API doesn't have native language filter for search)
   if (language) {
-    channels = channels.filter(ch => 
+    channels = channels.filter(ch =>
       ch.broadcasterLanguage.toLowerCase() === language.toLowerCase()
     );
   }
@@ -360,11 +360,11 @@ export async function searchChannels(
 
 /**
  * Get detailed information about a specific channel.
- * 
+ *
  * @param broadcasterId - The broadcaster's user ID
  * @param config - Request configuration with access token and client ID
  * @returns Channel information or null if not found
- * 
+ *
  * @see https://dev.twitch.tv/docs/api/reference/#get-channel-information
  */
 export async function getChannelInfo(
@@ -373,9 +373,9 @@ export async function getChannelInfo(
 ): Promise<Channel | null> {
   const params = new URLSearchParams({ broadcaster_id: broadcasterId });
   const url = `${HELIX_BASE_URL}/channels?${params.toString()}`;
-  
+
   const response = await helixFetch(url, config, { method: 'GET' }, getChannelInfoResponseSchema);
-  
+
   const data = response.data[0];
   if (!data) {
     return null;
@@ -397,12 +397,12 @@ export async function getChannelInfo(
 
 /**
  * Start a raid from one channel to another.
- * 
+ *
  * @param fromBroadcasterId - The ID of the broadcaster initiating the raid
  * @param toBroadcasterId - The ID of the broadcaster to raid
  * @param config - Request configuration with access token and client ID
  * @returns Raid response with creation time and maturity flag
- * 
+ *
  * @see https://dev.twitch.tv/docs/api/reference/#start-a-raid
  */
 export async function startRaid(
@@ -415,9 +415,9 @@ export async function startRaid(
     to_broadcaster_id: toBroadcasterId,
   });
   const url = `${HELIX_BASE_URL}/raids?${params.toString()}`;
-  
+
   const response = await helixFetch(url, config, { method: 'POST' }, startRaidResponseSchema);
-  
+
   const data = response.data[0];
   if (!data) {
     throw new HelixError('No raid data returned from API', 500);
@@ -431,10 +431,10 @@ export async function startRaid(
 
 /**
  * Cancel a pending raid.
- * 
+ *
  * @param broadcasterId - The ID of the broadcaster who initiated the raid
  * @param config - Request configuration with access token and client ID
- * 
+ *
  * @see https://dev.twitch.tv/docs/api/reference/#cancel-a-raid
  */
 export async function cancelRaid(
@@ -443,7 +443,7 @@ export async function cancelRaid(
 ): Promise<void> {
   const params = new URLSearchParams({ broadcaster_id: broadcasterId });
   const url = `${HELIX_BASE_URL}/raids?${params.toString()}`;
-  
+
   // DELETE /raids returns 204 No Content on success
   const emptyResponseSchema = z.object({}).passthrough();
   await helixFetch(url, config, { method: 'DELETE' }, emptyResponseSchema);
@@ -451,12 +451,12 @@ export async function cancelRaid(
 
 /**
  * Get information about active streams.
- * 
+ *
  * @param config - Request configuration with access token and client ID
  * @param userIds - Optional array of user IDs to filter streams (max 100)
  * @param first - Number of results to return (1-100, default 20)
  * @returns Array of active streams
- * 
+ *
  * @see https://dev.twitch.tv/docs/api/reference/#get-streams
  */
 export async function getStreams(
@@ -515,18 +515,18 @@ export async function getUsers(
 
 /**
  * Get streams with filters for language, game, and other criteria.
- * 
+ *
  * @param config - Request configuration with access token and client ID
  * @param options - Filter options
  * @returns Array of matching streams
- * 
+ *
  * @see https://dev.twitch.tv/docs/api/reference/#get-streams
  */
 export async function getStreamsFiltered(
   config: HelixRequestConfig,
   options: {
-    language?: string;
-    gameId?: string;
+    language?: string | undefined;
+    gameId?: string | undefined;
     first?: number;
   } = {}
 ): Promise<readonly Stream[]> {
@@ -551,12 +551,12 @@ export async function getStreamsFiltered(
 
 /**
  * Search for game/category by name.
- * 
+ *
  * @param query - Category name to search
  * @param config - Request configuration with access token and client ID
  * @param first - Number of results to return (1-100, default 10)
  * @returns Array of matching categories with their IDs
- * 
+ *
  * @see https://dev.twitch.tv/docs/api/reference/#search-categories
  */
 export interface Category {

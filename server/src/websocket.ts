@@ -76,15 +76,7 @@ export function registerWebSocketBoundary(app: FastifyInstance, dependencies: Vi
     let alive = true;
     const pending: ServerEvent[] = [];
 
-    const send = (event: ServerEvent): void => {
-      if (viewer.readyState !== WebSocket.OPEN) return;
-      // A client that falls too far behind is dropped; it receives a fresh snapshot on reconnection.
-      if (viewer.bufferedAmount > limits.maxBufferedBytes) {
-        viewer.terminate();
-        return;
-      }
-      viewer.send(JSON.stringify(event));
-    };
+    const send = (event: ServerEvent): void => { sendOrDrop(viewer, event, limits.maxBufferedBytes); };
     // Events that arrive while the snapshot is being sent are queued and sent right after it.
     const listener: EventListener = (event) => {
       if (snapshotSent) send(event);
@@ -162,6 +154,18 @@ export function registerWebSocketBoundary(app: FastifyInstance, dependencies: Vi
     for (const viewer of webSocketServer.clients) viewer.terminate();
     await new Promise<void>((resolve) => webSocketServer.close(() => resolve()));
   });
+}
+
+export type ViewerSocket = Pick<WebSocket, 'readyState' | 'bufferedAmount' | 'send' | 'terminate'>;
+
+// A client that falls too far behind is dropped; it receives a fresh snapshot on reconnection.
+export function sendOrDrop(viewer: ViewerSocket, event: ServerEvent, maxBufferedBytes: number): void {
+  if (viewer.readyState !== WebSocket.OPEN) return;
+  if (viewer.bufferedAmount > maxBufferedBytes) {
+    viewer.terminate();
+    return;
+  }
+  viewer.send(JSON.stringify(event));
 }
 
 function isAllowedOverlayOrigin(request: IncomingMessage): boolean {

@@ -1,6 +1,6 @@
 /**
  * Module B: Synthetic candidate source
- * 
+ *
  * Generates fake streamer candidates for local development and testing.
  * In Phase 3, this is replaced by real Twitch Helix API calls.
  */
@@ -23,28 +23,28 @@ const SYNTHETIC_STREAMERS: Array<{
   { streamerId: 'synth_001', login: 'pixelwarrior', displayName: 'PixelWarrior', language: 'en', country: 'US', games: ['Just Chatting', 'Minecraft'], baseViewers: 25 },
   { streamerId: 'synth_002', login: 'cosmicgamer', displayName: 'CosmicGamer', language: 'en', country: 'US', games: ['Fortnite', 'Apex Legends'], baseViewers: 42 },
   { streamerId: 'synth_003', login: 'retroquest', displayName: 'RetroQuest', language: 'en', country: 'US', games: ['Retro', 'Indie Games'], baseViewers: 18 },
-  
+
   // Spanish streamers (MX is the only Spanish IllustrativeCountry)
   { streamerId: 'synth_004', login: 'elguerrero', displayName: 'ElGuerrero', language: 'es', country: 'MX', games: ['FIFA', 'League of Legends'], baseViewers: 38 },
   { streamerId: 'synth_005', login: 'laestrellamx', displayName: 'LaEstrellaMX', language: 'es', country: 'MX', games: ['GTA V', 'Valorant'], baseViewers: 55 },
   { streamerId: 'synth_006', login: 'elcazador', displayName: 'ElCazadorAR', language: 'es', country: 'MX', games: ['CS2', 'Dota 2'], baseViewers: 22 },
-  
+
   // Portuguese streamers (BR is the only Portuguese IllustrativeCountry)
   { streamerId: 'synth_007', login: 'guerreirobr', displayName: 'GuerreiroBR', language: 'pt', country: 'BR', games: ['Free Fire', 'PUBG'], baseViewers: 67 },
   { streamerId: 'synth_008', login: 'estrelapt', displayName: 'EstrelaPT', language: 'pt', country: 'BR', games: ['Valorant', 'Just Chatting'], baseViewers: 15 },
-  
+
   // French streamers
   { streamerId: 'synth_009', login: 'lechampion', displayName: 'LeChampion', language: 'fr', country: 'FR', games: ['League of Legends', 'TFT'], baseViewers: 48 },
   { streamerId: 'synth_010', login: 'larose', displayName: 'LaRoseFR', language: 'fr', country: 'FR', games: ['Just Chatting', 'Art'], baseViewers: 31 },
-  
+
   // German streamers
   { streamerId: 'synth_011', login: 'dermeister', displayName: 'DerMeister', language: 'de', country: 'DE', games: ['Minecraft', 'Farming Simulator'], baseViewers: 29 },
   { streamerId: 'synth_012', login: 'blitzgamer', displayName: 'BlitzGamerDE', language: 'de', country: 'DE', games: ['Call of Duty', 'Battlefield'], baseViewers: 44 },
-  
+
   // Japanese streamers
   { streamerId: 'synth_013', login: 'sakuragamer', displayName: 'SakuraGamer', language: 'ja', country: 'JP', games: ['Final Fantasy', 'Genshin Impact'], baseViewers: 52 },
   { streamerId: 'synth_014', login: 'ninjacat', displayName: 'NinjaCat', language: 'ja', country: 'JP', games: ['Apex Legends', 'Splatoon'], baseViewers: 37 },
-  
+
   // Korean streamers
   { streamerId: 'synth_015', login: 'starkr', displayName: 'StarKR', language: 'ko', country: 'KR', games: ['StarCraft II', 'League of Legends'], baseViewers: 61 },
   { streamerId: 'synth_016', login: 'flashkr', displayName: 'FlashKR', language: 'ko', country: 'KR', games: ['Overwatch 2', 'Valorant'], baseViewers: 43 },

@@ -1,9 +1,9 @@
 /**
  * Twitch EventSub — Real-time event subscriptions
- * 
+ *
  * Uses WebSocket transport (no need for public webhook endpoint during dev).
  * Listens for raid events and chat messages.
- * 
+ *
  * @see https://dev.twitch.tv/docs/eventsub/
  */
 
@@ -122,19 +122,19 @@ export interface EventSubClient {
 
 export function createEventSubClient(options: EventSubClientOptions): EventSubClient {
   const { accessToken, userId, onEvent, onConnected, onDisconnected, onError } = options;
-  
+
   let ws: WebSocket | null = null;
   let sessionId: string | null = null;
   let keepaliveTimeout: ReturnType<typeof setTimeout> | null = null;
   let reconnectUrl: string | null = null;
-  
+
   function clearKeepalive(): void {
     if (keepaliveTimeout) {
       clearTimeout(keepaliveTimeout);
       keepaliveTimeout = null;
     }
   }
-  
+
   function resetKeepalive(timeoutSeconds: number): void {
     clearKeepalive();
     // Add 10% buffer to the timeout
@@ -144,17 +144,17 @@ export function createEventSubClient(options: EventSubClientOptions): EventSubCl
       reconnect();
     }, bufferMs);
   }
-  
+
   function reconnect(): void {
     disconnect();
     setTimeout(() => connect(), 1000);
   }
-  
+
   function handleMessage(data: string): void {
     try {
       const message: EventSubMessage = JSON.parse(data);
       const { metadata, payload } = message;
-      
+
       switch (metadata.message_type) {
         case 'session_welcome':
           if (payload.session) {
@@ -164,14 +164,14 @@ export function createEventSubClient(options: EventSubClientOptions): EventSubCl
             onConnected?.(sessionId);
           }
           break;
-          
+
         case 'session_keepalive':
           // Reset the keepalive timer
           if (payload.session) {
             resetKeepalive(payload.session.keepalive_timeout_seconds);
           }
           break;
-          
+
         case 'session_reconnect':
           if (payload.session?.reconnect_url) {
             reconnectUrl = payload.session.reconnect_url;
@@ -179,13 +179,13 @@ export function createEventSubClient(options: EventSubClientOptions): EventSubCl
             reconnect();
           }
           break;
-          
+
         case 'notification':
           if (metadata.subscription_type && payload.event) {
             onEvent(metadata.subscription_type, payload.event);
           }
           break;
-          
+
         case 'revocation':
           console.warn('[EventSub] Subscription revoked:', payload.subscription?.type);
           break;
@@ -194,35 +194,35 @@ export function createEventSubClient(options: EventSubClientOptions): EventSubCl
       console.error('[EventSub] Failed to parse message:', error);
     }
   }
-  
+
   function connect(): void {
     const url = reconnectUrl ?? EVENTSUB_WSS_URL;
     reconnectUrl = null;
-    
+
     try {
       ws = new WebSocket(url);
-      
+
       ws.onopen = () => {
         console.info('[EventSub] WebSocket opened');
       };
-      
+
       ws.onmessage = (event) => {
         handleMessage(String(event.data));
       };
-      
+
       ws.onclose = (event) => {
         clearKeepalive();
         sessionId = null;
         const reason = event.reason || `Code ${event.code}`;
         console.info(`[EventSub] Disconnected: ${reason}`);
         onDisconnected?.(reason);
-        
+
         // Auto-reconnect on abnormal closure
         if (event.code !== 1000) {
           setTimeout(() => connect(), 5000);
         }
       };
-      
+
       ws.onerror = (event) => {
         const error = new Error(`WebSocket error: ${String(event)}`);
         console.error('[EventSub]', error.message);
@@ -232,7 +232,7 @@ export function createEventSubClient(options: EventSubClientOptions): EventSubCl
       onError?.(error instanceof Error ? error : new Error(String(error)));
     }
   }
-  
+
   function disconnect(): void {
     clearKeepalive();
     if (ws) {
@@ -241,7 +241,7 @@ export function createEventSubClient(options: EventSubClientOptions): EventSubCl
     }
     sessionId = null;
   }
-  
+
   async function createSubscription(
     type: string,
     version: string,
@@ -250,7 +250,7 @@ export function createEventSubClient(options: EventSubClientOptions): EventSubCl
     if (!sessionId) {
       throw new Error('Not connected to EventSub — call connect() first');
     }
-    
+
     const response = await fetch(`${HELIX_BASE}/eventsub/subscriptions`, {
       method: 'POST',
       headers: {
@@ -268,35 +268,35 @@ export function createEventSubClient(options: EventSubClientOptions): EventSubCl
         },
       }),
     });
-    
+
     if (!response.ok) {
       const error = await response.text();
       throw new Error(`Failed to create subscription: ${response.status} ${error}`);
     }
-    
+
     const result = await response.json() as { data: EventSubSubscription[] };
     const subscription = result.data[0];
     if (!subscription) {
       throw new Error('No subscription returned');
     }
-    
+
     console.info(`[EventSub] Subscribed to ${type}`);
     return subscription;
   }
-  
+
   return {
     connect,
     disconnect,
     isConnected: () => ws?.readyState === WebSocket.OPEN,
     getSessionId: () => sessionId,
-    
+
     async subscribeToRaids(): Promise<EventSubSubscription> {
       // channel.raid — fires when a raid starts TO this channel
       return createSubscription('channel.raid', '1', {
         to_broadcaster_user_id: userId,
       });
     },
-    
+
     async subscribeToChatMessages(): Promise<EventSubSubscription> {
       // channel.chat.message — fires for each chat message
       return createSubscription('channel.chat.message', '1', {
@@ -347,7 +347,7 @@ export interface DetectedCommand {
 
 export function parseChatCommand(event: ChannelChatMessageEvent): DetectedCommand | null {
   const text = event.message.text.trim();
-  
+
   // Check for roulette commands
   const rouletteMatch = /^!(roulette|ruleta|ルーレット|룰렛)$/i.exec(text);
   if (rouletteMatch) {
@@ -360,7 +360,7 @@ export function parseChatCommand(event: ChannelChatMessageEvent): DetectedComman
       isModerator: event.badges.some(b => b.set_id === 'moderator'),
     };
   }
-  
+
   // Check for vote commands
   const voteMatch = /^!(vote|votar|v)\s+(\w+)$/i.exec(text);
   if (voteMatch) {
@@ -375,7 +375,7 @@ export function parseChatCommand(event: ChannelChatMessageEvent): DetectedComman
       'ko': 'ko', 'korean': 'ko', 'coreano': 'ko',
     };
     const language = langInput ? languageMap[langInput] : undefined;
-    
+
     if (language) {
       return {
         command: 'vote',
@@ -388,7 +388,7 @@ export function parseChatCommand(event: ChannelChatMessageEvent): DetectedComman
       };
     }
   }
-  
+
   // Check for cancel commands
   const cancelMatch = /^!(cancel|cancelar|キャンセル|취소)$/i.exec(text);
   if (cancelMatch) {
@@ -401,6 +401,6 @@ export function parseChatCommand(event: ChannelChatMessageEvent): DetectedComman
       isModerator: event.badges.some(b => b.set_id === 'moderator'),
     };
   }
-  
+
   return null;
 }

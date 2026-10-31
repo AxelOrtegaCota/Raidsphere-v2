@@ -71,11 +71,11 @@ npm run build
 
 Installation disables dependency lifecycle scripts; none was required. A dependency requiring a script needs separate review and approval. No automated fix or dependency upgrade is implied.
 
-Verified results: type checking passes, 584 of 584 tests pass, the build succeeds, and `npm audit` reports 0 vulnerabilities (2026-10-29, `feature/phase4-translation`). Vite warns that the overlay bundle exceeds 500 kB, mostly because of three.js; this is expected for now.
+Verified results: type checking passes, 598 of 598 tests pass, the build succeeds, and `npm audit` reports 0 vulnerabilities (2026-10-30, `feature/batch_resolve`, on Node.js 22.15.0 because 20.18.0 was not installed on that machine; the previous run on `feature/phase4-translation` passed 584 of 584). Vite warns that the overlay bundle exceeds 500 kB, mostly because of three.js; this is expected for now.
 
 The root scripts build shared exports before consumers. `npm run typecheck` therefore also writes shared declarations/JavaScript to `shared/dist/`, then checks all workspace source, shared/backend tests, and Vite configuration. Test/tooling configurations use `noEmit`; production builds continue excluding tests.
 
-Tests cover contract compatibility, invalid payloads, snapshot invariants, channel isolation, canonical validator exports, translation result states, strict decimal ports, health behavior, vote and selection rules, the roulette state machine, simulated raids, the Module B adapters, the translation service and window, event publication, the `/ws` origin, credential, handshake, and connection-limit checks, and the overlay display state.
+Tests cover contract compatibility, invalid payloads, snapshot invariants, channel isolation, canonical validator exports, translation result states, strict decimal ports, health behavior, vote and selection rules, the roulette state machine, simulated raids, the Module B adapters, the translation service and window, event publication, the `/ws` origin, credential, handshake, connection-limit, heartbeat, and outgoing-buffer checks, and the overlay display state and reconnection.
 
 Windows notes:
 
@@ -90,7 +90,7 @@ Snapshots reject empty voting/selection pools, unavailable vote languages, prema
 
 The shared contracts use Zod 4. New schemas in any module must use Zod 4 APIs; for example, partial records keyed by an enum use `z.partialRecord`.
 
-An explicitly supplied `PORT` must contain one to five ASCII decimal digits and represent a port from 1 to 65535. Missing `PORT` defaults to 3000. Leading zeroes within five characters are allowed; whitespace, signs, hexadecimal, exponent, fractional, and non-ASCII forms are rejected. The host is loopback-only unless `HOST=0.0.0.0` is set for a hosted deployment.
+An explicitly supplied `PORT` must contain one to five ASCII decimal digits and represent a port from 1 to 65535. Missing `PORT` defaults to 3000. Leading zeroes within five characters are allowed; whitespace, signs, hexadecimal, exponent, fractional, and non-ASCII forms are rejected. The host is loopback-only unless `HOST=0.0.0.0` is set for a hosted deployment. On that public binding the server does not print overlay URLs, because they contain viewing credentials and hosted logs are kept.
 
 ## Local demo
 
@@ -114,7 +114,7 @@ Notes:
 
 - **Exact origin.** Use the URL exactly as printed, with `127.0.0.1`. `localhost:5173` sends a different origin and is rejected.
 - **Credentials.** Each URL contains a read-only viewing credential after `#cred=`. Do not share the URLs or screen-share the terminal. Credentials change on every restart, so paste the new URLs after restarting.
-- **Reloading.** The overlay removes the credential from the address bar, so reloading a browser tab loses it; open the printed URL again. An OBS source keeps its configured URL, so it is expected to reconnect on refresh (not yet verified in OBS).
+- **Reloading.** The overlay removes the credential from the address bar, so reloading a browser tab loses it; open the printed URL again. An OBS source keeps its configured URL, so it is expected to reconnect on refresh (covered by automated client tests; not yet checked by hand in OBS). After a lost connection the overlay retries after 1, 2, 4, 8, 16, then 30 seconds; after a server restart the old credential is rejected and the overlay stops retrying, so paste the new URL.
 - **PowerShell.** Windows PowerShell removes a bare `--` before calling npm, so `npm run demo -- --auto` loses `--auto`; use `npm run demo:auto`.
 - **Vite development server only.** The built preview (`vite preview`) is not supported.
 

@@ -167,9 +167,9 @@ export function createSearchPanel(container: HTMLElement, config: SearchPanelCon
         throw new Error('API request failed');
       }
       const data = await response.json();
-      
+
       const candidates: Candidate[] = [];
-      
+
       // Add streams (main results with viewers)
       if (data.streams) {
         for (const s of data.streams) {
@@ -187,7 +187,7 @@ export function createSearchPanel(container: HTMLElement, config: SearchPanelCon
           });
         }
       }
-      
+
       // Add search results if any (these might not have viewers)
       if (data.search_results) {
         for (const ch of data.search_results) {
@@ -254,7 +254,7 @@ export function createSearchPanel(container: HTMLElement, config: SearchPanelCon
     candidatesList.querySelectorAll('.candidate-item').forEach(item => {
       const id = item.getAttribute('data-id')!;
       const candidate = candidates.find(c => c.id === id)!;
-      
+
       item.addEventListener('click', () => showCandidateDetail(candidate));
       item.addEventListener('contextmenu', (e) => {
         e.preventDefault();
@@ -287,12 +287,12 @@ export function createSearchPanel(container: HTMLElement, config: SearchPanelCon
       <p class="detail-language" title="Flag is representative of the stream language, not streamer location">${language.flag} ${escapeHtml(language.name)}</p>
       <p class="detail-game">${escapeHtml(candidate.game)} • ${candidate.viewers.toLocaleString()} viewers</p>
       <p class="detail-title">${escapeHtml(candidate.title)}</p>
-      
+
       <div class="detail-countdown">
         <span class="countdown-text">Opening in <strong id="countdown-number">${countdownSeconds}</strong>s...</span>
         <button id="cancel-countdown" type="button">Cancel</button>
       </div>
-      
+
       <div class="detail-actions">
         <button id="btn-open" type="button" class="btn-primary">🔗 Open Stream</button>
         <button id="btn-raid" type="button" class="btn-raid" ${canRaid ? '' : 'disabled'}>
@@ -332,11 +332,11 @@ export function createSearchPanel(container: HTMLElement, config: SearchPanelCon
   const startCountdown = (candidate: Candidate) => {
     cancelCountdown();
     const countdownEl = detailContent.querySelector<HTMLElement>('#countdown-number');
-    
+
     countdownTimer = window.setInterval(() => {
       countdownSeconds--;
       if (countdownEl) countdownEl.textContent = String(countdownSeconds);
-      
+
       if (countdownSeconds <= 0) {
         cancelCountdown();
         openStream(candidate);
@@ -361,7 +361,7 @@ export function createSearchPanel(container: HTMLElement, config: SearchPanelCon
   const showContextMenu = (e: MouseEvent, candidate: Candidate) => {
     // Remove existing menu
     document.querySelector('.context-menu')?.remove();
-    
+
     const menu = document.createElement('div');
     menu.className = 'context-menu';
     menu.innerHTML = `
@@ -421,7 +421,7 @@ export function createSearchPanel(container: HTMLElement, config: SearchPanelCon
         credentials: 'include',
       });
       if (!response.ok) return;
-      
+
       const data = await response.json();
       if (data.categories && data.categories.length > 0) {
         categorySuggestions.innerHTML = data.categories.map((c: { id: string; name: string; boxArtUrl: string }) => `

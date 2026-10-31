@@ -1,7 +1,7 @@
 # RaidSphere — Phase Status Report
 
-> **Branch:** `railway`  
-> **Last updated:** 2026-10-29  
+> **Branch:** `railway` (close-out on `feature/batch_resolve`)\
+> **Last updated:** 2026-10-30\
 > **Deployed at:** https://raidsphere.up.railway.app
 
 ---
@@ -13,7 +13,7 @@
 |-----------|--------|---------|
 | HTTP Server (Fastify) | ✅ Working | Port 3000, Railway deployed |
 | WebSocket Server | ✅ Working | Same-origin, secure credentials |
-| State Machine | ✅ Working | `server/src/application/roulette.ts` (18K lines) |
+| State Machine | ✅ Working | `server/src/application/roulette.ts` (~450 lines) |
 | Vote Aggregation | ✅ Working | `server/src/application/votes.ts` |
 | Channel Selection | ✅ Working | `server/src/application/selection.ts` |
 | Event Publisher | ✅ Working | `server/src/application/publisher.ts` |
@@ -65,7 +65,7 @@
 |-----------|--------|----------|
 | Vote bars (30s timer, language percentages) | ✅ Built on `feature/phase4-translation` | — |
 | Channel card (name, game, viewers) | ✅ Built (winner card; no avatars yet) | — |
-| Translation bubbles (purple overlays) | ✅ Built; no server input until the chat pipeline exists | — |
+| Translation bubbles (purple overlays) | ✅ Built; fed by the simulated chat translation pipeline (real chat pending EventSub) | — |
 | Arc animation (origin → destination) | ✅ Built | — |
 
 ### Module B — Real Twitch Connection
@@ -187,5 +187,6 @@ curl https://raidsphere.up.railway.app/health
 
 1. **Client Secret was exposed** — Must rotate in Twitch Developer Console before production
 2. **Sessions are in-memory** — Lost on every Railway deploy/restart
-3. **`main` has Phase 1 and Module D** — The rest of Phase 2 and this work are on `railway`, `Test`, and `feature/phase4-translation`, pending review
+3. **`main` has Phase 1 and Module D** — The rest of Phase 2 and this work are on `railway`, `Test`, `feature/phase4-translation`, and `feature/batch_resolve`, pending review
 4. **Mode is `simulation`** — Real raids are disabled for safety
+5. **No credential URLs in hosted logs** — Since `feature/batch_resolve`, a server bound to `0.0.0.0` does not print overlay URLs; take the overlay URL from the dashboard

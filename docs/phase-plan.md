@@ -1,6 +1,6 @@
 # RaidSphere phase plan and progress
 
-As of 2026-10-29. Phase 1 is complete and merged into `main`. Phase 2 (local MVP) is code complete and verified in a browser and in OBS, on `feature/phase4-translation`; it still needs a reviewed pull request into `main`. Phase 3 (real Twitch) has started on `railway`, and Phase 4 (translation) has started with the translation window and the overlay bubbles. Details: [Phase 2 progress](PHASE2_PROGRESS.md).
+As of 2026-10-30. Phase 1 is complete and merged into `main`. Phase 2 (local MVP) is code complete and verified in a browser and in OBS, on `feature/phase4-translation`, with the Batch 4 and 5 close-out on `feature/batch_resolve`; it still needs a reviewed pull request into `main`. Phase 3 (real Twitch) has started on `railway`, and Phase 4 (translation) has started with the translation window and the overlay bubbles. Details: [Phase 2 progress](PHASE2_PROGRESS.md).
 
 ## Current status
 
@@ -11,7 +11,7 @@ As of 2026-10-29. Phase 1 is complete and merged into `main`. Phase 2 (local MVP
 | Backend | Fastify. Roulette coordinator with authoritative in-memory state, 30 s voting, selection, and simulated raids; the Module B parser and raid gateway are connected through adapters to the Module D ports. A confirmed arrival opens a 15-minute translation window. `/ws` is read-only with per-channel viewing credentials (D2-11); `/health` reports `mode: 'simulation'`. Local demo: `npm run demo`. The `railway` branch adds Twitch OAuth and Helix reads and allows `HOST=0.0.0.0` for deployment. |
 | Overlay | OBS mode by default: transparent, globe paused when idle, Simulation label. The globe shows candidate markers, the winner, an animated raid arc, and camera moves; vote bars per language and a winner card; translation bubbles. Verified in OBS 32.2.2 at 1920 × 1080 and 30 FPS (OBS CPU 0.9–1.3%, no dropped frames). `?mode=interactive` keeps the discovery panel from `railway`. |
 | Dependencies | Lockfile included; `light-my-request` 6.6.0 override (V1), Vitest 4.1.12 (V2), Zod 4.6.7 (V3); `@fastify/static` 10.1.8 with `content-disposition` pinned to 2.0.1 so it loads on Node 20.18 and `glob` pinned to 14.0.3 for a security advisory; `npm audit` 0 vulnerabilities. |
-| Checks | Phase 1: 63/63 tests, typecheck, and build on `main` after the merge. `feature/phase4-translation`: 584/584 tests, typecheck, build, and audit. |
+| Checks | Phase 1: 63/63 tests, typecheck, and build on `main` after the merge. `feature/phase4-translation`: 584/584 tests, typecheck, build, and audit. `feature/batch_resolve`: 598/598 tests, typecheck, build, and audit (2026-10-30, on Node.js 22.15.0 because 20.18.0 was not installed on that machine). |
 | Version control | Phase 1 merged into `main` through PR #1 (`b89ed23`); Module D merged through PR #4. Modules A–C, their integration, and the Phase 3 and 4 work are on `feature/phase4-translation`, pending review. `main` is the official base; `feature/project-foundation` (`4219a21`) is obsolete. |
 
 This status is based on local verification, Git history, [Phase 1 decisions](phase-1-decisions.md), and [Phase 2 backend decisions](phase-2-backend-decisions.md). Real raids, real chat, AI translation, and persistence are not implemented yet; Twitch OAuth and Helix reads exist on `railway` but are not connected to the roulette.
@@ -75,7 +75,8 @@ Phases 2–5 and the milestone order are a recommended plan, not completed deliv
 | Medium | Branching from the obsolete `feature/project-foundation` (`4219a21`). | Always branch from the latest `main`; that branch lacks V1–V7 and the lockfile. |
 | High | The `railway` status report says the Twitch client secret was exposed. | Rotate it in the Twitch developer console before any further use; never commit, log, or paste secrets. |
 | Medium | ~2 MB overlay bundle and a low-contrast purple halo. | Code splitting and visual tuning in Module A. |
-| Medium | `railway` relaxes `exactOptionalPropertyTypes` for the server and prints viewing-credential URLs to the server log, which a hosted deployment keeps. | Restore the strict setting and stop printing credentials when deployed. |
+| Low | This machine has Node.js 22.15.0, not the 20.18.0 baseline; the 2026-10-30 checks ran on 22. | Re-run the checks on Node.js 20.18.0 before merging, or agree to change the baseline. |
+| Resolved | `railway` relaxed `exactOptionalPropertyTypes` for the server and printed viewing-credential URLs to the server log, which a hosted deployment keeps. | Fixed on `feature/batch_resolve`: the strict setting is restored, and URLs are printed only on a loopback binding. |
 | Medium | npm over HTTPS failed in one environment. | It worked in the verification environment; never disable TLS or certificates. |
 | Medium | SQLite and deployment undecided. | Not required for the synthetic local demo; decide later. |
 
@@ -92,7 +93,7 @@ Phases 2–5 and the milestone order are a recommended plan, not completed deliv
 
 ## Next actions
 
-1. **Rotate the Twitch client secret** reported as exposed.
-2. **Module owners:** review the Phase 2 changes to files outside their module and merge Phase 2 into `main` through a pull request.
+1. **Rotate the Twitch client secret** reported as exposed. A scan of tracked files and Git history found no committed credential, so the exposure happened outside the repository.
+2. **Module owners:** review the Phase 2 changes to files outside their module and merge Phase 2 into `main` through a pull request from `feature/batch_resolve`. Decide whether the Phase 3 `railway` work (OAuth, Helix discovery, hosted deployment) goes in the same pull request or a separate one.
 3. **Modules B and D:** connect Phase 3 (EventSub chat, Helix candidates, real raids, `channel.raid` arrivals) through the existing ports in `server/src/application/ports.ts`.
 4. **Module C:** choose the AI provider and model, then build Phase 4 modules 1 and 2.

@@ -12,7 +12,7 @@ const decimalPortSchema = z.string().min(1).max(5).refine(
   'The port must contain only decimal digits.',
 );
 
-export function loadServerConfig(environment: { PORT?: string; HOST?: string }): ServerConfig {
+export function loadServerConfig(environment: { PORT?: string | undefined; HOST?: string | undefined }): ServerConfig {
   const port = environment.PORT === undefined ? 3000 : Number(decimalPortSchema.parse(environment.PORT));
   const host = environment.HOST === '0.0.0.0' ? '0.0.0.0' : '127.0.0.1';
   return serverConfigSchema.parse({

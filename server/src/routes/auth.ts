@@ -215,7 +215,7 @@ export function registerAuthRoutes(app: FastifyInstance, dependencies: AuthRoute
       });
 
       // Filter by viewer range
-      const filteredStreams = streams.filter(s => 
+      const filteredStreams = streams.filter(s =>
         s.viewerCount >= minViewers && s.viewerCount <= maxViewers
       );
 
