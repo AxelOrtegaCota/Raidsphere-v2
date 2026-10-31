@@ -86,6 +86,11 @@ export {
   type LiveChatOptions,
   type LiveChatState,
 } from './live-chat.js';
+export {
+  RegisteredCandidateSource,
+  type RegisteredCandidateDependencies,
+  type RegisteredCandidateOptions,
+} from './registered-candidates.js';
 
 // ============================================================================
 // Phase 3: Sessions
