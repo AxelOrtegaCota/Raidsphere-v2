@@ -195,6 +195,26 @@ describe('viewing WebSocket heartbeat', () => {
   });
 });
 
+describe('viewing WebSocket shutdown', () => {
+  it('disconnects connected viewers so the server can close', async () => {
+    const runtime = createRuntime({ reportError: () => undefined });
+    await runtime.app.listen({ host: '127.0.0.1', port: 0 });
+    const { port } = runtime.app.server.address() as AddressInfo;
+    const viewer = connect(`ws://127.0.0.1:${port}/ws`);
+    await viewer.opened;
+    viewer.auth(SOURCE, runtime.issuedCredentials.get(SOURCE) ?? '');
+    await viewer.received(1);
+
+    const closedInTime = await Promise.race([
+      runtime.app.close().then(() => true),
+      pause(2_000).then(() => false),
+    ]);
+    expect(closedInTime).toBe(true);
+    // An abnormal close is not a credential rejection, so the overlay retries.
+    expect((await viewer.closed).code).toBe(1006);
+  });
+});
+
 describe('viewing WebSocket outgoing buffer limit', () => {
   const event = {
     version: 1, type: 'state:snapshot', eventId: '00000000-0000-4000-8000-000000000000', channelId: SOURCE,

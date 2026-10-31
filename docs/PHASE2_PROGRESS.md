@@ -31,7 +31,7 @@ Decisions for Module D are recorded in [Phase 2 backend decisions](phase-2-backe
 | Check | Result |
 | --- | --- |
 | Type checking | Passes, including the server with `exactOptionalPropertyTypes` restored |
-| Tests | 598 of 598 pass (28 files): contracts, backend, roulette, raids, adapters, translation, moderation, `/ws` (including heartbeat and outgoing-buffer limit), overlay state, and overlay reconnection |
+| Tests | 599 of 599 pass (28 files): contracts, backend, roulette, raids, adapters, translation, moderation, `/ws` (including heartbeat and outgoing-buffer limit), overlay state, and overlay reconnection |
 | Build | Passes; Vite warns that the overlay bundle exceeds 500 kB (three.js) |
 | `npm audit` | 0 vulnerabilities after upgrading `@fastify/static` to 10.1.8 |
 | Runtime used | The 2026-10-30 run used Node.js 22.15.0 and npm 10.9.2, because Node.js 20.18.0 was not installed on that machine; earlier runs used the 20.18.0 baseline |
@@ -74,6 +74,7 @@ All of this runs on simulated chat and the mock provider; real chat needs Phase 
 - [x] Disconnection tests for the overlay client and the `/ws` heartbeat and buffer limit (Batch 4).
 - [x] Hosted-deployment hardening from the `railway` review: the server no longer prints viewing-credential URLs when bound to `0.0.0.0`, and the server again compiles with `exactOptionalPropertyTypes`.
 - [x] `npm run demo:auto` exits on its own again: the OAuth session store's hourly cleanup timer (from `railway`) kept the process alive after "Demo stopped."; it is now unreferenced (`server/test/sessions.test.ts`). Checked end to end on 2026-10-30 through the Vite proxy with source, destination, and uninvolved overlay connections.
+- [x] Stopping the server with overlays connected now disconnects them at once, so they show "Connection lost" and retry. Before, viewers were closed in Fastify's `onClose` hook, which only runs after every connection has ended, so the server waited forever and overlays stayed "Live". Viewers now close in `preClose` (`server/test/websocket.test.ts`, confirmed by a mutation check).
 - [x] Secret scan of tracked files and Git history: no credential found; `.env` is ignored and was never committed.
 - [ ] Rotate the Twitch client secret reported as exposed (Twitch developer console; owner action).
 - [ ] Review by the module owners of the files changed outside their own module (`roulette.ts`, `memory.ts`, `view-state.ts`, `main.ts`, `index.html`, `styles.css`, `composition.ts`, `demo.ts`).

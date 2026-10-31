@@ -149,7 +149,9 @@ export function registerWebSocketBoundary(app: FastifyInstance, dependencies: Vi
   };
 
   app.server.on('upgrade', onUpgrade);
-  app.addHook('onClose', async () => {
+  // preClose, not onClose: Fastify runs onClose only after every connection has ended, and an
+  // upgraded viewer never ends on its own, so closing viewers there would wait forever.
+  app.addHook('preClose', async () => {
     app.server.off('upgrade', onUpgrade);
     for (const viewer of webSocketServer.clients) viewer.terminate();
     await new Promise<void>((resolve) => webSocketServer.close(() => resolve()));
