@@ -48,11 +48,15 @@ const raidStarted = (state: ViewState) => applyEvent(state, event('raid:started'
 }, { sessionId: SESSION }));
 
 describe('overlay mode', () => {
-  it('defaults to OBS and opts into interactive mode explicitly', () => {
-    expect(readOverlayMode('')).toBe('obs');
-    expect(readOverlayMode('?mode=obs')).toBe('obs');
-    expect(readOverlayMode('?mode=anything')).toBe('obs');
-    expect(readOverlayMode('?mode=interactive')).toBe('interactive');
+  it('defaults to OBS with a credential and opts into interactive mode explicitly', () => {
+    expect(readOverlayMode('', true)).toBe('obs');
+    expect(readOverlayMode('?mode=obs', true)).toBe('obs');
+    expect(readOverlayMode('?mode=anything', true)).toBe('obs');
+    expect(readOverlayMode('?mode=interactive', true)).toBe('interactive');
+  });
+
+  it('treats a page without a credential as a browser tab', () => {
+    expect(readOverlayMode('', false)).toBe('interactive');
   });
 
   it('keeps the Simulation label unless the server reports live mode', () => {

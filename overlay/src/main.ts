@@ -29,9 +29,9 @@ if (!container || !headline || !detail || !status || !badge || !locateCountry ||
   throw new Error('The overlay is missing its required elements.');
 }
 
-const mode = readOverlayMode(window.location.search);
-document.documentElement.dataset.mode = mode;
 const target = readOverlayTarget(window.location, window.history);
+const mode = readOverlayMode(window.location.search, target !== null);
+document.documentElement.dataset.mode = mode;
 const apiBaseUrl = window.location.origin;
 
 // The label is removed only when the server positively reports live mode.
@@ -40,8 +40,8 @@ void fetch(`${apiBaseUrl}/health`, { cache: 'no-store' })
   .then((health: unknown) => { badge.hidden = !showsSimulationLabel(health); })
   .catch(() => { badge.hidden = false; });
 
-// Discovery panel is always available, regardless of OBS/interactive mode.
-startDiscovery(app);
+// Discovery never appears in the OBS scene, which is what viewers of the stream see.
+if (mode === 'interactive') startDiscovery(app);
 
 let applyScene: (scene: GlobeScene) => void = () => undefined;
 try {

@@ -3,6 +3,7 @@
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { createRateLimiter } from './rate-limit.js';
 import { randomUUID } from 'node:crypto';
 import {
   buildAuthorizationUrl,
@@ -32,6 +33,8 @@ const OAUTH_STATE_COOKIE_NAME = 'raidsphere_oauth_state';
 const STATE_TTL_MS = 5 * 60 * 1000;
 const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
 const pendingStates = new Map<string, number>();
+// Discovery works without login and spends the app's Twitch quota, so each address is limited.
+const DISCOVERY_LIMIT = { windowMs: 60_000, max: 120, maxKeys: 5_000 };
 
 export interface AuthRouteDependencies {
   issueViewingCredential: (channelId: string) => string;
@@ -40,6 +43,14 @@ export interface AuthRouteDependencies {
 }
 
 export function registerAuthRoutes(app: FastifyInstance, dependencies: AuthRouteDependencies): void {
+  const discoveryLimiter = createRateLimiter(DISCOVERY_LIMIT);
+  const overDiscoveryLimit = (request: FastifyRequest, reply: FastifyReply): boolean => {
+    const decision = discoveryLimiter(request.ip);
+    if (decision.allowed) return false;
+    void reply.status(429).header('Retry-After', String(decision.retryAfterSeconds)).send({ error: 'Too many requests.' });
+    return true;
+  };
+
   app.get('/', async (_request, reply) => {
     return sendHtml(reply, publicLandingPage());
   });
@@ -166,6 +177,7 @@ export function registerAuthRoutes(app: FastifyInstance, dependencies: AuthRoute
   // ==========================================================================
 
   app.get('/api/test-helix', async (request, reply) => {
+    if (overDiscoveryLimit(request, reply)) return reply;
     const session = currentSession(request);
     const config = loadOAuthConfig(process.env);
     const helixConfig: HelixRequestConfig = {
@@ -267,9 +279,9 @@ export function registerAuthRoutes(app: FastifyInstance, dependencies: AuthRoute
         })),
         search_results: channelResults,
       };
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      return reply.status(500).send({ error: 'Helix API call failed', details: message });
+    } catch {
+      // Public route: upstream details stay on the server.
+      return reply.status(500).send({ error: 'Helix API call failed' });
     }
   });
 
@@ -278,6 +290,7 @@ export function registerAuthRoutes(app: FastifyInstance, dependencies: AuthRoute
   // ==========================================================================
 
   app.get('/api/categories', async (request, reply) => {
+    if (overDiscoveryLimit(request, reply)) return reply;
     const session = currentSession(request);
     const config = loadOAuthConfig(process.env);
     const helixConfig: HelixRequestConfig = {
@@ -301,9 +314,8 @@ export function registerAuthRoutes(app: FastifyInstance, dependencies: AuthRoute
           boxArtUrl: c.boxArtUrl.replace('{width}', '52').replace('{height}', '72'),
         })),
       };
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      return reply.status(500).send({ error: 'Category search failed', details: message });
+    } catch {
+      return reply.status(500).send({ error: 'Category search failed' });
     }
   });
 }

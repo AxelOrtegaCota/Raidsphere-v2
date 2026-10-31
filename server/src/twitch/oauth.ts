@@ -216,8 +216,13 @@ export async function getAppAccessToken(config: OAuthConfig): Promise<string> {
     client_secret: config.clientSecret,
     grant_type: 'client_credentials',
   });
-  const response = await fetch(`${TWITCH_AUTH_BASE_URL}/token?${params.toString()}`, {
+  // The secret travels in the body: URLs end up in logs and proxies.
+  const response = await fetch(`${TWITCH_AUTH_BASE_URL}/token`, {
     method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: params.toString(),
   });
   if (!response.ok) {
     throw new OAuthError('app_token_failed', `Twitch app token request failed with status ${response.status}`);
