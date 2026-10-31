@@ -72,8 +72,8 @@
 ### Module B — Real Twitch Connection
 | Component | Status | Priority |
 |-----------|--------|----------|
-| EventSub WebSocket activation | ⚠️ Opt-in with `TWITCH_EVENTSUB_ENABLED=true`; tested locally, not tried against Twitch | HIGH |
-| Real chat message reception | ⚠️ Wired to commands and the translation pipeline; not tried against Twitch | HIGH |
+| EventSub WebSocket activation | ⚠️ Opt-in with `TWITCH_EVENTSUB_ENABLED=true`; worked against Twitch on 2026-10-31 | HIGH |
+| Real chat message reception | ⚠️ `!roulette`, `!vote`, and `!cancel` worked from the broadcaster account; other roles, real chat translation, and real moderation are not tried yet | HIGH |
 | Real raid execution | ❌ Disabled | HIGH |
 | Integration with roulette coordinator | ⚠️ Simulated parser and raid gateway wired through adapters; real Twitch not wired | HIGH |
 
@@ -117,7 +117,7 @@
 
 Implementation and API details: `docs/raid-candidate-discovery.md`.
 
-### 4. EventSub (Off by default, tested locally)
+### 4. EventSub (Off by default, commands tried against Twitch)
 ```
 EventSub requires:
 1. Active WebSocket connection to wss://eventsub.wss.twitch.tv/ws
@@ -126,8 +126,9 @@ EventSub requires:
 
 Currently: set TWITCH_EVENTSUB_ENABLED=true and log in again. Each logged-in streamer reads their own
 chat with their own token, and the dashboard shows when chat is ready. Sessions live in memory, so a
-server restart needs a new login. Not tried against Twitch yet. Until real raids and candidates are
-connected, !roulette runs on synthetic candidates and simulated raids, so a translation window never
+server restart needs a new login. On 2026-10-31, on Railway, the broadcaster account ran !roulette,
+!vote, and !cancel from real Twitch chat. Viewer and moderator accounts were not tried. Until real
+raids and candidates are connected, !roulette runs on synthetic candidates and simulated raids, so a translation window never
 opens on a real channel.
 ```
 

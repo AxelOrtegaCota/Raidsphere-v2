@@ -34,7 +34,7 @@ Included source:
 
 The earlier F1–F5 static-review corrections are covered by passing regression tests. Verification added dependency corrections (a `light-my-request` override, Vitest 4, Zod 4), a typed Fastify error handler, and three overlay rendering fixes.
 
-Real Twitch chat is off by default: `TWITCH_EVENTSUB_ENABLED=true` connects each logged-in channel to EventSub, routing commands, chat, and moderation to the application. It has passed local tests only and has not been tried against Twitch. Pending functionality includes real candidate discovery for the roulette, real raid execution/cancellation/arrival, an AI translation provider, language detection, broadcaster control over the network, and persistence. SQLite remains the future persistence target; Phase 1 does not install, configure, or open it.
+Real Twitch chat is off by default: `TWITCH_EVENTSUB_ENABLED=true` connects each logged-in channel to EventSub, routing commands, chat, and moderation to the application. On 2026-10-31, `!roulette`, `!vote`, and `!cancel` worked from a broadcaster's real Twitch chat on Railway; viewer and moderator accounts, real chat translation, and real moderation are not tried yet. Pending functionality includes real candidate discovery for the roulette, real raid execution/cancellation/arrival, an AI translation provider, language detection, broadcaster control over the network, and persistence. SQLite remains the future persistence target; Phase 1 does not install, configure, or open it.
 
 ## Architecture and ownership
 
