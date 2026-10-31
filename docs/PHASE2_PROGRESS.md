@@ -1,6 +1,6 @@
 # Phase 2 progress — local MVP
 
-As of 2026-10-31. Phase 2 is merged into `main` through PR #2 of `AxelOrtegaCota/Raidsphere-v2` (`852e4e2`), including the Batch 4 and 5 close-out, and it is deployed on Railway. The remaining items are listed under [Close-out](#close-out).
+As of 2026-10-31. **Phase 2 is complete.** It is merged into `main` through PRs #2 and #3 of `AxelOrtegaCota/Raidsphere-v2` (`852e4e2`, `4dd6fcb`), including the Batch 4 and 5 close-out, and it is deployed on Railway. Two follow-ups moved to Phase 5 are listed under [Close-out](#close-out).
 
 Everything in Phase 2 runs in **simulation mode**: synthetic `rsdemo_` channels, a simulated chat, simulated raids, and a mock translation provider. No Twitch request, real raid, or AI call happens in the Phase 2 flow. Real Twitch work belongs to Phase 3 and is reported separately below.
 
@@ -77,11 +77,11 @@ All of this runs on simulated chat and the mock provider; real chat needs Phase 
 - [x] Stopping the server with overlays connected now disconnects them at once, so they show "Connection lost" and retry. Before, viewers were closed in Fastify's `onClose` hook, which only runs after every connection has ended, so the server waited forever and overlays stayed "Live". Viewers now close in `preClose` (`server/test/websocket.test.ts`, confirmed by a mutation check).
 - [x] Secret scan of tracked files and Git history: no credential found; `.env` is ignored and was never committed.
 - [ ] Rotate the Twitch client secret reported as exposed (Twitch developer console; owner action).
-- [ ] Review by the module owners of the files changed outside their own module (`roulette.ts`, `memory.ts`, `view-state.ts`, `main.ts`, `index.html`, `styles.css`, `composition.ts`, `demo.ts`).
+- [ ] Moved to Phase 5: review by the module owners of the files changed outside their own module (`roulette.ts`, `memory.ts`, `view-state.ts`, `main.ts`, `index.html`, `styles.css`, `composition.ts`, `demo.ts`).
 - [x] Merge into `main` (PR #2, `852e4e2`), together with the Phase 3 and 4 work.
 - [x] Re-run type checking, tests, build, and audit on `main` after the merge: 599/599 tests on Node.js 20.18.0 and npm 10.8.2, audit 0 vulnerabilities (`6e27b5b`).
 - [x] Deploy from `main` on Railway. The first attempt failed because `npm ci` cannot remove Railway's mounted `node_modules/.cache`; the build uses `npm install` (`6e27b5b`).
-- [ ] Repeat the OBS check after the translation bubble queue changes, and check reconnection after a refresh.
+- [ ] Moved to Phase 5: repeat the OBS check after the translation bubble queue changes, and check reconnection after a refresh.
 
 ## Branches and commits
 

@@ -1,6 +1,6 @@
 # RaidSphere phase plan and progress
 
-As of 2026-10-31. Phases 1 and 2 are merged into `main`, and the app is deployed on Railway. Development continues in `AxelOrtegaCota/Raidsphere-v2`. Phase 3 (real Twitch) and Phase 4 (translation) are partial. Details: [Phase 2 progress](PHASE2_PROGRESS.md).
+As of 2026-10-31. Phases 1 and 2 are complete and merged into `main`, and the app is deployed on Railway. Development continues in `AxelOrtegaCota/Raidsphere-v2`. Phase 3 (real Twitch) and Phase 4 (translation) are partial. Details: [Phase 2 progress](PHASE2_PROGRESS.md).
 
 ## Current status
 
@@ -24,7 +24,7 @@ Phase 2 backend decisions are recorded in [Phase 2 backend decisions](phase-2-ba
 | --- | --- | --- |
 | Phase 0 — Definition | Proposal, MVP scope, modules A/B/C/D, architecture, and collaboration. | Essentially complete |
 | Phase 1 — Foundation | Workspaces, contracts, minimal backend, static overlay, tests, and verification. | Complete; merged into `main` |
-| Phase 2 — Local MVP | End-to-end roulette with synthetic channels, 30 s voting, selection, and a synchronized globe. | Merged into `main`; OBS check pending after the bubble queue changes |
+| Phase 2 — Local MVP | End-to-end roulette with synthetic channels, 30 s voting, selection, and a synchronized globe. | Complete; merged into `main` (PRs #2 and #3 of `Raidsphere-v2`) |
 | Phase 3 — Real Twitch | OAuth, EventSub/chat, commands, eligibility, raid requests, and observed arrivals. | In progress on `railway`: OAuth and Helix discovery work; EventSub and real raids are not connected |
 | Phase 4 — AI translation | Bilingual messages, emote preservation, moderation, and the 15-minute window. | Started: translation window, overlay bubbles, chat pipeline, and moderation work in simulation; AI provider, language detection, and real chat pending |
 | Phase 5 — Final integration | QA, OBS performance, security, demo, documentation, and hackathon submission. | Pending |
@@ -93,6 +93,6 @@ Phases 2–5 and the milestone order are a recommended plan, not completed deliv
 ## Next actions
 
 1. **Rotate the Twitch client secret** reported as exposed. A scan of tracked files and Git history found no committed credential, so the exposure happened outside the repository.
-2. **Module owners:** review the Phase 2 changes to files outside their module, and repeat the OBS check, including reconnection after a refresh.
+2. **Phase 5 follow-ups from Phase 2:** repeat the OBS check, including the bubble queue and reconnection after a refresh, and have module owners review the changes outside their modules.
 3. **Modules B and D:** connect Phase 3 (EventSub chat, Helix candidates, real raids, `channel.raid` arrivals) through the existing ports in `server/src/application/ports.ts`.
 4. **Module C:** choose the AI provider and model, then build Phase 4 modules 1 and 2.
