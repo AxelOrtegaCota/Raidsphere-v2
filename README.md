@@ -16,7 +16,7 @@ Before development, read [AGENTS.md](AGENTS.md), [docs/phase-1-decisions.md](doc
 
 ## Current status
 
-Phase 1 is complete and was merged into `main` through PR #1, and Module D through PR #4. The rest of Phase 2 is code complete and verified on `feature/phase4-translation`, pending review and merge into `main`. `package-lock.json` records the resolved dependency graph; the `railway` work added `@fastify/static`, now at 10.1.8 with `content-disposition` pinned to 2.0.1 so it loads on Node 20.18.
+Phase 1 is complete and was merged into `main` through PR #1, and Module D through PR #4. The rest of Phase 2 is code complete and verified on `feature/phase4-translation`, pending review and merge into `main`. `package-lock.json` records the resolved dependency graph; the `railway` work added `@fastify/static`, now at 10.1.8 with `content-disposition` pinned to 2.0.1 so it loads on Node 20.18 and `glob` pinned to 14.0.3 for a security advisory.
 
 Included source:
 
@@ -71,7 +71,7 @@ npm run build
 
 Installation disables dependency lifecycle scripts; none was required. A dependency requiring a script needs separate review and approval. No automated fix or dependency upgrade is implied.
 
-Verified results: type checking passes, 571 of 571 tests pass, the build succeeds, and `npm audit` reports 0 vulnerabilities (2026-10-29, `feature/phase4-translation`). Vite warns that the overlay bundle exceeds 500 kB, mostly because of three.js; this is expected for now.
+Verified results: type checking passes, 584 of 584 tests pass, the build succeeds, and `npm audit` reports 0 vulnerabilities (2026-10-29, `feature/phase4-translation`). Vite warns that the overlay bundle exceeds 500 kB, mostly because of three.js; this is expected for now.
 
 The root scripts build shared exports before consumers. `npm run typecheck` therefore also writes shared declarations/JavaScript to `shared/dist/`, then checks all workspace source, shared/backend tests, and Vite configuration. Test/tooling configurations use `noEmit`; production builds continue excluding tests.
 
