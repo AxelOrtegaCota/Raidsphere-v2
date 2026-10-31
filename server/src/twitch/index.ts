@@ -64,17 +64,28 @@ export {
 // ============================================================================
 export {
   createEventSubClient,
-  parseRaidEvent,
-  parseChatCommand,
   type EventSubClient,
   type EventSubClientOptions,
-  type EventSubSubscription,
-  type EventSubMessage,
+  type EventSubEnvelope,
+  type EventSubNotification,
+  type EventSubStatus,
   type RaidEvent,
   type ChannelChatMessageEvent,
-  type DetectedRaid,
-  type DetectedCommand,
+  type ChatMessageDeleteEvent,
+  type ChatClearEvent,
+  type ChatClearUserEvent,
 } from './eventsub.js';
+export {
+  createSessionTokenProvider,
+  type AccessTokenProvider,
+  type SessionTokenProviderDependencies,
+} from './session-tokens.js';
+export {
+  LiveChat,
+  type LiveChatDependencies,
+  type LiveChatOptions,
+  type LiveChatState,
+} from './live-chat.js';
 
 // ============================================================================
 // Phase 3: Sessions
@@ -150,3 +161,10 @@ export {
   RaidGatewayAdapter,
   type RaidGatewayAdapterDependencies,
 } from './adapters.js';
+export {
+  isFromAnotherChannel,
+  toChatFragments,
+  toChatMessage,
+  toModerationAction,
+  toRaidArrival,
+} from './eventsub-adapters.js';

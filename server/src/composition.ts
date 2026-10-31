@@ -1,4 +1,5 @@
 import { createApp } from './app.js';
+import type { AppDependencies } from './app.js';
 import { ChatTranslationPipeline } from './application/chat-translation.js';
 import type { ChatTranslationLimits } from './application/chat-translation.js';
 import { eligibleChannels } from './application/eligibility.js';
@@ -13,6 +14,8 @@ import {
 import { ServiceChatTranslator } from './translation/chat-translator.js';
 import { MockTranslationProvider } from './translation/mock-provider.js';
 import { RaidGatewayAdapter } from './twitch/adapters.js';
+import { LiveChat } from './twitch/live-chat.js';
+import type { LiveChatOptions } from './twitch/live-chat.js';
 import { SimulatedRaidGateway } from './twitch/raids.js';
 import type { SimulationConfig } from './twitch/raids.js';
 import { ViewingCredentials } from './viewing/credentials.js';
@@ -23,6 +26,7 @@ import type { ViewingLimits } from './websocket.js';
 // synthetic fixtures, simulated raids, and read-only viewing (D2-11, D2-12, D2-15).
 // Raids use the Module B simulated gateway through its adapter to the raid port, and chat
 // translation uses the Module C service with its simulated provider (Phase 4, module 4).
+// Real Twitch chat is opt-in: without liveChat, no EventSub connection ever opens.
 
 export interface RuntimeOptions {
   // Receives fixed, content-free messages only.
@@ -32,6 +36,7 @@ export interface RuntimeOptions {
   chatTranslationLimits?: Partial<ChatTranslationLimits>;
   viewingLimits?: Partial<ViewingLimits>;
   overlayRoot?: string;
+  liveChat?: LiveChatOptions;
 }
 
 export function createRuntime(options: RuntimeOptions) {
@@ -61,6 +66,11 @@ export function createRuntime(options: RuntimeOptions) {
     ...(options.chatTranslationLimits ? { limits: options.chatTranslationLimits } : {}),
   });
   chatMessages = chatPipeline;
+  const liveChat = options.liveChat
+    ? new LiveChat({
+      ...options.liveChat, streamers, commands: rouletteCoordinator, chat: chatPipeline, reportError: options.reportError,
+    })
+    : null;
   const { credentials, issued } = ViewingCredentials.issue(syntheticStreamers.map((streamer) => streamer.id));
   const app = createApp({
     viewing: {
@@ -69,15 +79,23 @@ export function createRuntime(options: RuntimeOptions) {
     },
     ...(options.overlayRoot ? { overlayRoot: options.overlayRoot } : {}),
     issueViewingCredential: (channelId) => credentials.issueForChannel(channelId),
+    ...(liveChat ? {
+      auth: {
+        onAuthenticated: (session) => liveChat.connect(session),
+        onLogout: async (session) => { liveChat.disconnect(session.user.id); },
+        eventSubState: (channelId) => liveChat.state(channelId),
+      },
+    } satisfies Pick<AppDependencies, 'auth'> : {}),
   });
   app.addHook('onClose', async () => {
+    liveChat?.close();
     rouletteCoordinator.close();
     chatPipeline.close();
     translator.close();
     raids.close();
     raidGateway.dispose();
   });
-  return { app, coordinator: rouletteCoordinator, chatMessages: chatPipeline, issuedCredentials: issued };
+  return { app, coordinator: rouletteCoordinator, chatMessages: chatPipeline, liveChat, issuedCredentials: issued };
 }
 
 // Only the demo source and its possible destinations get a printed OBS URL (D2-16).

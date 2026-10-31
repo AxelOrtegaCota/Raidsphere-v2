@@ -5,11 +5,13 @@ import { PROTOCOL_VERSION } from '@raidsphere/shared';
 import { registerWebSocketBoundary } from './websocket.js';
 import type { ViewingDependencies } from './websocket.js';
 import { registerAuthRoutes } from './routes/auth.js';
+import type { AuthRouteDependencies } from './routes/auth.js';
 
 export interface AppDependencies {
   viewing: ViewingDependencies;
   overlayRoot?: string;
   issueViewingCredential: (channelId: string) => string;
+  auth?: Omit<AuthRouteDependencies, 'issueViewingCredential'>;
 }
 
 export function createApp(dependencies: AppDependencies) {
@@ -65,7 +67,7 @@ export function createApp(dependencies: AppDependencies) {
   registerWebSocketBoundary(app, dependencies.viewing);
 
     // Register auth routes (Phase 3)
-    registerAuthRoutes(app, { issueViewingCredential: dependencies.issueViewingCredential });
+    registerAuthRoutes(app, { issueViewingCredential: dependencies.issueViewingCredential, ...dependencies.auth });
 
     return app;
 }

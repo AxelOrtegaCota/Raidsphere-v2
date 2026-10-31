@@ -25,7 +25,8 @@
 |------|-------|--------|-------------|
 | `oauth.ts` | 590 | ✅ Working E2E | Login, tokens, refresh, revoke |
 | `helix.ts` | — | ✅ Tested reads | Streams, users/avatars, channels, categories, language/game filters |
-| `eventsub.ts` | 406 | ⚠️ Code exists | WebSocket EventSub — NOT CONNECTED |
+| `eventsub.ts` | 445 | ⚠️ Tested, off by default | WebSocket client over `ws`: reconnection, subscriptions, validated events |
+| `live-chat.ts` | — | ⚠️ Tested, off by default | One connection per logged-in channel; routes chat, commands, moderation, and raids to the application ports |
 | `raids.ts` | 394 | ⚠️ Code exists | Raid gateway — SIMULATED |
 | `commands.ts` | 220 | ⚠️ Code exists | Parser `!roulette`, `!vote`, `!cancel` |
 | `candidates.ts` | 154 | ⚠️ Code exists | Channel discovery — SYNTHETIC DATA |
@@ -71,8 +72,8 @@
 ### Module B — Real Twitch Connection
 | Component | Status | Priority |
 |-----------|--------|----------|
-| EventSub WebSocket activation | ❌ Not connected | HIGH |
-| Real chat message reception | ❌ Not connected | HIGH |
+| EventSub WebSocket activation | ⚠️ Opt-in with `TWITCH_EVENTSUB_ENABLED=true`; worked against Twitch on 2026-10-31 | HIGH |
+| Real chat message reception | ⚠️ `!roulette`, `!vote`, and `!cancel` worked from the broadcaster account; other roles, real chat translation, and real moderation are not tried yet | HIGH |
 | Real raid execution | ❌ Disabled | HIGH |
 | Integration with roulette coordinator | ⚠️ Simulated parser and raid gateway wired through adapters; real Twitch not wired | HIGH |
 
@@ -116,14 +117,19 @@
 
 Implementation and API details: `docs/raid-candidate-discovery.md`.
 
-### 4. EventSub (Code exists, not connected)
+### 4. EventSub (Off by default, commands tried against Twitch)
 ```
 EventSub requires:
 1. Active WebSocket connection to wss://eventsub.wss.twitch.tv/ws
 2. Subscription creation via Helix API
 3. The server must handle incoming events
 
-Currently: Code exists in server/src/twitch/eventsub.ts but is not activated
+Currently: set TWITCH_EVENTSUB_ENABLED=true and log in again. Each logged-in streamer reads their own
+chat with their own token, and the dashboard shows when chat is ready. Sessions live in memory, so a
+server restart needs a new login. On 2026-10-31, on Railway, the broadcaster account ran !roulette,
+!vote, and !cancel from real Twitch chat. Viewer and moderator accounts were not tried. Until real
+raids and candidates are connected, !roulette runs on synthetic candidates and simulated raids, so a translation window never
+opens on a real channel.
 ```
 
 ### 5. Raids (Code exists, disabled)
