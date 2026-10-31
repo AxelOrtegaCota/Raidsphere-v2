@@ -3,28 +3,37 @@
  * Messages go through the real command parser and adapter, as EventSub chat will.
  * It is not a network endpoint and grants no remote control capability.
  */
-import type { ChatCommand } from '../application/ports.js';
-import { toChatCommand } from './adapters.js';
+import type { LanguageCode } from '@raidsphere/shared';
+import type { ChatCommand, ChatTextMessage } from '../application/ports.js';
+import { toChatCommand, toChatTextMessage } from './adapters.js';
 import type { ChatMessage } from './commands.js';
 
 export interface ChatCommandTarget {
   handleCommand(command: ChatCommand): Promise<void>;
 }
 
+export interface ChatMessageTarget {
+  handleMessage(message: ChatTextMessage): Promise<void>;
+}
+
 export interface SimulatedChatter {
   userId: string;
   isBroadcaster?: boolean;
   isModerator?: boolean;
+  // Language detection is not built yet, so a simulated chatter states it.
+  language?: LanguageCode;
 }
 
 export class SimulatedChat {
   private readonly target: ChatCommandTarget;
   private readonly channelId: string;
+  private readonly messages: ChatMessageTarget | undefined;
   private nextMessage = 0;
 
-  constructor(target: ChatCommandTarget, channelId: string) {
+  constructor(target: ChatCommandTarget, channelId: string, messages?: ChatMessageTarget) {
     this.target = target;
     this.channelId = channelId;
+    this.messages = messages;
   }
 
   /** The broadcaster is the user whose ID equals the channel ID. */
@@ -32,7 +41,7 @@ export class SimulatedChat {
     return { userId: this.channelId, isBroadcaster: true };
   }
 
-  /** Returns false when the text is not a valid command, so nothing is dispatched. */
+  /** Returns false when nothing was dispatched: an invalid command, or plain text with no message target. */
   async say(chatter: SimulatedChatter, text: string): Promise<boolean> {
     this.nextMessage += 1;
     const message: ChatMessage = {
@@ -42,8 +51,14 @@ export class SimulatedChat {
       ...(chatter.isModerator === undefined ? {} : { isModerator: chatter.isModerator }),
     };
     const command = toChatCommand(message);
-    if (!command) return false;
-    await this.target.handleCommand(command);
+    if (command) {
+      await this.target.handleCommand(command);
+      return true;
+    }
+    if (!this.messages || text.trimStart().startsWith('!')) return false;
+    await this.messages.handleMessage(toChatTextMessage(message, {
+      displayName: chatter.userId, sourceLanguage: chatter.language ?? null,
+    }));
     return true;
   }
 }

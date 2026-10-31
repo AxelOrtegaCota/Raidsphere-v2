@@ -4,7 +4,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { translationBubbleSchema, serverEventSchema } from '@raidsphere/shared';
-import type { ChatFragment } from '@raidsphere/shared';
+import type { ChatFragment, LanguageCode } from '@raidsphere/shared';
 import { translationRequestSchema, translationResponseSchema } from '../translation/provider.js';
 import type {
   TranslationProvider, TranslationRequest, TranslationResponse, TranslationProviderExecutionContext,
@@ -135,6 +135,19 @@ describe('Mock Translation Provider', () => {
     }
   });
   
+  it('recognizes dictionary phrases in their source language', async () => {
+    const translate = async (text: string, sourceLanguage: LanguageCode, targetLanguage: LanguageCode) => {
+      const response = await provider.translate({ simulationMode: true, text, sourceLanguage, targetLanguage });
+      return response.success ? response.result.translatedText : null;
+    };
+    expect(await translate('hola a todos', 'es', 'ja')).toBe('みなさんこんにちは');
+    expect(await translate('boa live', 'pt', 'ja')).toBe('いい配信');
+    expect(await translate('Bonjour le chat !', 'fr', 'en')).toBe('hello chat');
+    expect(await translate('¿Cómo estás?', 'es', 'en')).toBe('how are you');
+    // A phrase is matched in its stated language only.
+    expect(await translate('hola a todos', 'fr', 'ja')).toBe('[JA] hola a todos');
+  });
+
   it('should add language prefix for unknown text', async () => {
     const response = await provider.translate({
       simulationMode: true,

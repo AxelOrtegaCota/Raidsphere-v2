@@ -35,6 +35,12 @@ export {
   setTranslationProvider,
 } from './mock-provider.js';
 
+// Adapter to the Module D chat translator port
+export {
+  ServiceChatTranslator,
+  type ServiceChatTranslatorOptions,
+} from './chat-translator.js';
+
 // Service
 export {
   translateMessage,

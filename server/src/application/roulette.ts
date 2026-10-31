@@ -50,6 +50,8 @@ export interface RouletteDependencies {
   publisher: EventPublisher;
   // Defaults to process memory, like the other Phase 2 repositories.
   windows?: TranslationWindowRepository;
+  // Told after each window change, so translation runs only while a window is active.
+  onTranslationWindow?: (window: TranslationWindow) => void;
   // Reports carry no content, so chat data never reaches logs.
   onError: (kind: 'task_failed') => void;
   config?: Partial<RouletteConfig>;
@@ -345,6 +347,7 @@ export class RouletteCoordinator {
       void this.#exclusive(channelId, () => this.#expireWindow(channelId, window.activatedAtMs));
     }));
     this.#deps.publisher.publish({ type: 'translation:window', channelId, payload: window });
+    this.#deps.onTranslationWindow?.(window);
   }
 
   // A stale timer finds a replaced window and does nothing.
@@ -355,6 +358,7 @@ export class RouletteCoordinator {
     const expired = expireWindow(current);
     await this.#windows.save(expired);
     this.#deps.publisher.publish({ type: 'translation:window', channelId, payload: expired });
+    this.#deps.onTranslationWindow?.(expired);
   }
 
   // Moves a session to a terminal state, stops its timers, and publishes the matching event.

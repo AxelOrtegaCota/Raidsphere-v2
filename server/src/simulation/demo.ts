@@ -15,6 +15,14 @@ const VOTE_SCRIPT: readonly (readonly [number, string, LanguageCode])[] = [
   [2, 'viewer_01', 'ja'], [4, 'viewer_02', 'pt'], [6, 'viewer_03', 'ja'], [8, 'viewer_04', 'ko'],
   [10, 'viewer_01', 'en'], [12, 'viewer_05', 'de'],
 ];
+// [seconds after the arrival, synthetic raider, language, text]. The last one is skipped by
+// design: a command is never translated.
+const RAIDER_SCRIPT: readonly (readonly [number, string, LanguageCode, string])[] = [
+  [2, 'raider_01', 'en', 'thanks for the raid'], [4, 'raider_02', 'es', 'hola a todos'],
+  [6, 'raider_03', 'pt', 'boa live'], [8, 'raider_04', 'fr', 'bonjour le chat'],
+  [10, 'raider_01', 'en', '!vote ja'],
+];
+const AUTO_STOP_AFTER_ARRIVAL_MS = 14_000;
 const AUTO_START_DELAY_MS = 3_000;
 // The demo raid is always accepted and arrives after a fixed, visible countdown.
 const DEMO_RAID = {
@@ -24,7 +32,7 @@ const DEMO_RAID = {
 async function main(): Promise<void> {
   const auto = process.argv.includes('--auto');
   const config = loadServerConfig(process.env.PORT === undefined ? {} : { PORT: process.env.PORT });
-  const { app, coordinator, issuedCredentials } = createRuntime({
+  const { app, coordinator, chatMessages, issuedCredentials } = createRuntime({
     reportError: (message) => console.error(message),
     simulatedRaid: DEMO_RAID,
   });
@@ -58,7 +66,20 @@ async function main(): Promise<void> {
   const log = (event: ServerEvent): void => {
     const elapsed = ((Date.now() - startedAtMs) / 1_000).toFixed(1);
     console.info(`[+${elapsed}s] ${event.channelId.padEnd(13)} ${event.type.padEnd(15)} ${describe(event)}`);
-    if (auto && isTerminal(event)) setTimeout(() => { void stop(); }, 500);
+    if (event.type === 'raid:arrived') startRaiderChat(event.channelId);
+    if (auto && isTerminal(event)) {
+      setTimeout(() => { void stop(); }, event.type === 'raid:arrived' ? AUTO_STOP_AFTER_ARRIVAL_MS : 500);
+    }
+  };
+  const startRaiderChat = (channelId: string): void => {
+    const raiders = new SimulatedChat(coordinator, channelId, chatMessages);
+    for (const [seconds, userId, language, text] of RAIDER_SCRIPT) {
+      const timer = setTimeout(() => {
+        voteTimers.delete(timer);
+        void raiders.say({ userId, language }, text);
+      }, seconds * 1_000);
+      voteTimers.add(timer);
+    }
   };
   for (const { channelId } of urls) {
     const view = await coordinator.openView(channelId, log);
@@ -122,6 +143,10 @@ function describe(event: ServerEvent): string {
       return event.payload.reason;
     case 'raid:arrived':
       return `from ${event.payload.fromLogin}, ${event.payload.viewers} viewers (simulated)`;
+    case 'translation:window':
+      return `${event.payload.status}, target ${event.payload.targetLanguage}`;
+    case 'translate:bubble':
+      return `${event.payload.status} ${event.payload.fromLanguage ?? '?'} -> ${event.payload.toLanguage} (simulated)`;
     case 'error':
       return event.payload.code;
     default:

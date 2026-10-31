@@ -5,6 +5,7 @@ import type { BubbleView, TranslationView } from './translation-view';
 // assigned through textContent and never interpreted as HTML.
 
 const FADE_MS = 600;
+const SLIDE_MS = 280;
 
 interface BubbleNodes {
   root: HTMLLIElement;
@@ -23,6 +24,7 @@ export function createTranslationLayer(windowLabel: HTMLElement, list: HTMLOList
     windowLabel.hidden = label === null;
     windowLabel.textContent = label ?? '';
 
+    const topsBefore = new Map([...nodes].map(([messageId, { root }]) => [messageId, root.getBoundingClientRect().top]));
     const visible = new Set(view.bubbles.map((bubble) => bubble.messageId));
     for (const [messageId, bubbleNodes] of nodes) {
       if (!visible.has(messageId)) {
@@ -36,9 +38,26 @@ export function createTranslationLayer(windowLabel: HTMLElement, list: HTMLOList
       fill(bubbleNodes, bubble, nowMs);
       list.append(bubbleNodes.root);
     }
+    // On a very short screen a bubble that does not fit is hidden whole, never cut in half.
+    for (const { root } of nodes.values()) root.classList.toggle('clipped', root.offsetTop < list.offsetTop);
+    slide(nodes, topsBefore);
   };
 
   return { render };
+}
+
+// Bubbles that changed position glide there, so the queue reads as moving up one place.
+function slide(nodes: ReadonlyMap<string, BubbleNodes>, topsBefore: ReadonlyMap<string, number>): void {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  for (const [messageId, { root }] of nodes) {
+    const before = topsBefore.get(messageId);
+    const offset = before === undefined ? 0 : before - root.getBoundingClientRect().top;
+    if (Math.abs(offset) < 1) continue;
+    root.animate(
+      [{ transform: `translateY(${offset}px)` }, { transform: 'none' }],
+      { duration: SLIDE_MS, easing: 'ease-out' },
+    );
+  }
 }
 
 function createBubble(messageId: string): BubbleNodes {

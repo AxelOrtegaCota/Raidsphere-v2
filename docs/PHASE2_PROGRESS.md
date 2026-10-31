@@ -24,7 +24,7 @@ Decisions for Module D are recorded in [Phase 2 backend decisions](phase-2-backe
 | Simulated chat → B parser → D coordinator | Connected through `toChatCommand`. Roles come from adapter metadata, never from message text; a broadcaster flag counts only for the channel owner (finding F3). |
 | D coordinator → B raid gateway | Connected through `RaidGatewayAdapter` behind the D `RaidGateway` port: one request per session, unknown outcome on submission failure, bounded public countdown. |
 | D coordinator → overlay | Connected over read-only `/ws`; the overlay validates every event with the shared schemas. |
-| C translation → D / overlay | **Not connected in Phase 2.** The service exists and is tested; the chat-to-translation pipeline is Phase 4 (module 4). |
+| C translation → D / overlay | Connected in Phase 4 (module 4) with simulated chat and the mock provider; real chat is pending. |
 
 ## Verification
 
@@ -57,8 +57,9 @@ The `railway` branch adds Twitch OAuth, sessions, Helix reads, and a candidate d
 
 - Module 3: a confirmed arrival opens a 15-minute translation window on the destination (`5a2deed`).
 - Module 6: the overlay shows translation bubbles while the window is active (`b24440d`).
+- Module 4: chat messages go through filters and limits to the translation service and back as bubbles, with a last check before publishing.
 
-Neither receives real chat yet; that needs Phase 3 EventSub.
+All of this runs on simulated chat and the mock provider; real chat needs Phase 3 EventSub, and real translation needs an AI provider.
 
 ## Close-out
 

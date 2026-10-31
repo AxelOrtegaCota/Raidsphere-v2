@@ -93,7 +93,7 @@ describe('translation bubbles', () => {
   it('keeps only the newest bubbles visible', () => {
     let view = opened();
     for (let index = 0; index <= MAX_VISIBLE_BUBBLES; index += 1) view = show(view, bubble(`m${index}`));
-    expect(ids(view)).toEqual(['m1', 'm2', 'm3', 'm4']);
+    expect(ids(view)).toEqual(['m1', 'm2', 'm3']);
   });
 
   it('keeps markup-like chat text as plain text for textContent rendering', () => {

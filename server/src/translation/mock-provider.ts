@@ -13,6 +13,8 @@ import type {
 
 // Fake translation dictionary for common phrases
 const MOCK_TRANSLATIONS: Record<string, Record<LanguageCode, string>> = {
+  'hello everyone': { en: 'hello everyone', es: 'hola a todos', pt: 'olá a todos', fr: 'bonjour à tous', de: 'hallo zusammen', ja: 'みなさんこんにちは', ko: '모두 안녕하세요' },
+  'hello chat': { en: 'hello chat', es: 'hola chat', pt: 'olá chat', fr: 'bonjour le chat', de: 'hallo Chat', ja: 'チャットのみなさんこんにちは', ko: '채팅 여러분 안녕하세요' },
   'hello': { en: 'hello', es: 'hola', pt: 'olá', fr: 'bonjour', de: 'hallo', ja: 'こんにちは', ko: '안녕하세요' },
   'how are you': { en: 'how are you', es: '¿cómo estás?', pt: 'como você está?', fr: 'comment allez-vous?', de: 'wie geht es dir?', ja: 'お元気ですか', ko: '어떻게 지내세요' },
   'good game': { en: 'good game', es: 'buen juego', pt: 'bom jogo', fr: 'bien joué', de: 'gutes Spiel', ja: 'グッドゲーム', ko: '좋은 게임' },
@@ -90,7 +92,7 @@ export class MockTranslationProvider implements TranslationProvider {
       const sameLanguage = input.sourceLanguage === input.targetLanguage;
       const fragmented = fragmentMessage(input.text, input.channelEmotes, input.fragments);
       const translatedText = sameLanguage ? input.text : restoreFragments(
-        this.mockTranslate(fragmented.protectedText, input.targetLanguage), fragmented
+        this.mockTranslate(fragmented.protectedText, input.sourceLanguage, input.targetLanguage), fragmented
       );
       const result: TranslationResult = {
         originalText: input.text,
@@ -125,12 +127,21 @@ export class MockTranslationProvider implements TranslationProvider {
     return true;
   }
 
-  private mockTranslate(text: string, target: LanguageCode): string {
+  // Text outside the dictionary keeps its language prefix: it was not translated.
+  private mockTranslate(text: string, source: LanguageCode, target: LanguageCode): string {
     const lowerText = text.toLowerCase().trim();
-    const translations = Object.hasOwn(MOCK_TRANSLATIONS, lowerText) ? MOCK_TRANSLATIONS[lowerText] : undefined;
+    const phrase = normalizePhrase(text);
+    const translations = Object.hasOwn(MOCK_TRANSLATIONS, lowerText)
+      ? MOCK_TRANSLATIONS[lowerText]
+      : Object.values(MOCK_TRANSLATIONS).find(entry => normalizePhrase(entry[source]) === phrase);
     const translated = translations?.[target];
     return translated ?? LANGUAGE_PREFIXES[target] + ' ' + text;
   }
+}
+
+// Case and edge punctuation do not distinguish dictionary phrases.
+function normalizePhrase(text: string): string {
+  return text.toLowerCase().trim().replace(/^[¿¡\s]+|[?!.,。！？\s]+$/g, '');
 }
 
 function cancelledResponse(): TranslationResponse {

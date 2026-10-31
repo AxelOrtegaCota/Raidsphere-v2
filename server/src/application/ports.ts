@@ -1,4 +1,6 @@
-import type { IllustrativeCountry, LanguageCode, Streamer } from '@raidsphere/shared';
+import type {
+  ChatFragment, IllustrativeCountry, LanguageCode, Streamer, TranslationBubble,
+} from '@raidsphere/shared';
 
 // Server-internal ports between the roulette logic and its runtime or adapters (D2-09, D2-13).
 // These are not shared contracts; adapters validate external data before calling in.
@@ -65,4 +67,25 @@ export interface RaidArrival {
   toChannelId: string;
   viewers: number;
   observedAtMs: number;
+}
+
+// A chat message normalized by an adapter (Phase 4, module 4). Text is untrusted data.
+// sourceLanguage is null when unknown; it is never guessed.
+export interface ChatTextMessage {
+  messageId: string;
+  channelId: string;
+  userId: string;
+  displayName: string;
+  text: string;
+  receivedAtMs: number;
+  sourceLanguage: LanguageCode | null;
+  fragments?: ChatFragment[];
+}
+
+export interface ChatTranslator {
+  // Channels are open only while their translation window is active.
+  openChannel(channelId: string): void;
+  closeChannel(channelId: string): void;
+  // Resolves to null when the message was invalidated or needs no translation.
+  translate(message: ChatTextMessage, targetLanguage: LanguageCode): Promise<TranslationBubble | null>;
 }

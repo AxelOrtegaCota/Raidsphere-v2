@@ -2,9 +2,10 @@
  * Module B: adapters from the Twitch simulation to the Module D application ports.
  * Roles come from adapter-supplied metadata, never from message text.
  */
+import type { LanguageCode } from '@raidsphere/shared';
 import type { StreamerRepository } from '../persistence/contracts.js';
 import type {
-  ChatCommand, CommandRole, RaidArrival, RaidCancelResult, RaidGateway, RaidRequestResult,
+  ChatCommand, ChatTextMessage, CommandRole, RaidArrival, RaidCancelResult, RaidGateway, RaidRequestResult,
 } from '../application/ports.js';
 import { parseCommand, type ChatMessage } from './commands.js';
 import type { RaidArrivalEvent, RaidOutcomeEvent, SimulatedRaidGateway } from './raids.js';
@@ -31,6 +32,17 @@ export function toChatCommand(message: ChatMessage): ChatCommand | null {
   return {
     messageId: message.messageId, channelId: parsed.channelId, userId: parsed.userId,
     role: commandRole(message), command,
+  };
+}
+
+/** Normalizes a chat message for translation. The source language comes from the adapter, never a guess. */
+export function toChatTextMessage(
+  message: ChatMessage, details: { displayName: string; sourceLanguage: LanguageCode | null },
+): ChatTextMessage {
+  return {
+    messageId: message.messageId, channelId: message.channelId, userId: message.userId,
+    displayName: details.displayName, text: message.text, receivedAtMs: message.timestamp,
+    sourceLanguage: details.sourceLanguage,
   };
 }
 

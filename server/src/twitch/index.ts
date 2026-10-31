@@ -146,6 +146,7 @@ export {
 export {
   commandRole,
   toChatCommand,
+  toChatTextMessage,
   RaidGatewayAdapter,
   type RaidGatewayAdapterDependencies,
 } from './adapters.js';

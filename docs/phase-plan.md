@@ -11,7 +11,7 @@ As of 2026-10-29. Phase 1 is complete and merged into `main`. Phase 2 (local MVP
 | Backend | Fastify. Roulette coordinator with authoritative in-memory state, 30 s voting, selection, and simulated raids; the Module B parser and raid gateway are connected through adapters to the Module D ports. A confirmed arrival opens a 15-minute translation window. `/ws` is read-only with per-channel viewing credentials (D2-11); `/health` reports `mode: 'simulation'`. Local demo: `npm run demo`. The `railway` branch adds Twitch OAuth and Helix reads and allows `HOST=0.0.0.0` for deployment. |
 | Overlay | OBS mode by default: transparent, globe paused when idle, Simulation label. The globe shows candidate markers, the winner, an animated raid arc, and camera moves; vote bars per language and a winner card; translation bubbles. Verified in OBS 32.2.2 at 1920 × 1080 and 30 FPS (OBS CPU 0.9–1.3%, no dropped frames). `?mode=interactive` keeps the discovery panel from `railway`. |
 | Dependencies | Lockfile included; `light-my-request` 6.6.0 override (V1), Vitest 4.1.12 (V2), Zod 4.6.7 (V3); `@fastify/static` 10.1.8 with `content-disposition` pinned to 2.0.1 so it loads on Node 20.18; `npm audit` 0 vulnerabilities. |
-| Checks | Phase 1: 63/63 tests, typecheck, and build on `main` after the merge. Phase 2 on `feature/phase4-translation`: 542/542 tests, typecheck, build, and audit. |
+| Checks | Phase 1: 63/63 tests, typecheck, and build on `main` after the merge. `feature/phase4-translation`: 556/556 tests, typecheck, build, and audit. |
 | Version control | Phase 1 merged into `main` through PR #1 (`b89ed23`); Module D merged through PR #4. Modules A–C, their integration, and the Phase 3 and 4 work are on `feature/phase4-translation`, pending review. `main` is the official base; `feature/project-foundation` (`4219a21`) is obsolete. |
 
 This status is based on local verification, Git history, [Phase 1 decisions](phase-1-decisions.md), and [Phase 2 backend decisions](phase-2-backend-decisions.md). Real raids, real chat, AI translation, and persistence are not implemented yet; Twitch OAuth and Helix reads exist on `railway` but are not connected to the roulette.
@@ -26,7 +26,7 @@ Phase 2 backend decisions are recorded in [Phase 2 backend decisions](phase-2-ba
 | Phase 1 — Foundation | Workspaces, contracts, minimal backend, static overlay, tests, and verification. | Complete; merged into `main` |
 | Phase 2 — Local MVP | End-to-end roulette with synthetic channels, 30 s voting, selection, and a synchronized globe. | Code complete and verified (browser and OBS); pending review and merge into `main` |
 | Phase 3 — Real Twitch | OAuth, EventSub/chat, commands, eligibility, raid requests, and observed arrivals. | In progress on `railway`: OAuth and Helix discovery work; EventSub and real raids are not connected |
-| Phase 4 — AI translation | Bilingual messages, emote preservation, moderation, and the 15-minute window. | Started: translation window and overlay bubbles done; AI provider, language detection, chat pipeline, and moderation pending |
+| Phase 4 — AI translation | Bilingual messages, emote preservation, moderation, and the 15-minute window. | Started: translation window, overlay bubbles, and the chat pipeline work in simulation; AI provider, language detection, moderation, and real chat pending |
 | Phase 5 — Final integration | QA, OBS performance, security, demo, documentation, and hackathon submission. | Pending |
 
 ## Phase 1 close-out
@@ -86,8 +86,8 @@ Phases 2–5 and the milestone order are a recommended plan, not completed deliv
 | 1 | AI provider (server-only key, timeout, validated output, prompt-injection resistance) | Pending: provider and model to be chosen |
 | 2 | Language detection (unknown when unsure; never assume English) | Pending: library or model call to be decided |
 | 3 | 15-minute translation window, opened only by a confirmed arrival | Done (`5a2deed`) |
-| 4 | Chat pipeline: EventSub message → fragments → filters → translation → `translate:bubble` | Pending: needs Phase 3 EventSub |
-| 5 | Moderation: deleted messages, bans and timeouts, chat clears | Pending: needs module 4 |
+| 4 | Chat pipeline: message → filters and limits → translation → `translate:bubble`, with a last check before publishing | Done in simulation with simulated chat and the mock provider; connecting EventSub is pending (Phase 3) |
+| 5 | Moderation: deleted messages, bans and timeouts, chat clears | Pending: can start in simulation |
 | 6 | Translation bubbles in the overlay | Done (`b24440d`) |
 
 ## Next actions

@@ -4,7 +4,7 @@ import type { LanguageCode, ServerEvent, TranslationBubble, TranslationWindow } 
 // events. The backend decides what is translated; this mirror only shows and hides bubbles.
 
 export const BUBBLE_LIFETIME_MS = 10_000;
-export const MAX_VISIBLE_BUBBLES = 4;
+export const MAX_VISIBLE_BUBBLES = 3;
 // Bounds the moderation memory that stops late updates from resurrecting removed messages.
 const MODERATION_MEMORY = 200;
 

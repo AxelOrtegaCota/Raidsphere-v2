@@ -650,34 +650,62 @@ h1 {
 
 .translation-window[hidden] { display: none; }
 
+/* A queue of whole bubbles, bottom-aligned, so on a very short screen the newest ones stay
+   visible, the oldest is hidden whole, and the stack still stops above the status panel. */
 .bubbles {
-  display: grid;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
   gap: 10px;
+  max-height: max(120px, calc(100vh - 560px));
   margin: 0;
   padding: 0;
+  overflow: hidden;
   list-style: none;
 }
 
 .bubble {
-  padding: 14px 18px;
+  flex: none;
+  max-height: 220px;
+  padding: 10px 16px;
   border: 1px solid rgb(185 168 255 / 40%);
   border-radius: 16px;
   background: linear-gradient(145deg, rgb(64 38 140 / 92%), rgb(36 22 84 / 90%));
   box-shadow: 0 16px 40px rgb(0 0 0 / 38%);
   overflow-wrap: anywhere;
   animation: bubble-in 220ms ease-out;
-  transition: opacity 600ms ease, transform 600ms ease;
+  transition: opacity 600ms ease, max-height 600ms ease, padding 600ms ease, margin 600ms ease;
 }
 
-.bubble.leaving { opacity: 0; transform: translateY(6px); }
+/* Collapses while fading, so a leaving bubble leaves no gap in the stack. */
+.bubble.clipped { visibility: hidden; }
+.bubble.leaving { max-height: 0; margin-block-end: -10px; padding-block: 0; border-width: 0; opacity: 0; overflow: hidden; }
 .bubble[data-status='unavailable'] { background: linear-gradient(145deg, rgb(48 42 70 / 92%), rgb(30 26 46 / 90%)); }
 
 .bubble p { margin: 0; }
 .bubble-header { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
 .bubble-name { color: #f1ecff; font-weight: 800; }
 .bubble-languages { color: #c7baff; font-weight: 700; letter-spacing: .04em; }
-.bubble-primary { margin-top: 6px !important; color: #ffffff; font-size: 20px; font-weight: 650; line-height: 1.35; }
-.bubble-secondary { margin-top: 4px !important; color: rgb(232 226 255 / 62%); font-size: 14px; line-height: 1.4; }
+.bubble-primary {
+  display: -webkit-box;
+  margin-top: 4px !important;
+  overflow: hidden;
+  color: #ffffff;
+  font-size: 19px;
+  font-weight: 650;
+  line-height: 1.3;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.bubble-secondary {
+  margin-top: 2px !important;
+  overflow: hidden;
+  color: rgb(232 226 255 / 62%);
+  font-size: 13px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 @keyframes bubble-in {
   from { opacity: 0; transform: translateY(8px); }
@@ -696,6 +724,9 @@ html[data-mode='obs'] #app { background: transparent; }
 html[data-mode='obs'] .stars,
 html[data-mode='obs'] .location-panel { display: none; }
 html[data-mode='obs'] #globe { pointer-events: none; }
+/* Without the location panel, the bubble queue can start at the top. */
+html[data-mode='obs'] .translations { top: clamp(20px, 3vh, 42px); }
+html[data-mode='obs'] .bubbles { max-height: calc(100vh - 440px); }
 .badge[hidden] { display: none; }
 
 /* Roulette votes and winner (Phase 2, Module A). */
