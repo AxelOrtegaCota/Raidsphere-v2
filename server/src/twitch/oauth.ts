@@ -136,6 +136,9 @@ export interface TwitchOAuthError {
 
 const TWITCH_AUTH_BASE_URL = 'https://id.twitch.tv/oauth2';
 const TWITCH_API_BASE_URL = 'https://api.twitch.tv/helix';
+const APP_TOKEN_EXPIRY_SKEW_MS = 60_000;
+
+let cachedAppToken: { clientId: string; accessToken: string; expiresAtMs: number } | null = null;
 
 /**
  * Required OAuth scopes for RaidSphere functionality:
@@ -193,6 +196,48 @@ export function loadOAuthConfig(env: {
     redirectUri: redirectUri!,
     scopes: REQUIRED_SCOPES,
   };
+}
+
+/**
+ * Returns a cached Twitch app access token for read-only public Helix discovery.
+ * User-scoped actions such as raids must continue to use a user OAuth token.
+ */
+export async function getAppAccessToken(config: OAuthConfig): Promise<string> {
+  const now = Date.now();
+  if (
+    cachedAppToken?.clientId === config.clientId
+    && cachedAppToken.expiresAtMs - APP_TOKEN_EXPIRY_SKEW_MS > now
+  ) {
+    return cachedAppToken.accessToken;
+  }
+
+  const params = new URLSearchParams({
+    client_id: config.clientId,
+    client_secret: config.clientSecret,
+    grant_type: 'client_credentials',
+  });
+  const response = await fetch(`${TWITCH_AUTH_BASE_URL}/token?${params.toString()}`, {
+    method: 'POST',
+  });
+  if (!response.ok) {
+    throw new OAuthError('app_token_failed', `Twitch app token request failed with status ${response.status}`);
+  }
+
+  const payload = await response.json() as Partial<{
+    access_token: string;
+    expires_in: number;
+    token_type: string;
+  }>;
+  if (!payload.access_token || typeof payload.expires_in !== 'number') {
+    throw new OAuthError('app_token_invalid', 'Twitch returned an invalid app token response');
+  }
+
+  cachedAppToken = {
+    clientId: config.clientId,
+    accessToken: payload.access_token,
+    expiresAtMs: now + payload.expires_in * 1_000,
+  };
+  return payload.access_token;
 }
 
 // ============================================================================

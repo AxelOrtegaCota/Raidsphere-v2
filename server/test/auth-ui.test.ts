@@ -162,4 +162,53 @@ describe('authenticated web entry points', () => {
       await runtime.app.close();
     }
   });
+
+  it('allows public stream discovery with a server app token', async () => {
+    vi.stubEnv('TWITCH_CLIENT_ID', 'test-client');
+    vi.stubEnv('TWITCH_CLIENT_SECRET', 'test-secret');
+    vi.stubEnv('TWITCH_REDIRECT_URI', 'http://localhost/auth/callback');
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
+      const url = new URL(String(input));
+      if (url.pathname === '/oauth2/token') {
+        return new Response(JSON.stringify({
+          access_token: 'test-app-token',
+          expires_in: 3600,
+          token_type: 'bearer',
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      if (url.pathname === '/helix/streams') {
+        return new Response(JSON.stringify({
+          data: [{
+            id: 'stream-1', user_id: 'streamer-1', user_login: 'streamerone',
+            user_name: 'StreamerOne', game_id: 'game-1', game_name: 'Just Chatting',
+            type: 'live', title: 'A live stream', viewer_count: 42,
+            started_at: '2026-01-01T00:00:00Z', language: 'en',
+            thumbnail_url: 'https://static-cdn.jtvnw.net/preview-{width}x{height}.jpg',
+            tags: [], is_mature: false,
+          }],
+          pagination: {},
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      if (url.pathname === '/helix/users') {
+        return new Response(JSON.stringify({ data: [{
+          id: 'streamer-1', login: 'streamerone', display_name: 'StreamerOne',
+          profile_image_url: 'https://static-cdn.jtvnw.net/avatar.png',
+        }] }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      return new Response('Not found', { status: 404 });
+    }));
+
+    const overlayRoot = await overlayFixture();
+    const runtime = createRuntime({ reportError: () => undefined, overlayRoot });
+    try {
+      const response = await runtime.app.inject({ method: 'GET', url: '/api/test-helix' });
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toMatchObject({
+        authenticated_as: null,
+        streams: [{ id: 'streamer-1', displayName: 'StreamerOne' }],
+      });
+    } finally {
+      await runtime.app.close();
+    }
+  });
 });

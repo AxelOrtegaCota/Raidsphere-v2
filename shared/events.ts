@@ -80,11 +80,62 @@ const errorEventSchema = notification('error', z.object({
   recoverable: z.boolean(),
 }).strict());
 
+// Roulette configuration event - streamer configures roulette mode
+const rouletteConfigureEventSchema = notification('roulette:configure', z.object({
+  mode: z.enum(['manual', 'auto']),
+  candidates: z.array(identifierSchema).max(100).optional(),
+  autoCount: z.union([z.literal(6), z.literal(7)]).optional(),
+  selectedCountry: illustrativeCountrySchema.optional(),
+}).strict());
+
+// Flag competition events
+const flagContributionEventSchema = notification('flag:contribution', z.object({
+  streamerId: identifierSchema,
+  countryCode: illustrativeCountrySchema,
+  points: countSchema,
+  newTotal: countSchema,
+  progress: z.number().min(0).max(100),
+}).strict());
+
+const flagClaimedEventSchema = notification('flag:claimed', z.object({
+  countryCode: illustrativeCountrySchema,
+  streamerId: identifierSchema,
+  displayName: z.string().min(1).max(100),
+  claimedAtMs: timestampSchema,
+}).strict());
+
+const flagOvertakenEventSchema = notification('flag:overtaken', z.object({
+  countryCode: illustrativeCountrySchema,
+  previousOwner: identifierSchema,
+  newOwner: identifierSchema,
+  margin: countSchema,
+}).strict());
+
+const flagDecayedEventSchema = notification('flag:decayed', z.object({
+  countryCode: illustrativeCountrySchema,
+  streamerId: identifierSchema,
+  reason: z.enum(['decay', 'overtaken']),
+}).strict());
+
+// Globe snapshot event - all country flags for globe rendering
+const globeFlagsEventSchema = notification('globe:flags', z.object({
+  flags: z.array(z.object({
+    countryCode: illustrativeCountrySchema,
+    ownerStreamerId: identifierSchema,
+    ownerDisplayName: z.string().min(1).max(100),
+    progress: z.number().min(0).max(100),
+    color: z.string().min(4).max(9).regex(/^#[0-9a-fA-F]{3,8}$/),
+  }).strict()).max(200),
+}).strict());
+
 const serverEventUnion = z.discriminatedUnion('type', [
   rouletteStartEventSchema, rouletteVotesEventSchema, rouletteChosenEventSchema,
+  rouletteConfigureEventSchema,
   raidStartedEventSchema, raidCancelledEventSchema, raidArrivedEventSchema,
   translateBubbleEventSchema, translateRemoveEventSchema, translateClearEventSchema,
   translationWindowEventSchema, stateSnapshotEventSchema, errorEventSchema,
+  flagContributionEventSchema, flagClaimedEventSchema, flagOvertakenEventSchema,
+  flagDecayedEventSchema, globeFlagsEventSchema,
 ]);
 
 // Authoritative server notification validator. Structural event schemas stay private
@@ -165,3 +216,9 @@ export type TranslateClearEvent = z.infer<typeof translateClearEventSchema>;
 export type TranslationWindowEvent = z.infer<typeof translationWindowEventSchema>;
 export type ErrorEvent = z.infer<typeof errorEventSchema>;
 export type StateSnapshotEvent = z.infer<typeof stateSnapshotEventSchema>;
+export type RouletteConfigureEvent = z.infer<typeof rouletteConfigureEventSchema>;
+export type FlagContributionEvent = z.infer<typeof flagContributionEventSchema>;
+export type FlagClaimedEvent = z.infer<typeof flagClaimedEventSchema>;
+export type FlagOvertakenEvent = z.infer<typeof flagOvertakenEventSchema>;
+export type FlagDecayedEvent = z.infer<typeof flagDecayedEventSchema>;
+export type GlobeFlagsEvent = z.infer<typeof globeFlagsEventSchema>;

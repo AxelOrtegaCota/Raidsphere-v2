@@ -9,13 +9,71 @@
   <body>
     <main id="app" aria-label="RaidSphere overlay">
       <div class="stars" aria-hidden="true"></div>
-      <div id="globe" aria-hidden="true"></div>
-      <p class="badge">Simulation</p>
-      <section class="location-panel" aria-label="Country location">
-        <button id="locate-country" type="button">Locate my country</button>
-        <p id="location-status">Optional · processed only in this browser</p>
+      
+      <!-- View Toggle -->
+      <nav class="view-toggle" aria-label="View selection">
+        <button id="view-globe" type="button" class="view-btn active" aria-pressed="true">
+          🌍 Globe
+        </button>
+        <button id="view-roulette" type="button" class="view-btn" aria-pressed="false">
+          🎰 Roulette
+        </button>
+      </nav>
+      
+      <!-- Globe View -->
+      <section id="globe-view" class="view-panel active" aria-label="Globe view">
+        <div id="globe" aria-hidden="true"></div>
+        <section class="location-panel" aria-label="Country location">
+          <button id="locate-country" type="button">Locate my country</button>
+          <p id="location-status">Optional · processed only in this browser</p>
+        </section>
       </section>
-      <section id="roulette" class="roulette" aria-label="Roulette votes" aria-live="polite" hidden></section>
+      
+      <!-- Roulette View -->
+      <section id="roulette-view" class="view-panel" aria-label="Roulette view" hidden>
+        <div id="roulette-wheel-container" class="roulette-wheel-container"></div>
+        <div class="roulette-controls">
+          <div class="roulette-mode-selector">
+            <button id="mode-manual" type="button" class="mode-btn active">
+              ✋ Manual
+            </button>
+            <button id="mode-auto" type="button" class="mode-btn">
+              🎲 Auto (6-7)
+            </button>
+          </div>
+          <div id="manual-candidates" class="manual-candidates" hidden>
+            <p>Select streamers for the roulette:</p>
+            <ul id="candidate-list" class="candidate-selection-list"></ul>
+          </div>
+          <div class="roulette-actions">
+            <button id="spin-roulette" type="button" class="btn-spin" disabled>
+              🎰 Spin!
+            </button>
+          </div>
+        </div>
+        <section id="roulette" class="roulette" aria-label="Roulette votes" aria-live="polite" hidden></section>
+      </section>
+      
+      <!-- Flag Competition Panel -->
+      <aside id="flag-panel" class="flag-panel" hidden>
+        <h3>🏁 Flag Competition</h3>
+        <div class="flag-country-selector">
+          <label for="flag-country">Select your country:</label>
+          <select id="flag-country">
+            <option value="">Choose...</option>
+          </select>
+        </div>
+        <div id="flag-progress" class="flag-progress">
+          <div class="flag-bar">
+            <div class="flag-fill" style="width: 0%"></div>
+          </div>
+          <p class="flag-status">Contribute channel points to claim this flag!</p>
+        </div>
+        <div id="flag-leaderboard" class="flag-leaderboard"></div>
+      </aside>
+      
+      <p class="badge">Simulation</p>
+      
       <section class="translations" aria-label="Chat translations">
         <p id="translation-window" class="translation-window" hidden></p>
         <ol id="bubbles" class="bubbles" aria-live="polite"></ol>

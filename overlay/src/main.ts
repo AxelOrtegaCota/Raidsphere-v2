@@ -40,7 +40,8 @@ void fetch(`${apiBaseUrl}/health`, { cache: 'no-store' })
   .then((health: unknown) => { badge.hidden = !showsSimulationLabel(health); })
   .catch(() => { badge.hidden = false; });
 
-if (mode === 'interactive') startDiscovery(app);
+// Discovery panel is always available, regardless of OBS/interactive mode.
+startDiscovery(app);
 
 let applyScene: (scene: GlobeScene) => void = () => undefined;
 try {
@@ -101,7 +102,8 @@ if (target) {
   }, { once: true });
   renderSession();
 } else {
-  status.textContent = 'No viewing credential. Open the overlay URL printed by the RaidSphere server.';
+  // No credential: standalone mode. The overlay works for discovery without a roulette session.
+  status.textContent = 'Standalone mode — use the search panel to discover streams.';
 }
 
 // Returns the function that applies session scenes. OBS mode renders only while something

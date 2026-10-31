@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto';
 import {
   buildAuthorizationUrl,
   exchangeCode,
+  getAppAccessToken,
   getAuthenticatedUser,
   loadOAuthConfig,
   revokeToken,
@@ -166,13 +167,9 @@ export function registerAuthRoutes(app: FastifyInstance, dependencies: AuthRoute
 
   app.get('/api/test-helix', async (request, reply) => {
     const session = currentSession(request);
-    if (!session) {
-      return reply.status(401).send({ error: 'Not authenticated. Login first at /auth/twitch' });
-    }
-
     const config = loadOAuthConfig(process.env);
     const helixConfig: HelixRequestConfig = {
-      accessToken: session.tokens.access_token,
+      accessToken: session?.tokens.access_token ?? await getAppAccessToken(config),
       clientId: config.clientId,
     };
 
@@ -248,7 +245,7 @@ export function registerAuthRoutes(app: FastifyInstance, dependencies: AuthRoute
 
       return {
         success: true,
-        authenticated_as: session.user.login,
+        authenticated_as: session?.user.login ?? null,
         filters: {
           language: language || 'all',
           category: category || 'all',
@@ -282,13 +279,9 @@ export function registerAuthRoutes(app: FastifyInstance, dependencies: AuthRoute
 
   app.get('/api/categories', async (request, reply) => {
     const session = currentSession(request);
-    if (!session) {
-      return reply.status(401).send({ error: 'Not authenticated' });
-    }
-
     const config = loadOAuthConfig(process.env);
     const helixConfig: HelixRequestConfig = {
-      accessToken: session.tokens.access_token,
+      accessToken: session?.tokens.access_token ?? await getAppAccessToken(config),
       clientId: config.clientId,
     };
 
