@@ -136,7 +136,9 @@ describe('EventSub client', () => {
     (await socketAt(0)).send(welcome('session-1'));
     await vi.waitFor(() => { expect(helix.posts()).toHaveLength(1); });
 
+    expect(events.isWatchingChat('2002')).toBe(false);
     await expect(events.watchChat('2002')).resolves.toBe(true);
+    expect(events.isWatchingChat('2002')).toBe(true);
 
     const chatCalls = helix.posts().slice(1);
     expect(chatCalls.map((call) => call.body?.['type']).sort()).toEqual([

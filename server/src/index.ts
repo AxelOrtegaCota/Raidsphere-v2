@@ -9,6 +9,7 @@ async function start(): Promise<void> {
   const { app, issuedCredentials } = createRuntime({
     reportError: (message) => console.error(message),
     overlayRoot,
+    ...(process.env.TWITCH_EVENTSUB_ENABLED === 'true' ? { liveChat: {} } : {}),
   });
   const shutdown = async (): Promise<void> => {
     await app.close();

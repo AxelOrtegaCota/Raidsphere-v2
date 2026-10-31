@@ -27,6 +27,7 @@ import {
   getSession,
   type UserSession,
 } from '../twitch/sessions.js';
+import type { LiveChatState } from '../twitch/live-chat.js';
 
 const SESSION_COOKIE_NAME = 'raidsphere_session';
 const OAUTH_STATE_COOKIE_NAME = 'raidsphere_oauth_state';
@@ -40,6 +41,8 @@ export interface AuthRouteDependencies {
   issueViewingCredential: (channelId: string) => string;
   onAuthenticated?: (session: UserSession) => Promise<void>;
   onLogout?: (session: UserSession) => Promise<void>;
+  // Left out while real chat is not enabled for this server.
+  eventSubState?: (channelId: string) => LiveChatState;
 }
 
 export function registerAuthRoutes(app: FastifyInstance, dependencies: AuthRouteDependencies): void {
@@ -124,7 +127,7 @@ export function registerAuthRoutes(app: FastifyInstance, dependencies: AuthRoute
     const session = currentSession(request);
     if (!session) return reply.redirect('/auth/twitch');
     reply.header('Cache-Control', 'no-store');
-    return sendHtml(reply, dashboardPage(session));
+    return sendHtml(reply, dashboardPage(session, dependencies.eventSubState?.(session.user.id)));
   });
 
   app.get('/auth/me', async (request, reply) => {
@@ -141,7 +144,7 @@ export function registerAuthRoutes(app: FastifyInstance, dependencies: AuthRoute
       scopes: [...session.tokens.scope],
       capabilities: {
         overlay: true,
-        eventSub: false,
+        eventSub: dependencies.eventSubState?.(session.user.id) === 'ready',
         realRaids: false,
       },
     };
@@ -400,7 +403,13 @@ function publicLandingPage(): string {
   `);
 }
 
-function dashboardPage(session: UserSession): string {
+function eventSubReadiness(state: LiveChatState | undefined): string {
+  if (state === undefined) return '<li data-state="pending"><strong>EventSub chat</strong><span>Authorization is granted; runtime subscription is not enabled yet.</span></li>';
+  if (state === 'ready') return '<li data-state="ready"><strong>EventSub chat</strong><span>Listening to your Twitch chat.</span></li>';
+  return '<li data-state="pending"><strong>EventSub chat</strong><span>Connecting to your Twitch chat. Reload this page to check again.</span></li>';
+}
+
+function dashboardPage(session: UserSession, eventSub: LiveChatState | undefined): string {
   const displayName = escapeHtml(session.user.display_name);
   const login = escapeHtml(session.user.login);
   const channel = encodeURIComponent(session.overlay.channelId);
@@ -428,7 +437,7 @@ function dashboardPage(session: UserSession): string {
         <ul>
           <li data-state="ready"><strong>Twitch OAuth</strong><span>Authenticated with the required scopes.</span></li>
           <li data-state="ready"><strong>OBS overlay</strong><span>Private URL and secure WebSocket are ready.</span></li>
-          <li data-state="pending"><strong>EventSub chat</strong><span>Authorization is granted; runtime subscription is not enabled yet.</span></li>
+          ${eventSubReadiness(eventSub)}
           <li data-state="pending"><strong>Real raids</strong><span>Permission is granted; live control remains disabled until an explicit activation step.</span></li>
         </ul>
       </section>

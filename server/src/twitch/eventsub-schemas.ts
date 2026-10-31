@@ -65,6 +65,8 @@ export const chatMessageEventSchema = z.object({
   chatter_user_login: z.string(),
   chatter_user_name: z.string(),
   message_id: z.string().min(1),
+  // Set on shared chat messages, which can come from another channel.
+  source_broadcaster_user_id: z.string().nullable().optional(),
   message: z.object({
     text: z.string(),
     fragments: z.array(z.object({

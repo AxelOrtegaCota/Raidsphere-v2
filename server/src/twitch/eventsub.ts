@@ -8,14 +8,13 @@
  * @see https://dev.twitch.tv/docs/eventsub/
  */
 
-import type { LanguageCode } from '@raidsphere/shared';
 import { WebSocket, type RawData } from 'ws';
 import type { z } from 'zod';
 import type { Clock, Scheduler, TimerHandle } from '../application/ports.js';
 import { systemClock, timerScheduler } from '../application/runtime.js';
 import {
   eventSubEnvelopeSchema, notificationSchemas, subscriptionResponseSchema,
-  type ChannelChatMessageEvent, type EventSubEnvelope, type RaidEvent,
+  type EventSubEnvelope,
 } from './eventsub-schemas.js';
 import type { AccessTokenProvider } from './session-tokens.js';
 
@@ -105,6 +104,7 @@ export interface EventSubClient {
   /** Resolves true once chat and moderation events are active; a pending session subscribes on welcome. */
   watchChat(channelId: string): Promise<boolean>;
   unwatchChat(channelId: string): Promise<void>;
+  isWatchingChat(channelId: string): boolean;
 }
 
 function chatKey(type: string, channelId: string): string {
@@ -437,103 +437,9 @@ export function createEventSubClient(options: EventSubClientOptions): EventSubCl
       });
       await Promise.all(removals);
     },
+
+    isWatchingChat(channelId: string): boolean {
+      return CHAT_SUBSCRIPTION_TYPES.every((type) => active.has(chatKey(type, channelId)));
+    },
   };
-}
-
-// ============================================================================
-// Raid Detection Helper
-// ============================================================================
-
-export interface DetectedRaid {
-  fromChannelId: string;
-  fromChannelName: string;
-  toChannelId: string;
-  toChannelName: string;
-  viewers: number;
-  timestamp: number;
-}
-
-export function parseRaidEvent(event: RaidEvent): DetectedRaid {
-  return {
-    fromChannelId: event.from_broadcaster_user_id,
-    fromChannelName: event.from_broadcaster_user_name,
-    toChannelId: event.to_broadcaster_user_id,
-    toChannelName: event.to_broadcaster_user_name,
-    viewers: event.viewers,
-    timestamp: Date.now(),
-  };
-}
-
-// ============================================================================
-// Chat Command Detection
-// ============================================================================
-
-export interface DetectedCommand {
-  command: 'roulette' | 'vote' | 'cancel' | null;
-  language?: LanguageCode;
-  userId: string;
-  userName: string;
-  messageId: string;
-  isBroadcaster: boolean;
-  isModerator: boolean;
-}
-
-export function parseChatCommand(event: ChannelChatMessageEvent): DetectedCommand | null {
-  const text = event.message.text.trim();
-
-  // Check for roulette commands
-  const rouletteMatch = /^!(roulette|ruleta|ルーレット|룰렛)$/i.exec(text);
-  if (rouletteMatch) {
-    return {
-      command: 'roulette',
-      userId: event.chatter_user_id,
-      userName: event.chatter_user_name,
-      messageId: event.message_id,
-      isBroadcaster: event.badges.some(b => b.set_id === 'broadcaster'),
-      isModerator: event.badges.some(b => b.set_id === 'moderator'),
-    };
-  }
-
-  // Check for vote commands
-  const voteMatch = /^!(vote|votar|v)\s+(\w+)$/i.exec(text);
-  if (voteMatch) {
-    const langInput = voteMatch[2]?.toLowerCase();
-    const languageMap: Record<string, LanguageCode> = {
-      'en': 'en', 'english': 'en', 'inglés': 'en', 'ingles': 'en',
-      'es': 'es', 'spanish': 'es', 'español': 'es', 'espanol': 'es',
-      'pt': 'pt', 'portuguese': 'pt', 'portugués': 'pt', 'portugues': 'pt',
-      'fr': 'fr', 'french': 'fr', 'francés': 'fr', 'frances': 'fr',
-      'de': 'de', 'german': 'de', 'alemán': 'de', 'aleman': 'de',
-      'ja': 'ja', 'japanese': 'ja', 'japonés': 'ja', 'japones': 'ja',
-      'ko': 'ko', 'korean': 'ko', 'coreano': 'ko',
-    };
-    const language = langInput ? languageMap[langInput] : undefined;
-
-    if (language) {
-      return {
-        command: 'vote',
-        language,
-        userId: event.chatter_user_id,
-        userName: event.chatter_user_name,
-        messageId: event.message_id,
-        isBroadcaster: event.badges.some(b => b.set_id === 'broadcaster'),
-        isModerator: event.badges.some(b => b.set_id === 'moderator'),
-      };
-    }
-  }
-
-  // Check for cancel commands
-  const cancelMatch = /^!(cancel|cancelar|キャンセル|취소)$/i.exec(text);
-  if (cancelMatch) {
-    return {
-      command: 'cancel',
-      userId: event.chatter_user_id,
-      userName: event.chatter_user_name,
-      messageId: event.message_id,
-      isBroadcaster: event.badges.some(b => b.set_id === 'broadcaster'),
-      isModerator: event.badges.some(b => b.set_id === 'moderator'),
-    };
-  }
-
-  return null;
 }

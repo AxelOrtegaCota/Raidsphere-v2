@@ -25,7 +25,8 @@
 |------|-------|--------|-------------|
 | `oauth.ts` | 590 | ✅ Working E2E | Login, tokens, refresh, revoke |
 | `helix.ts` | — | ✅ Tested reads | Streams, users/avatars, channels, categories, language/game filters |
-| `eventsub.ts` | 539 | ⚠️ Tested, not wired | WebSocket client over `ws`: reconnection, subscriptions, validated events. Not started by the server yet |
+| `eventsub.ts` | 445 | ⚠️ Tested, off by default | WebSocket client over `ws`: reconnection, subscriptions, validated events |
+| `live-chat.ts` | — | ⚠️ Tested, off by default | One connection per logged-in channel; routes chat, commands, moderation, and raids to the application ports |
 | `raids.ts` | 394 | ⚠️ Code exists | Raid gateway — SIMULATED |
 | `commands.ts` | 220 | ⚠️ Code exists | Parser `!roulette`, `!vote`, `!cancel` |
 | `candidates.ts` | 154 | ⚠️ Code exists | Channel discovery — SYNTHETIC DATA |
@@ -71,8 +72,8 @@
 ### Module B — Real Twitch Connection
 | Component | Status | Priority |
 |-----------|--------|----------|
-| EventSub WebSocket activation | ⚠️ Client tested against a local WebSocket server; not started by the server and not tried against Twitch | HIGH |
-| Real chat message reception | ❌ Not connected | HIGH |
+| EventSub WebSocket activation | ⚠️ Opt-in with `TWITCH_EVENTSUB_ENABLED=true`; tested locally, not tried against Twitch | HIGH |
+| Real chat message reception | ⚠️ Wired to commands and the translation pipeline; not tried against Twitch | HIGH |
 | Real raid execution | ❌ Disabled | HIGH |
 | Integration with roulette coordinator | ⚠️ Simulated parser and raid gateway wired through adapters; real Twitch not wired | HIGH |
 
@@ -116,16 +117,18 @@
 
 Implementation and API details: `docs/raid-candidate-discovery.md`.
 
-### 4. EventSub (Client tested, not connected)
+### 4. EventSub (Off by default, tested locally)
 ```
 EventSub requires:
 1. Active WebSocket connection to wss://eventsub.wss.twitch.tv/ws
 2. Subscription creation via Helix API
 3. The server must handle incoming events
 
-Currently: server/src/twitch/eventsub.ts has passing tests against a local WebSocket server, but the
-server does not start it. Module 4 adapts its events to the application ports. Reading the chat of a
-raided channel with the broadcaster's token is not confirmed yet and needs a live test.
+Currently: set TWITCH_EVENTSUB_ENABLED=true and log in again. Each logged-in streamer reads their own
+chat with their own token, and the dashboard shows when chat is ready. Sessions live in memory, so a
+server restart needs a new login. Not tried against Twitch yet. Until real raids and candidates are
+connected, !roulette runs on synthetic candidates and simulated raids, so a translation window never
+opens on a real channel.
 ```
 
 ### 5. Raids (Code exists, disabled)
