@@ -4,10 +4,11 @@
  */
 import { randomUUID } from 'node:crypto';
 import type { LanguageCode, TranslationBubble } from '@raidsphere/shared';
-import type { ChatTextMessage, ChatTranslator } from '../application/ports.js';
+import type { ChatModerationAction, ChatTextMessage, ChatTranslator } from '../application/ports.js';
 import type { TranslationProvider } from './provider.js';
 import {
-  activateTranslationSession, invalidateTranslationSession, translateMessage,
+  activateTranslationSession, invalidateTranslationMessage, invalidateTranslationSession,
+  invalidateTranslationUser, translateMessage,
 } from './service.js';
 import type { TranslationSession } from './service.js';
 
@@ -35,6 +36,20 @@ export class ServiceChatTranslator implements ChatTranslator {
     if (!session) return;
     this.sessions.delete(channelId);
     invalidateTranslationSession(channelId, session.sessionId);
+  }
+
+  invalidate(action: ChatModerationAction): void {
+    switch (action.type) {
+      case 'message_deleted':
+        invalidateTranslationMessage(action.channelId, action.messageId);
+        return;
+      case 'user_cleared':
+        invalidateTranslationUser(action.channelId, action.userId);
+        return;
+      case 'chat_cleared':
+        // A new session cancels all work and purges the cache while the window stays open.
+        if (this.sessions.has(action.channelId)) this.openChannel(action.channelId);
+    }
   }
 
   async translate(message: ChatTextMessage, targetLanguage: LanguageCode): Promise<TranslationBubble | null> {

@@ -1,6 +1,7 @@
 import type { TranslationBubble, TranslationWindow } from '@raidsphere/shared';
-import type { ChatTextMessage, ChatTranslator, Clock } from './ports.js';
-import type { EventPublisher } from './publisher.js';
+import { ChatModerationMemory } from './chat-moderation.js';
+import type { ChatModerationAction, ChatTextMessage, ChatTranslator, Clock } from './ports.js';
+import type { EventPublisher, ServerEventDraft } from './publisher.js';
 import { isWindowActive } from './translation-window.js';
 
 // From chat message to translation bubble (Phase 4, module 4). Chat text is untrusted data:
@@ -21,7 +22,7 @@ export interface ChatTranslationDependencies {
   translator: ChatTranslator;
   publisher: EventPublisher;
   // Reports carry no content, so chat data never reaches logs.
-  onError: (kind: 'translation_failed' | 'window_failed') => void;
+  onError: (kind: 'translation_failed' | 'window_failed' | 'moderation_failed') => void;
   limits?: Partial<ChatTranslationLimits>;
 }
 
@@ -33,6 +34,7 @@ export class ChatTranslationPipeline {
   readonly #limits: ChatTranslationLimits;
   readonly #seenMessages = new Map<string, Set<string>>();
   readonly #recentByKey = new Map<string, number[]>();
+  readonly #moderation = new ChatModerationMemory();
   #closed = false;
 
   constructor(dependencies: ChatTranslationDependencies) {
@@ -44,7 +46,7 @@ export class ChatTranslationPipeline {
     const { clock, windows, publisher, translator, onError } = this.#deps;
     if (this.#closed || !this.#firstDelivery(message)) return;
     const window = await windows.translationWindow(message.channelId);
-    if (!window || !isWindowActive(window, clock.now())) return;
+    if (!window || !isWindowActive(window, clock.now()) || this.#moderation.blocks(message)) return;
     if (message.text.trimStart().startsWith('!') || message.sourceLanguage === window.targetLanguage) return;
     if (!this.#withinLimits(message, clock.now())) return;
 
@@ -64,11 +66,27 @@ export class ChatTranslationPipeline {
     // Last check before publishing: nothing asynchronous separates it from the publish.
     const current = await windows.translationWindow(message.channelId);
     if (this.#closed) return;
-    if (!bubble || !isWindowActive(current, clock.now())) {
+    if (!bubble || !isWindowActive(current, clock.now()) || this.#moderation.blocks(message)) {
       publisher.publish({ type: 'translate:remove', channelId: message.channelId, payload: { messageId: message.messageId } });
       return;
     }
     publisher.publish({ type: 'translate:bubble', channelId: message.channelId, payload: bubble });
+  }
+
+  // Moderation applies at once: memory and invalidation happen before anything asynchronous,
+  // so a running translation can no longer be published.
+  async handleModeration(action: ChatModerationAction): Promise<void> {
+    const { clock, windows, translator, publisher, onError } = this.#deps;
+    if (this.#closed) return;
+    this.#moderation.record(action, clock.now());
+    try {
+      translator.invalidate(action);
+    } catch {
+      onError('moderation_failed');
+    }
+    const window = await windows.translationWindow(action.channelId);
+    if (this.#closed || !isWindowActive(window, clock.now())) return;
+    publisher.publish(moderationEvent(action));
   }
 
   // Follows the coordinator's window: translation runs only while a window is active.
@@ -86,6 +104,7 @@ export class ChatTranslationPipeline {
     this.#closed = true;
     this.#seenMessages.clear();
     this.#recentByKey.clear();
+    this.#moderation.clear();
   }
 
   #firstDelivery(message: ChatTextMessage): boolean {
@@ -124,6 +143,18 @@ export class ChatTranslationPipeline {
       const oldest = this.#recentByKey.keys().next().value;
       if (oldest !== undefined) this.#recentByKey.delete(oldest);
     }
+  }
+}
+
+function moderationEvent(action: ChatModerationAction): ServerEventDraft {
+  const { channelId } = action;
+  switch (action.type) {
+    case 'message_deleted':
+      return { type: 'translate:remove', channelId, payload: { messageId: action.messageId } };
+    case 'user_cleared':
+      return { type: 'translate:clear', channelId, payload: { scope: 'user', userId: action.userId } };
+    case 'chat_cleared':
+      return { type: 'translate:clear', channelId, payload: { scope: 'channel' } };
   }
 }
 

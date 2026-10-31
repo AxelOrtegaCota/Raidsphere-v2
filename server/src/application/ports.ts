@@ -82,10 +82,19 @@ export interface ChatTextMessage {
   fragments?: ChatFragment[];
 }
 
+// A moderation action from the platform adapter (Phase 4, module 5), never from chat text.
+export type ChatModerationAction =
+  | { type: 'message_deleted'; channelId: string; messageId: string }
+  // A ban or a timeout: the user's earlier messages disappear.
+  | { type: 'user_cleared'; channelId: string; userId: string }
+  | { type: 'chat_cleared'; channelId: string };
+
 export interface ChatTranslator {
   // Channels are open only while their translation window is active.
   openChannel(channelId: string): void;
   closeChannel(channelId: string): void;
+  // Cancels matching work without closing the channel.
+  invalidate(action: ChatModerationAction): void;
   // Resolves to null when the message was invalidated or needs no translation.
   translate(message: ChatTextMessage, targetLanguage: LanguageCode): Promise<TranslationBubble | null>;
 }

@@ -58,6 +58,7 @@ The `railway` branch adds Twitch OAuth, sessions, Helix reads, and a candidate d
 - Module 3: a confirmed arrival opens a 15-minute translation window on the destination (`5a2deed`).
 - Module 6: the overlay shows translation bubbles while the window is active (`b24440d`).
 - Module 4: chat messages go through filters and limits to the translation service and back as bubbles, with a last check before publishing.
+- Module 5: deleted messages, cleared users, and chat clears cancel running translations and remove bubbles; a memory stops late or early events from showing a moderated message.
 
 All of this runs on simulated chat and the mock provider; real chat needs Phase 3 EventSub, and real translation needs an AI provider.
 

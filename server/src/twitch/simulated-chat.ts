@@ -4,7 +4,7 @@
  * It is not a network endpoint and grants no remote control capability.
  */
 import type { LanguageCode } from '@raidsphere/shared';
-import type { ChatCommand, ChatTextMessage } from '../application/ports.js';
+import type { ChatCommand, ChatModerationAction, ChatTextMessage } from '../application/ports.js';
 import { toChatCommand, toChatTextMessage } from './adapters.js';
 import type { ChatMessage } from './commands.js';
 
@@ -14,6 +14,7 @@ export interface ChatCommandTarget {
 
 export interface ChatMessageTarget {
   handleMessage(message: ChatTextMessage): Promise<void>;
+  handleModeration(action: ChatModerationAction): Promise<void>;
 }
 
 export interface SimulatedChatter {
@@ -39,6 +40,24 @@ export class SimulatedChat {
   /** The broadcaster is the user whose ID equals the channel ID. */
   get broadcaster(): SimulatedChatter {
     return { userId: this.channelId, isBroadcaster: true };
+  }
+
+  /** The ID of the most recent message, for simulated moderation. */
+  get lastMessageId(): string {
+    return `sim-chat-${this.nextMessage}`;
+  }
+
+  async deleteMessage(messageId: string): Promise<void> {
+    await this.messages?.handleModeration({ type: 'message_deleted', channelId: this.channelId, messageId });
+  }
+
+  /** A simulated ban or timeout. */
+  async clearUser(userId: string): Promise<void> {
+    await this.messages?.handleModeration({ type: 'user_cleared', channelId: this.channelId, userId });
+  }
+
+  async clearChat(): Promise<void> {
+    await this.messages?.handleModeration({ type: 'chat_cleared', channelId: this.channelId });
   }
 
   /** Returns false when nothing was dispatched: an invalid command, or plain text with no message target. */

@@ -22,7 +22,10 @@ const RAIDER_SCRIPT: readonly (readonly [number, string, LanguageCode, string])[
   [6, 'raider_03', 'pt', 'boa live'], [8, 'raider_04', 'fr', 'bonjour le chat'],
   [10, 'raider_01', 'en', '!vote ja'],
 ];
-const AUTO_STOP_AFTER_ARRIVAL_MS = 14_000;
+// Simulated moderation: raider_04's message is deleted and raider_02 is timed out.
+const DELETE_MESSAGE_AT_S = 12;
+const CLEAR_USER_AT_S = 13;
+const AUTO_STOP_AFTER_ARRIVAL_MS = 16_000;
 const AUTO_START_DELAY_MS = 3_000;
 // The demo raid is always accepted and arrives after a fixed, visible countdown.
 const DEMO_RAID = {
@@ -73,13 +76,25 @@ async function main(): Promise<void> {
   };
   const startRaiderChat = (channelId: string): void => {
     const raiders = new SimulatedChat(coordinator, channelId, chatMessages);
-    for (const [seconds, userId, language, text] of RAIDER_SCRIPT) {
+    const lastMessageByUser = new Map<string, string>();
+    const at = (seconds: number, action: () => void): void => {
       const timer = setTimeout(() => {
         voteTimers.delete(timer);
-        void raiders.say({ userId, language }, text);
+        action();
       }, seconds * 1_000);
       voteTimers.add(timer);
+    };
+    for (const [seconds, userId, language, text] of RAIDER_SCRIPT) {
+      at(seconds, () => {
+        void raiders.say({ userId, language }, text);
+        lastMessageByUser.set(userId, raiders.lastMessageId);
+      });
     }
+    at(DELETE_MESSAGE_AT_S, () => {
+      const messageId = lastMessageByUser.get('raider_04');
+      if (messageId) void raiders.deleteMessage(messageId);
+    });
+    at(CLEAR_USER_AT_S, () => { void raiders.clearUser('raider_02'); });
   };
   for (const { channelId } of urls) {
     const view = await coordinator.openView(channelId, log);
@@ -147,6 +162,10 @@ function describe(event: ServerEvent): string {
       return `${event.payload.status}, target ${event.payload.targetLanguage}`;
     case 'translate:bubble':
       return `${event.payload.status} ${event.payload.fromLanguage ?? '?'} -> ${event.payload.toLanguage} (simulated)`;
+    case 'translate:remove':
+      return 'message removed by moderation (simulated)';
+    case 'translate:clear':
+      return `${event.payload.scope} cleared by moderation (simulated)`;
     case 'error':
       return event.payload.code;
     default:

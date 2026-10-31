@@ -34,7 +34,7 @@ Included source:
 
 The earlier F1–F5 static-review corrections are covered by passing regression tests. Verification added dependency corrections (a `light-my-request` override, Vitest 4, Zod 4), a typed Fastify error handler, and three overlay rendering fixes.
 
-Pending functionality includes EventSub chat, real candidate discovery for the roulette, real raid execution/cancellation/arrival, an AI translation provider, language detection, moderation, broadcaster control over the network, and persistence. SQLite remains the future persistence target; Phase 1 does not install, configure, or open it.
+Pending functionality includes EventSub chat and moderation events, real candidate discovery for the roulette, real raid execution/cancellation/arrival, an AI translation provider, language detection, broadcaster control over the network, and persistence. SQLite remains the future persistence target; Phase 1 does not install, configure, or open it.
 
 ## Architecture and ownership
 
@@ -71,7 +71,7 @@ npm run build
 
 Installation disables dependency lifecycle scripts; none was required. A dependency requiring a script needs separate review and approval. No automated fix or dependency upgrade is implied.
 
-Verified results: type checking passes, 556 of 556 tests pass, the build succeeds, and `npm audit` reports 0 vulnerabilities (2026-10-29, `feature/phase4-translation`). Vite warns that the overlay bundle exceeds 500 kB, mostly because of three.js; this is expected for now.
+Verified results: type checking passes, 571 of 571 tests pass, the build succeeds, and `npm audit` reports 0 vulnerabilities (2026-10-29, `feature/phase4-translation`). Vite warns that the overlay bundle exceeds 500 kB, mostly because of three.js; this is expected for now.
 
 The root scripts build shared exports before consumers. `npm run typecheck` therefore also writes shared declarations/JavaScript to `shared/dist/`, then checks all workspace source, shared/backend tests, and Vite configuration. Test/tooling configurations use `noEmit`; production builds continue excluding tests.
 
@@ -104,7 +104,7 @@ npm run demo
 npm run dev:overlay
 ```
 
-The demo starts the server in simulation mode on loopback port 3000 and prints one overlay URL per demo channel: the source `rsdemo_es_01` and its five possible destinations. In the demo terminal, press Enter for `!roulette`, `c` + Enter for `!cancel`, and `q` + Enter to quit. A round takes 30 seconds of scripted voting, then a simulated raid with a 10-second countdown; after the arrival, scripted raiders chat in the destination channel and their messages appear there as simulated translation bubbles. `npm run demo:auto` runs one round without the keyboard and stops.
+The demo starts the server in simulation mode on loopback port 3000 and prints one overlay URL per demo channel: the source `rsdemo_es_01` and its five possible destinations. In the demo terminal, press Enter for `!roulette`, `c` + Enter for `!cancel`, and `q` + Enter to quit. A round takes 30 seconds of scripted voting, then a simulated raid with a 10-second countdown; after the arrival, scripted raiders chat in the destination channel, their messages appear there as simulated translation bubbles, and simulated moderation removes two of them. `npm run demo:auto` runs one round without the keyboard and stops.
 
 Open the source URL, and optionally a destination URL, in a browser or as an OBS Browser source at 1920 × 1080. The source overlay shows the voting, the chosen channel, and the raid on the globe; a destination overlay shows the arrival. All channels and raids are synthetic.
 

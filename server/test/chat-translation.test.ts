@@ -36,6 +36,7 @@ function setup(options: { limits?: Partial<ChatTranslationLimits>; translate?: C
   const translator: ChatTranslator = {
     openChannel: (channelId) => { opened.push(`open:${channelId}`); },
     closeChannel: (channelId) => { opened.push(`close:${channelId}`); },
+    invalidate: () => undefined,
     translate: async (message, target) => {
       calls.push(message.messageId);
       return options.translate ? options.translate(message, target) : completed(message, target);
@@ -109,7 +110,8 @@ describe('chat translation pipeline', () => {
     const translate = vi.fn();
     const pipeline = new ChatTranslationPipeline({
       clock: time, windows: { translationWindow: async () => openWindow(CHANNEL, 'ja', START, WINDOW_MS) },
-      translator: { openChannel: () => undefined, closeChannel: () => undefined, translate }, publisher, onError: () => undefined,
+      translator: { openChannel: () => undefined, closeChannel: () => undefined, invalidate: () => undefined, translate },
+      publisher, onError: () => undefined,
     });
     await pipeline.handleMessage({
       messageId: 'message-1', channelId: CHANNEL, userId: 'fixture_user', displayName: 'Fixture User',
@@ -197,7 +199,8 @@ describe('chat translation pipeline', () => {
     const failing = new ChatTranslationPipeline({
       clock: h.time, windows: { translationWindow: async () => null },
       translator: {
-        openChannel: () => { throw new RangeError('capacity'); }, closeChannel: () => undefined, translate: async () => null,
+        openChannel: () => { throw new RangeError('capacity'); }, closeChannel: () => undefined,
+        invalidate: () => undefined, translate: async () => null,
       },
       publisher: new EventPublisher({ clock: h.time, onError: () => undefined }), onError: (kind) => { errors.push(kind); },
     });
