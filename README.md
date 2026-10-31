@@ -16,7 +16,7 @@ Before development, read [AGENTS.md](AGENTS.md), [docs/phase-1-decisions.md](doc
 
 ## Current status
 
-Phase 1 is complete and was merged into `main` through PR #1, and Module D through PR #4. The rest of Phase 2 is code complete and verified on `feature/phase4-translation`, pending review and merge into `main`. `package-lock.json` records the resolved dependency graph; the `railway` work added `@fastify/static`, now at 10.1.8 with `content-disposition` pinned to 2.0.1 so it loads on Node 20.18 and `glob` pinned to 14.0.3 for a security advisory.
+Phase 1 is complete and was merged into `main` through PR #1, and Module D through PR #4. The rest of Phase 2 and the Phase 3 and 4 work reached `main` through PR #2 of `AxelOrtegaCota/Raidsphere-v2`, the repository where development continues. `package-lock.json` records the resolved dependency graph; the `railway` work added `@fastify/static`, now at 10.1.8 with `content-disposition` pinned to 2.0.1 so it loads on Node 20.18 and `glob` pinned to 14.0.3 for a security advisory.
 
 Included source:
 
@@ -71,7 +71,7 @@ npm run build
 
 Installation disables dependency lifecycle scripts; none was required. A dependency requiring a script needs separate review and approval. No automated fix or dependency upgrade is implied.
 
-Verified results: type checking passes, 599 of 599 tests pass, the build succeeds, and `npm audit` reports 0 vulnerabilities (2026-10-31, `feature/phase4-translation`, on Node.js 20.18.0 and npm 10.8.2). Vite warns that the overlay bundle exceeds 500 kB, mostly because of three.js; this is expected for now.
+Verified results: type checking passes, 600 of 600 tests pass, the build succeeds, and `npm audit` reports 0 vulnerabilities (2026-10-31, `main`, on Node.js 20.18.0 and npm 10.8.2). Vite warns that the overlay bundle exceeds 500 kB, mostly because of three.js; this is expected for now.
 
 The root scripts build shared exports before consumers. `npm run typecheck` therefore also writes shared declarations/JavaScript to `shared/dist/`, then checks all workspace source, shared/backend tests, and Vite configuration. Test/tooling configurations use `noEmit`; production builds continue excluding tests.
 

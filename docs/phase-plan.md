@@ -1,6 +1,6 @@
 # RaidSphere phase plan and progress
 
-As of 2026-10-30. Phase 1 is complete and merged into `main`. Phase 2 (local MVP) is code complete and verified in a browser and in OBS, on `feature/phase4-translation`, including the Batch 4 and 5 close-out; it still needs a reviewed pull request into `main`. Phase 3 (real Twitch) has started on `railway`, and Phase 4 (translation) has started with the translation window and the overlay bubbles. Details: [Phase 2 progress](PHASE2_PROGRESS.md).
+As of 2026-10-31. Phases 1 and 2 are merged into `main`, and the app is deployed on Railway. Development continues in `AxelOrtegaCota/Raidsphere-v2`. Phase 3 (real Twitch) and Phase 4 (translation) are partial. Details: [Phase 2 progress](PHASE2_PROGRESS.md).
 
 ## Current status
 
@@ -11,8 +11,8 @@ As of 2026-10-30. Phase 1 is complete and merged into `main`. Phase 2 (local MVP
 | Backend | Fastify. Roulette coordinator with authoritative in-memory state, 30 s voting, selection, and simulated raids; the Module B parser and raid gateway are connected through adapters to the Module D ports. A confirmed arrival opens a 15-minute translation window. `/ws` is read-only with per-channel viewing credentials (D2-11); `/health` reports `mode: 'simulation'`. Local demo: `npm run demo`. The `railway` branch adds Twitch OAuth and Helix reads and allows `HOST=0.0.0.0` for deployment. |
 | Overlay | OBS mode by default: transparent, globe paused when idle, Simulation label. The globe shows candidate markers, the winner, an animated raid arc, and camera moves; vote bars per language and a winner card; translation bubbles. Verified in OBS 32.2.2 at 1920 × 1080 and 30 FPS (OBS CPU 0.9–1.3%, no dropped frames). `?mode=interactive` keeps the discovery panel from `railway`. |
 | Dependencies | Lockfile included; `light-my-request` 6.6.0 override (V1), Vitest 4.1.12 (V2), Zod 4.6.7 (V3); `@fastify/static` 10.1.8 with `content-disposition` pinned to 2.0.1 so it loads on Node 20.18 and `glob` pinned to 14.0.3 for a security advisory; `npm audit` 0 vulnerabilities. |
-| Checks | Phase 1: 63/63 tests, typecheck, and build on `main` after the merge. `feature/phase4-translation`: 599/599 tests, typecheck, build, and audit (2026-10-31, on Node.js 20.18.0). |
-| Version control | Phase 1 merged into `main` through PR #1 (`b89ed23`); Module D merged through PR #4. Modules A–C, their integration, and the Phase 3 and 4 work are on `feature/phase4-translation`, pending review. `main` is the official base; `feature/project-foundation` (`4219a21`) is obsolete. |
+| Checks | Phase 1: 63/63 tests, typecheck, and build on `main` after the merge. `main` after PR #2: 599/599 tests, typecheck, build, and audit (2026-10-31, on Node.js 20.18.0). |
+| Version control | Development continues in `AxelOrtegaCota/Raidsphere-v2`, a copy of `Articnn/Raidsphere`. Its PR #2 (`852e4e2`) brought Phases 2, 3, and 4 into `main`. `feature/project-foundation` (`4219a21`) is obsolete. |
 
 This status is based on local verification, Git history, [Phase 1 decisions](phase-1-decisions.md), and [Phase 2 backend decisions](phase-2-backend-decisions.md). Real raids, real chat, AI translation, and persistence are not implemented yet; Twitch OAuth and Helix reads exist on `railway` but are not connected to the roulette.
 
@@ -24,7 +24,7 @@ Phase 2 backend decisions are recorded in [Phase 2 backend decisions](phase-2-ba
 | --- | --- | --- |
 | Phase 0 — Definition | Proposal, MVP scope, modules A/B/C/D, architecture, and collaboration. | Essentially complete |
 | Phase 1 — Foundation | Workspaces, contracts, minimal backend, static overlay, tests, and verification. | Complete; merged into `main` |
-| Phase 2 — Local MVP | End-to-end roulette with synthetic channels, 30 s voting, selection, and a synchronized globe. | Code complete and verified (browser and OBS); pending review and merge into `main` |
+| Phase 2 — Local MVP | End-to-end roulette with synthetic channels, 30 s voting, selection, and a synchronized globe. | Merged into `main`; OBS check pending after the bubble queue changes |
 | Phase 3 — Real Twitch | OAuth, EventSub/chat, commands, eligibility, raid requests, and observed arrivals. | In progress on `railway`: OAuth and Helix discovery work; EventSub and real raids are not connected |
 | Phase 4 — AI translation | Bilingual messages, emote preservation, moderation, and the 15-minute window. | Started: translation window, overlay bubbles, chat pipeline, and moderation work in simulation; AI provider, language detection, and real chat pending |
 | Phase 5 — Final integration | QA, OBS performance, security, demo, documentation, and hackathon submission. | Pending |
@@ -93,6 +93,6 @@ Phases 2–5 and the milestone order are a recommended plan, not completed deliv
 ## Next actions
 
 1. **Rotate the Twitch client secret** reported as exposed. A scan of tracked files and Git history found no committed credential, so the exposure happened outside the repository.
-2. **Module owners:** review the Phase 2 changes to files outside their module and merge Phase 2 into `main` through a pull request from `feature/phase4-translation`, which also carries the Phase 3 and 4 work.
+2. **Module owners:** review the Phase 2 changes to files outside their module, and repeat the OBS check, including reconnection after a refresh.
 3. **Modules B and D:** connect Phase 3 (EventSub chat, Helix candidates, real raids, `channel.raid` arrivals) through the existing ports in `server/src/application/ports.ts`.
 4. **Module C:** choose the AI provider and model, then build Phase 4 modules 1 and 2.
