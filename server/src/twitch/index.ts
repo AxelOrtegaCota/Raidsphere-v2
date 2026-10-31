@@ -68,13 +68,22 @@ export {
   parseChatCommand,
   type EventSubClient,
   type EventSubClientOptions,
-  type EventSubSubscription,
-  type EventSubMessage,
+  type EventSubEnvelope,
+  type EventSubNotification,
+  type EventSubStatus,
   type RaidEvent,
   type ChannelChatMessageEvent,
+  type ChatMessageDeleteEvent,
+  type ChatClearEvent,
+  type ChatClearUserEvent,
   type DetectedRaid,
   type DetectedCommand,
 } from './eventsub.js';
+export {
+  createSessionTokenProvider,
+  type AccessTokenProvider,
+  type SessionTokenProviderDependencies,
+} from './session-tokens.js';
 
 // ============================================================================
 // Phase 3: Sessions

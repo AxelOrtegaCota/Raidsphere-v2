@@ -25,7 +25,7 @@
 |------|-------|--------|-------------|
 | `oauth.ts` | 590 | ✅ Working E2E | Login, tokens, refresh, revoke |
 | `helix.ts` | — | ✅ Tested reads | Streams, users/avatars, channels, categories, language/game filters |
-| `eventsub.ts` | 406 | ⚠️ Code exists | WebSocket EventSub — NOT CONNECTED |
+| `eventsub.ts` | 539 | ⚠️ Tested, not wired | WebSocket client over `ws`: reconnection, subscriptions, validated events. Not started by the server yet |
 | `raids.ts` | 394 | ⚠️ Code exists | Raid gateway — SIMULATED |
 | `commands.ts` | 220 | ⚠️ Code exists | Parser `!roulette`, `!vote`, `!cancel` |
 | `candidates.ts` | 154 | ⚠️ Code exists | Channel discovery — SYNTHETIC DATA |
@@ -71,7 +71,7 @@
 ### Module B — Real Twitch Connection
 | Component | Status | Priority |
 |-----------|--------|----------|
-| EventSub WebSocket activation | ❌ Not connected | HIGH |
+| EventSub WebSocket activation | ⚠️ Client tested against a local WebSocket server; not started by the server and not tried against Twitch | HIGH |
 | Real chat message reception | ❌ Not connected | HIGH |
 | Real raid execution | ❌ Disabled | HIGH |
 | Integration with roulette coordinator | ⚠️ Simulated parser and raid gateway wired through adapters; real Twitch not wired | HIGH |
@@ -116,14 +116,16 @@
 
 Implementation and API details: `docs/raid-candidate-discovery.md`.
 
-### 4. EventSub (Code exists, not connected)
+### 4. EventSub (Client tested, not connected)
 ```
 EventSub requires:
 1. Active WebSocket connection to wss://eventsub.wss.twitch.tv/ws
 2. Subscription creation via Helix API
 3. The server must handle incoming events
 
-Currently: Code exists in server/src/twitch/eventsub.ts but is not activated
+Currently: server/src/twitch/eventsub.ts has passing tests against a local WebSocket server, but the
+server does not start it. Module 4 adapts its events to the application ports. Reading the chat of a
+raided channel with the broadcaster's token is not confirmed yet and needs a live test.
 ```
 
 ### 5. Raids (Code exists, disabled)

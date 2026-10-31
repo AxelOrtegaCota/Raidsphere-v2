@@ -34,7 +34,7 @@ Included source:
 
 The earlier F1–F5 static-review corrections are covered by passing regression tests. Verification added dependency corrections (a `light-my-request` override, Vitest 4, Zod 4), a typed Fastify error handler, and three overlay rendering fixes.
 
-Pending functionality includes EventSub chat and moderation events, real candidate discovery for the roulette, real raid execution/cancellation/arrival, an AI translation provider, language detection, broadcaster control over the network, and persistence. SQLite remains the future persistence target; Phase 1 does not install, configure, or open it.
+The EventSub client is tested against a local WebSocket server, but the server does not start it yet. Pending functionality includes connecting EventSub chat and moderation events, real candidate discovery for the roulette, real raid execution/cancellation/arrival, an AI translation provider, language detection, broadcaster control over the network, and persistence. SQLite remains the future persistence target; Phase 1 does not install, configure, or open it.
 
 ## Architecture and ownership
 
@@ -71,7 +71,7 @@ npm run build
 
 Installation disables dependency lifecycle scripts; none was required. A dependency requiring a script needs separate review and approval. No automated fix or dependency upgrade is implied.
 
-Verified results: type checking passes, 600 of 600 tests pass, the build succeeds, and `npm audit` reports 0 vulnerabilities (2026-10-31, `main`, on Node.js 20.18.0 and npm 10.8.2). Vite warns that the overlay bundle exceeds 500 kB, mostly because of three.js; this is expected for now.
+Verified results: type checking passes, 618 of 618 tests pass, the build succeeds, and `npm audit` reports 0 vulnerabilities (2026-10-31, `feature/eventsub-client`, on Node.js 20.18.0 and npm 10.8.2). Vite warns that the overlay bundle exceeds 500 kB, mostly because of three.js; this is expected for now.
 
 The root scripts build shared exports before consumers. `npm run typecheck` therefore also writes shared declarations/JavaScript to `shared/dist/`, then checks all workspace source, shared/backend tests, and Vite configuration. Test/tooling configurations use `noEmit`; production builds continue excluding tests.
 
