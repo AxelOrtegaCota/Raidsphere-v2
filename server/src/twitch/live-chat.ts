@@ -107,6 +107,11 @@ export class LiveChat {
     return client.isWatchingChat(channelId) ? 'ready' : 'connecting';
   }
 
+  // Channels whose chat is confirmed, so translation can work there.
+  readyChannels(): string[] {
+    return [...this.#clients.keys()].filter((channelId) => this.state(channelId) === 'ready');
+  }
+
   close(): void {
     for (const client of this.#clients.values()) client.stop();
     this.#clients.clear();

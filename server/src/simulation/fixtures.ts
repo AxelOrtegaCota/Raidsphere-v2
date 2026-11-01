@@ -1,4 +1,5 @@
-import type { IllustrativeCountry, LanguageCode, Streamer } from '@raidsphere/shared';
+import type { LanguageCode, Streamer } from '@raidsphere/shared';
+import { COUNTRY_BY_LANGUAGE } from '../application/illustrative-country.js';
 import type { CandidateSource, LiveChannel } from '../application/ports.js';
 
 // Synthetic demo channels (D2-12). They are not real Twitch accounts and must never be
@@ -7,10 +8,6 @@ import type { CandidateSource, LiveChannel } from '../application/ports.js';
 export const SYNTHETIC_PREFIX = 'rsdemo_';
 // The demo source channel; its preferences keep its eligible pool small (D2-16).
 export const DEMO_SOURCE_ID = 'rsdemo_es_01';
-
-const COUNTRY_BY_LANGUAGE: Record<LanguageCode, IllustrativeCountry> = {
-  en: 'US', es: 'MX', pt: 'BR', fr: 'FR', de: 'DE', ja: 'JP', ko: 'KR',
-};
 
 // [language, number, current viewers, min viewers, max viewers, accepts other languages]
 type ChannelSpec = readonly [LanguageCode, number, number, number, number, boolean];

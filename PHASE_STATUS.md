@@ -30,6 +30,7 @@
 | `raids.ts` | 394 | ⚠️ Code exists | Raid gateway — SIMULATED |
 | `commands.ts` | 220 | ⚠️ Code exists | Parser `!roulette`, `!vote`, `!cancel` |
 | `candidates.ts` | 154 | ⚠️ Code exists | Channel discovery — SYNTHETIC DATA |
+| `registered-candidates.ts` | — | ⚠️ Tested, off by default | Live channels connected to RaidSphere, read from Helix; not tried against Twitch |
 | `sessions.ts` | 157 | ✅ Working | Session store (in-memory only) |
 
 #### Module C — Translation (1,164 lines)
@@ -128,8 +129,9 @@ Currently: set TWITCH_EVENTSUB_ENABLED=true and log in again. Each logged-in str
 chat with their own token, and the dashboard shows when chat is ready. Sessions live in memory, so a
 server restart needs a new login. On 2026-10-31, on Railway, the broadcaster account ran !roulette,
 !vote, and !cancel from real Twitch chat. Viewer and moderator accounts were not tried. Until real
-raids and candidates are connected, !roulette runs on synthetic candidates and simulated raids, so a translation window never
-opens on a real channel.
+raids and candidates are connected, !roulette runs on simulated raids. With TWITCH_REAL_CANDIDATES_ENABLED=true as well,
+candidates are the other channels connected to RaidSphere that are live, synthetic channels leave
+the pool, and a simulated raid can open a translation window on a real destination.
 ```
 
 ### 5. Raids (Code exists, disabled)

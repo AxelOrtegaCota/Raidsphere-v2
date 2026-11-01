@@ -10,6 +10,7 @@ async function start(): Promise<void> {
     reportError: (message) => console.error(message),
     overlayRoot,
     ...(process.env.TWITCH_EVENTSUB_ENABLED === 'true' ? { liveChat: {} } : {}),
+    ...(process.env.TWITCH_REAL_CANDIDATES_ENABLED === 'true' ? { realCandidates: {} } : {}),
   });
   const shutdown = async (): Promise<void> => {
     await app.close();

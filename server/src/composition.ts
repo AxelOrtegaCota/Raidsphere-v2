@@ -2,6 +2,7 @@ import { createApp } from './app.js';
 import type { AppDependencies } from './app.js';
 import { ChatTranslationPipeline } from './application/chat-translation.js';
 import type { ChatTranslationLimits } from './application/chat-translation.js';
+import type { CandidateSource } from './application/ports.js';
 import { eligibleChannels } from './application/eligibility.js';
 import { EventPublisher } from './application/publisher.js';
 import { RouletteCoordinator } from './application/roulette.js';
@@ -16,6 +17,8 @@ import { MockTranslationProvider } from './translation/mock-provider.js';
 import { RaidGatewayAdapter } from './twitch/adapters.js';
 import { LiveChat } from './twitch/live-chat.js';
 import type { LiveChatOptions } from './twitch/live-chat.js';
+import { RegisteredCandidateSource } from './twitch/registered-candidates.js';
+import type { RegisteredCandidateOptions } from './twitch/registered-candidates.js';
 import { SimulatedRaidGateway } from './twitch/raids.js';
 import type { SimulationConfig } from './twitch/raids.js';
 import { ViewingCredentials } from './viewing/credentials.js';
@@ -27,6 +30,7 @@ import type { ViewingLimits } from './websocket.js';
 // Raids use the Module B simulated gateway through its adapter to the raid port, and chat
 // translation uses the Module C service with its simulated provider (Phase 4, module 4).
 // Real Twitch chat is opt-in: without liveChat, no EventSub connection ever opens.
+// Real candidates need it too, and they replace synthetic channels instead of joining them.
 
 export interface RuntimeOptions {
   // Receives fixed, content-free messages only.
@@ -37,6 +41,7 @@ export interface RuntimeOptions {
   viewingLimits?: Partial<ViewingLimits>;
   overlayRoot?: string;
   liveChat?: LiveChatOptions;
+  realCandidates?: RegisteredCandidateOptions;
 }
 
 export function createRuntime(options: RuntimeOptions) {
@@ -50,10 +55,16 @@ export function createRuntime(options: RuntimeOptions) {
     gateway: raidGateway, streamers, onArrival: (arrival) => coordinator?.handleArrival(arrival),
   });
   let chatMessages: ChatTranslationPipeline | null = null;
+  const candidates: CandidateSource = options.liveChat && options.realCandidates
+    ? new RegisteredCandidateSource({
+      ...options.realCandidates, streamers, reportError: options.reportError,
+      connectedChannels: (): readonly string[] => liveChat?.readyChannels() ?? [],
+    })
+    : syntheticCandidateSource;
   const rouletteCoordinator = new RouletteCoordinator({
     clock: systemClock, scheduler: timerScheduler, random: cryptoRandom,
     streamers, sessions: new InMemoryRouletteRepository(),
-    candidates: syntheticCandidateSource, raids, publisher,
+    candidates, raids, publisher,
     onError: () => options.reportError('A roulette task failed.'),
     onTranslationWindow: (window) => chatMessages?.handleWindow(window),
     ...(options.roulette ? { config: options.roulette } : {}),
@@ -66,7 +77,7 @@ export function createRuntime(options: RuntimeOptions) {
     ...(options.chatTranslationLimits ? { limits: options.chatTranslationLimits } : {}),
   });
   chatMessages = chatPipeline;
-  const liveChat = options.liveChat
+  const liveChat: LiveChat | null = options.liveChat
     ? new LiveChat({
       ...options.liveChat, streamers, commands: rouletteCoordinator, chat: chatPipeline, reportError: options.reportError,
     })
