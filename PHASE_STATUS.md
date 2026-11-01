@@ -196,7 +196,7 @@ curl https://raidsphere.up.railway.app/health
 
 ## 📝 Notes
 
-1. **Client Secret was exposed** — Must rotate in Twitch Developer Console before production
+1. **Client Secret was shared with a teammate's AI assistant** — It was not published. Not rotated yet; rotate it in the Twitch Developer Console before production
 2. **Sessions are in-memory** — Lost on every Railway deploy/restart
 3. **`main` holds the current work** — Phase 1, Phase 2, and the Phase 3 and 4 work reached it through PR #2 of `AxelOrtegaCota/Raidsphere-v2`
 4. **Mode is `simulation`** — Real raids are disabled for safety

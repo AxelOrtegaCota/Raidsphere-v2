@@ -73,7 +73,7 @@ Phases 2–5 and the milestone order are a recommended plan, not completed deliv
 | High | Mistaking the simulated Phase 2 flow for real Twitch behavior. | Report implemented and verified work separately; Twitch, real raids, and translation do not exist yet, and simulated timings must be recalibrated against Twitch in Phase 3. |
 | High | Using outdated Twitch scopes or permissions. | Validate them before integrating OAuth or starting raids; limit to authorized participating channels. |
 | Medium | Branching from the obsolete `feature/project-foundation` (`4219a21`). | Always branch from the latest `main`; that branch lacks V1–V7 and the lockfile. |
-| High | The `railway` status report says the Twitch client secret was exposed. | Rotate it in the Twitch developer console before any further use; never commit, log, or paste secrets. |
+| Medium | The Twitch client secret was shared with a teammate's AI assistant. It was not published, and it has not been rotated. | Rotate it in the Twitch developer console before production; never commit, log, or paste secrets, including into AI tools. |
 | Medium | ~2 MB overlay bundle and a low-contrast purple halo. | Code splitting and visual tuning in Module A. |
 | Resolved | `railway` relaxed `exactOptionalPropertyTypes` for the server and printed viewing-credential URLs to the server log, which a hosted deployment keeps. | Fixed on `feature/batch_resolve`: the strict setting is restored, and URLs are printed only on a loopback binding. |
 | Medium | npm over HTTPS failed in one environment. | It worked in the verification environment; never disable TLS or certificates. |
@@ -92,7 +92,7 @@ Phases 2–5 and the milestone order are a recommended plan, not completed deliv
 
 ## Next actions
 
-1. **Rotate the Twitch client secret** reported as exposed. A scan of tracked files and Git history found no committed credential, so the exposure happened outside the repository.
+1. **Rotate the Twitch client secret**, which was shared with a teammate's AI assistant. A scan of tracked files and Git history found no committed credential.
 2. **Phase 5 follow-ups from Phase 2:** repeat the OBS check, including the bubble queue and reconnection after a refresh, and have module owners review the changes outside their modules.
 3. **Modules B and D:** connect Phase 3 (EventSub chat, Helix candidates, real raids, `channel.raid` arrivals) through the existing ports in `server/src/application/ports.ts`.
 4. **Module C:** once real chat reaches a translation window, calibrate the detection threshold and the slang list.
