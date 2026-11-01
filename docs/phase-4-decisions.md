@@ -10,5 +10,6 @@
   - A result below the 0.8 score, or outside `en, es, pt, fr, de, ja, ko`, is unknown: the bubble is unavailable and the original shows alone.
   - A message already in the target language is not translated.
   - Emotes and other protected fragments travel inside `notranslate` spans and are verified on return.
-- **Limitations:** The 0.8 threshold and the slang list are not calibrated on real chat; extend the list from observed misses, never from logged chat. Very short messages ("ok", "si") usually end as unknown. Whether detection calls count toward the free characters is unverified. The key is server-only and never logged.
-- **Status:** Code exists (`server/src/translation/azure.ts`, `server/src/translation/emotes.ts`); not yet verified against Azure.
+  - Twitch terms (`chat`, `raid`, `raider`, `stream`, `streamer`, `sub`, and plurals) are kept untranslated in Azure requests, so French "chat" is not translated as "cat". The simulated provider and detection are unaffected.
+- **Limitations:** The 0.8 threshold and the slang list are not calibrated on real chat; extend the list from observed misses, never from logged chat. Short or slang-heavy messages can end as unknown: in the Azure check below, "boa live, galera PogChamp" did. Whether detection calls count toward the free characters is unverified. The key is server-only and never logged.
+- **Status:** Verified against a real F0 resource (`eastus`) on 2026-10-31 with seven synthetic phrases: detection of `en`, `es`, `fr`, `ja`, and `ko`; translation; `Kappa` preserved through `notranslate`; "gg" left unknown. That check ran before the Twitch-term glossary was added, so the glossary is covered by automated tests only. Not yet verified with real Twitch chat.

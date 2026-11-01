@@ -43,6 +43,17 @@ describe('Azure translator provider', () => {
     expect(call?.text).toMatch(/^hello &lt;b&gt; <span class="notranslate">__RAIDSPHERE_0_EMOTE_0__<\/span>$/);
   });
 
+  it('keeps Twitch terms untranslated as whole words only', async () => {
+    const azure = fakeAzure(swapHello);
+    const response = await new AzureTranslator({ key: FAKE_KEY, fetch: azure.fetch }).translate(request('hello Chat, thanks for the raid'));
+    expect(response).toMatchObject({ success: true, result: { translatedText: 'hola Chat, thanks for the raid' } });
+    expect(azure.calls[0]?.text).toBe(
+      'hello <span class="notranslate">Chat</span>, thanks for the <span class="notranslate">raid</span>',
+    );
+    await new AzureTranslator({ key: FAKE_KEY, fetch: azure.fetch }).translate(request('hello chatting substance'));
+    expect(azure.calls[1]?.text).toBe('hello chatting substance');
+  });
+
   it('omits the region header for a global resource', async () => {
     const azure = fakeAzure(swapHello);
     await new AzureTranslator({ key: FAKE_KEY, fetch: azure.fetch }).translate(request('hello'));

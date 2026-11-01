@@ -170,10 +170,14 @@ export function toLanguageCode(azureCode: string): LanguageCode | null {
   return parsed.success ? parsed.data : null;
 }
 
-// Placeholders sit inside notranslate spans; all other text is escaped, so chat cannot inject markup.
+// Twitch terms viewers use as-is in every language; without this, French "chat" becomes "cat".
+const TWITCH_TERMS_PATTERN = /(?<![\p{L}\p{N}_])(?:chats?|raids?|raiders?|streams?|streamers?|subs?)(?![\p{L}\p{N}_])/giu;
+
+// Placeholders and Twitch terms sit inside notranslate spans; all other text is escaped, so chat
+// cannot inject markup. Terms are letters only, so wrapping them after escaping stays safe.
 export function toProtectedHtml(fragmented: FragmentedMessage): string {
   return fragmented.fragments.map((fragment) => fragment.placeholder === undefined
-    ? escapeHtml(fragment.value)
+    ? escapeHtml(fragment.value).replace(TWITCH_TERMS_PATTERN, '<span class="notranslate">$&</span>')
     : `<span class="notranslate">${fragment.placeholder}</span>`).join('');
 }
 

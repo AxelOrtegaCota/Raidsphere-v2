@@ -14,7 +14,7 @@ As of 2026-10-31. Phases 1 and 2 are complete and merged into `main`, and the ap
 | Checks | Phase 1: 63/63 tests, typecheck, and build on `main` after the merge. `main` after PR #2: 599/599 tests, typecheck, build, and audit (2026-10-31, on Node.js 20.18.0). |
 | Version control | Development continues in `AxelOrtegaCota/Raidsphere-v2`, a copy of `Articnn/Raidsphere`. Its PR #2 (`852e4e2`) brought Phases 2, 3, and 4 into `main`. `feature/project-foundation` (`4219a21`) is obsolete. |
 
-This status is based on local verification, Git history, [Phase 1 decisions](phase-1-decisions.md), and [Phase 2 backend decisions](phase-2-backend-decisions.md). Real raids, real chat, AI translation, and persistence are not implemented yet; Twitch OAuth and Helix reads exist on `railway` but are not connected to the roulette.
+This status is based on local verification, Git history, [Phase 1 decisions](phase-1-decisions.md), and [Phase 2 backend decisions](phase-2-backend-decisions.md). Real raids and persistence are not implemented yet, and translation reaches real chat only after Phase 3 opens real translation windows; Azure translation runs when `AZURE_TRANSLATOR_KEY` is set; Twitch OAuth and Helix reads exist on `railway` but are not connected to the roulette.
 
 Phase 2 backend decisions are recorded in [Phase 2 backend decisions](phase-2-backend-decisions.md), and their build order and progress in the [Phase 2 backend plan](phase-2-backend-plan.md).
 
@@ -26,7 +26,7 @@ Phase 2 backend decisions are recorded in [Phase 2 backend decisions](phase-2-ba
 | Phase 1 — Foundation | Workspaces, contracts, minimal backend, static overlay, tests, and verification. | Complete; merged into `main` |
 | Phase 2 — Local MVP | End-to-end roulette with synthetic channels, 30 s voting, selection, and a synchronized globe. | Complete; merged into `main` (PRs #2 and #3 of `Raidsphere-v2`) |
 | Phase 3 — Real Twitch | OAuth, EventSub/chat, commands, eligibility, raid requests, and observed arrivals. | In progress: OAuth and Helix discovery work; EventSub chat is wired behind `TWITCH_EVENTSUB_ENABLED`, and broadcaster commands worked against Twitch; real raids are not connected |
-| Phase 4 — AI translation | Bilingual messages, emote preservation, moderation, and the 15-minute window. | Started: translation window, overlay bubbles, chat pipeline, and moderation work in simulation; AI provider, language detection, and real chat pending |
+| Phase 4 — AI translation | Bilingual messages, emote preservation, moderation, and the 15-minute window. | Started: translation window, overlay bubbles, chat pipeline, and moderation work in simulation; Azure translation and language detection verified with synthetic phrases; real chat pending (Phase 3) |
 | Phase 5 — Final integration | QA, OBS performance, security, demo, documentation, and hackathon submission. | Pending |
 
 ## Phase 1 close-out
@@ -83,8 +83,8 @@ Phases 2–5 and the milestone order are a recommended plan, not completed deliv
 
 | # | Module | Status |
 | --- | --- | --- |
-| 1 | AI provider (server-only key, timeout, validated output, prompt-injection resistance) | Code exists: Azure AI Translator ([D4-01](phase-4-decisions.md)); not yet verified against Azure |
-| 2 | Language detection (unknown when unsure; never assume English) | Code exists: Azure detection with a score threshold and a chat slang filter ([D4-01](phase-4-decisions.md)); not yet verified against Azure |
+| 1 | AI provider (server-only key, timeout, validated output, prompt-injection resistance) | Done: Azure AI Translator ([D4-01](phase-4-decisions.md)), verified against a real F0 resource with synthetic phrases; real Twitch chat pending (Phase 3) |
+| 2 | Language detection (unknown when unsure; never assume English) | Done: Azure detection with a score threshold and a chat slang filter ([D4-01](phase-4-decisions.md)), verified against Azure with synthetic phrases; threshold not calibrated on real chat |
 | 3 | 15-minute translation window, opened only by a confirmed arrival | Done (`5a2deed`) |
 | 4 | Chat pipeline: message → filters and limits → translation → `translate:bubble`, with a last check before publishing | Done in simulation with simulated chat and the mock provider; connecting EventSub is pending (Phase 3) |
 | 5 | Moderation: deleted messages, bans and timeouts, chat clears, with a memory so late or early events cannot show a moderated message | Done in simulation; subscribing to the real EventSub moderation events is pending (Phase 3) |
@@ -95,4 +95,4 @@ Phases 2–5 and the milestone order are a recommended plan, not completed deliv
 1. **Rotate the Twitch client secret** reported as exposed. A scan of tracked files and Git history found no committed credential, so the exposure happened outside the repository.
 2. **Phase 5 follow-ups from Phase 2:** repeat the OBS check, including the bubble queue and reconnection after a refresh, and have module owners review the changes outside their modules.
 3. **Modules B and D:** connect Phase 3 (EventSub chat, Helix candidates, real raids, `channel.raid` arrivals) through the existing ports in `server/src/application/ports.ts`.
-4. **Module C:** verify the Azure provider against a real F0 resource and calibrate the detection threshold.
+4. **Module C:** once real chat reaches a translation window, calibrate the detection threshold and the slang list.
