@@ -76,7 +76,7 @@ All of this runs on simulated chat and the mock provider; real chat needs Phase 
 - [x] `npm run demo:auto` exits on its own again: the OAuth session store's hourly cleanup timer (from `railway`) kept the process alive after "Demo stopped."; it is now unreferenced (`server/test/sessions.test.ts`). Checked end to end on 2026-10-30 through the Vite proxy with source, destination, and uninvolved overlay connections.
 - [x] Stopping the server with overlays connected now disconnects them at once, so they show "Connection lost" and retry. Before, viewers were closed in Fastify's `onClose` hook, which only runs after every connection has ended, so the server waited forever and overlays stayed "Live". Viewers now close in `preClose` (`server/test/websocket.test.ts`, confirmed by a mutation check).
 - [x] Secret scan of tracked files and Git history: no credential found; `.env` is ignored and was never committed.
-- [ ] Rotate the Twitch client secret reported as exposed (Twitch developer console; owner action).
+- [ ] Rotate the Twitch client secret, which was shared with a teammate's AI assistant (Twitch developer console; owner action).
 - [ ] Moved to Phase 5: review by the module owners of the files changed outside their own module (`roulette.ts`, `memory.ts`, `view-state.ts`, `main.ts`, `index.html`, `styles.css`, `composition.ts`, `demo.ts`).
 - [x] Merge into `main` (PR #2, `852e4e2`), together with the Phase 3 and 4 work.
 - [x] Re-run type checking, tests, build, and audit on `main` after the merge: 599/599 tests on Node.js 20.18.0 and npm 10.8.2, audit 0 vulnerabilities (`6e27b5b`).
