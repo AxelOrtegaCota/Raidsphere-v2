@@ -59,6 +59,12 @@ export interface TranslationProvider {
   isHealthy(): Promise<boolean>;
 }
 
+export interface LanguageDetector {
+  // Resolves to null when unsure or outside the supported set; it never guesses.
+  // Rejects when the detection itself failed.
+  detect(text: string): Promise<LanguageCode | null>;
+}
+
 export const translationRequestSchema = z.object({
   text: z.string().min(1).max(2000),
   sourceLanguage: languageCodeSchema,

@@ -57,6 +57,10 @@ Read [AGENTS.md](AGENTS.md) for engineering and authorization rules and [Phase 1
 - `.nvmrc` records that Node version; do not upgrade runtimes automatically.
 - No Twitch account, AI credential, environment file, or database is needed for the foundation checks.
 
+## Real translation (optional)
+
+Set `AZURE_TRANSLATOR_KEY` (and `AZURE_TRANSLATOR_REGION` for a regional resource) in the server environment to translate with Azure AI Translator; the free F0 tier gives 2 million characters a month. Without a key, translation stays simulated. Never commit the key.
+
 ## Setup and verification
 
 Run from the repository root:

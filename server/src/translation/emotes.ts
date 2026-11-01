@@ -19,7 +19,17 @@ const COMMON_WORDS = new Set([
   'The', 'This', 'That', 'What', 'When', 'Where', 'How', 'Why',
   'Hello', 'Thanks', 'Please', 'Welcome', 'Good', 'Great',
 ]);
-const EMOTE_LIKE_PATTERN = /\b[A-Z][a-zA-Z0-9]*(?:[A-Z][a-zA-Z0-9]*)+\b/g;
+// Slang, laughter, and keyboard smashes with nothing to translate, matched as whole words in any case.
+// Laughter accepts any mix of its letters ("jajajjjaja"); a 5+ letter word without vowels is a smash.
+// shortcut: hand-picked from common Twitch chat, not measured on real chat; extend from observed misses.
+const CHAT_SLANG = [
+  'g+g+', 'e+z+', 'wp', 'l+o+l+', 'lmf?a+o+', 'omg', 'wtf', 'x+d+', 'kekw?', 'pog(?:gers)?',
+  '[ja]{4,}', '[je]{4,}', '[js]{4,}', '[jas]{5,}', '[ha]{4,}', '[he]{4,}', '[rs]{4,}', 'k{3,}', 'w{3,}',
+  '[ㅋㅎㅠㅜ]{2,}', 'p?tdr', 'mdr',
+  '[b-df-hj-np-tv-xz]{5,}', 'asdf\\p{L}*', 'qwer\\p{L}*', 'zxcv\\p{L}*',
+];
+const CHAT_SLANG_PATTERN = new RegExp('(?<![\\p{L}\\p{N}_])(?:' + CHAT_SLANG.join('|') + ')(?![\\p{L}\\p{N}_])', 'giu');
+const EMOTE_LIKE_PATTERN =/\b[A-Z][a-zA-Z0-9]*(?:[A-Z][a-zA-Z0-9]*)+\b/g;
 const PLACEHOLDER_PREFIX = '__RAIDSPHERE_';
 const PLACEHOLDER_PATTERN = /__RAIDSPHERE_[0-9]+_[A-Z]+_[0-9]+__/g;
 const sourceFragmentsSchema = z.array(chatFragmentSchema).min(1).max(100);
@@ -155,6 +165,7 @@ function findProtectedSpans(text: string, channelEmotes: string[]): ProtectedSpa
   if (words.length > 0) {
     match(new RegExp('(?<![\\p{L}\\p{N}_])(?:' + words.join('|') + ')(?![\\p{L}\\p{N}_])', 'gu'), 'emote');
   }
+  match(CHAT_SLANG_PATTERN, 'emote');
   for (const value of text.matchAll(EMOTE_LIKE_PATTERN)) {
     if (value.index !== undefined && !COMMON_WORDS.has(value[0])) {
       add(value.index, value.index + value[0].length, 'emote');
