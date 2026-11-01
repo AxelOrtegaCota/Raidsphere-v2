@@ -15,6 +15,9 @@ const HELIX_BASE_URL = 'https://api.twitch.tv/helix';
 
 // Rate limit retry configuration
 const MAX_RETRIES = 3;
+// Raid calls go out once: a delayed retry could act after the outcome was already reported.
+const RAID_ATTEMPTS = 1;
+const RAID_REQUEST_TIMEOUT_MS = 8_000;
 const RATE_LIMIT_STATUS = 429;
 
 // ============================================================================
@@ -261,12 +264,13 @@ async function helixFetch<T>(
   url: string,
   config: HelixRequestConfig,
   options: RequestInit = {},
-  schema: z.ZodType<T>
+  schema: z.ZodType<T>,
+  maxAttempts: number = MAX_RETRIES
 ): Promise<T> {
   const headers = buildHeaders(config);
   let lastError: Error | null = null;
 
-  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const response = await fetch(url, {
       ...options,
       headers: { ...headers, ...options.headers as Record<string, string> | undefined },
@@ -274,7 +278,7 @@ async function helixFetch<T>(
 
     if (response.status === RATE_LIMIT_STATUS) {
       const retryAfterMs = extractRetryAfterMs(response);
-      if (attempt < MAX_RETRIES - 1) {
+      if (attempt < maxAttempts - 1) {
         await sleep(retryAfterMs);
         continue;
       }
@@ -416,7 +420,9 @@ export async function startRaid(
   });
   const url = `${HELIX_BASE_URL}/raids?${params.toString()}`;
 
-  const response = await helixFetch(url, config, { method: 'POST' }, startRaidResponseSchema);
+  const response = await helixFetch(
+    url, config, { method: 'POST', signal: AbortSignal.timeout(RAID_REQUEST_TIMEOUT_MS) }, startRaidResponseSchema, RAID_ATTEMPTS
+  );
 
   const data = response.data[0];
   if (!data) {
@@ -446,7 +452,9 @@ export async function cancelRaid(
 
   // DELETE /raids returns 204 No Content on success
   const emptyResponseSchema = z.object({}).passthrough();
-  await helixFetch(url, config, { method: 'DELETE' }, emptyResponseSchema);
+  await helixFetch(
+    url, config, { method: 'DELETE', signal: AbortSignal.timeout(RAID_REQUEST_TIMEOUT_MS) }, emptyResponseSchema, RAID_ATTEMPTS
+  );
 }
 
 /**

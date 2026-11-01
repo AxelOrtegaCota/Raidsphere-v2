@@ -15,7 +15,7 @@ describe('server boundaries', () => {
       const response = await app.inject({ method: 'GET', url: '/health' });
       expect(response.statusCode).toBe(200);
       expect(response.json()).toEqual({
-        application: 'RaidSphere', status: 'ok', protocolVersion: 1, mode: 'simulation',
+        application: 'RaidSphere', status: 'ok', protocolVersion: 1, mode: 'simulation', translation: 'simulated',
         capabilities: { channelSubscriptions: true, controlCommands: false },
       });
       expect(response.headers['cache-control']).toBe('no-store');

@@ -28,6 +28,7 @@
 | `eventsub.ts` | 445 | ⚠️ Tested, off by default | WebSocket client over `ws`: reconnection, subscriptions, validated events |
 | `live-chat.ts` | — | ⚠️ Tested, off by default | One connection per logged-in channel; routes chat, commands, moderation, and raids to the application ports |
 | `raids.ts` | 394 | ⚠️ Code exists | Raid gateway — SIMULATED |
+| `real-raid-gateway.ts` | — | ⚠️ Tested, off by default | Real raids through Helix; not tried against Twitch |
 | `commands.ts` | 220 | ⚠️ Code exists | Parser `!roulette`, `!vote`, `!cancel` |
 | `candidates.ts` | 154 | ⚠️ Code exists | Channel discovery — SYNTHETIC DATA |
 | `registered-candidates.ts` | — | ⚠️ Tested, off by default | Live channels connected to RaidSphere, read from Helix; not tried against Twitch |
@@ -75,7 +76,7 @@
 |-----------|--------|----------|
 | EventSub WebSocket activation | ⚠️ Opt-in with `TWITCH_EVENTSUB_ENABLED=true`; worked against Twitch on 2026-10-31 | HIGH |
 | Real chat message reception | ⚠️ `!roulette`, `!vote`, and `!cancel` worked from the broadcaster account; other roles, real chat translation, and real moderation are not tried yet | HIGH |
-| Real raid execution | ❌ Disabled | HIGH |
+| Real raid execution | ⚠️ Opt-in with `TWITCH_REAL_RAIDS_ENABLED=true`, which also needs real chat and real candidates; tested locally, not tried against Twitch | HIGH |
 | Integration with roulette coordinator | ⚠️ Simulated parser and raid gateway wired through adapters; real Twitch not wired | HIGH |
 
 ### Module C — Real Translation
@@ -132,6 +133,8 @@ server restart needs a new login. On 2026-10-31, on Railway, the broadcaster acc
 raids and candidates are connected, !roulette runs on simulated raids. With TWITCH_REAL_CANDIDATES_ENABLED=true as well,
 candidates are the other channels connected to RaidSphere that are live, synthetic channels leave
 the pool, and a simulated raid can open a translation window on a real destination.
+With TWITCH_REAL_RAIDS_ENABLED=true too, raids go to Twitch and move real viewers. Arrival comes only
+from EventSub; without it the session ends as unknown, never as failed or done.
 ```
 
 ### 5. Raids (Code exists, disabled)

@@ -66,11 +66,13 @@ export function needsTick(state: ViewState): boolean {
   return state.roulette?.status === 'voting' || state.roulette?.status === 'raid_pending';
 }
 
-export function describeView(state: ViewState, nowMs: number): { headline: string; detail: string } {
+// Raids count as simulated unless the server positively reports otherwise.
+export function describeView(state: ViewState, nowMs: number, simulated = true): { headline: string; detail: string } {
+  const label = simulated ? ' (simulated)' : '';
   if (state.arrival) {
     return {
       headline: `Raid arrived from ${state.arrival.fromLogin}`,
-      detail: `${state.arrival.viewers} viewers joined (simulated).`,
+      detail: `${state.arrival.viewers} viewers joined${label}.`,
     };
   }
   const roulette = state.roulette;
@@ -86,16 +88,16 @@ export function describeView(state: ViewState, nowMs: number): { headline: strin
     case 'selecting':
       return { headline: 'Selecting a channel', detail: '' };
     case 'chosen':
-      return { headline: `Chosen: ${target?.displayName ?? 'unknown'} (${target?.language ?? '?'})`, detail: 'Requesting the raid (simulated).' };
+      return { headline: `Chosen: ${target?.displayName ?? 'unknown'} (${target?.language ?? '?'})`, detail: `Requesting the raid${label}.` };
     case 'raid_pending':
       return {
         headline: `Raid to ${target?.displayName ?? 'unknown'}`,
         detail: state.raidArrivesAtMs === null
-          ? 'Waiting for the arrival (simulated).'
-          : `Arriving in about ${secondsUntil(state.raidArrivesAtMs, nowMs)} s (simulated).`,
+          ? `Waiting for the arrival${label}.`
+          : `Arriving in about ${secondsUntil(state.raidArrivesAtMs, nowMs)} s${label}.`,
       };
     case 'done':
-      return { headline: `Raid arrived at ${target?.displayName ?? 'the destination'}`, detail: 'Arrival confirmed (simulated).' };
+      return { headline: `Raid arrived at ${target?.displayName ?? 'the destination'}`, detail: `Arrival confirmed${label}.` };
     case 'cancelled':
       return { headline: 'Roulette cancelled', detail: state.notice ?? '' };
     case 'failed':

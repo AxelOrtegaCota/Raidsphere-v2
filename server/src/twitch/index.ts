@@ -91,6 +91,11 @@ export {
   type RegisteredCandidateDependencies,
   type RegisteredCandidateOptions,
 } from './registered-candidates.js';
+export {
+  RealRaidGateway,
+  type RealRaidGatewayDependencies,
+  type RealRaidOptions,
+} from './real-raid-gateway.js';
 
 // ============================================================================
 // Phase 3: Sessions

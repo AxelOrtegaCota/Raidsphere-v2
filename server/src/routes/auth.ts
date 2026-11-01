@@ -43,6 +43,7 @@ export interface AuthRouteDependencies {
   onLogout?: (session: UserSession) => Promise<void>;
   // Left out while real chat is not enabled for this server.
   eventSubState?: (channelId: string) => LiveChatState;
+  realRaids?: boolean;
 }
 
 export function registerAuthRoutes(app: FastifyInstance, dependencies: AuthRouteDependencies): void {
@@ -127,7 +128,7 @@ export function registerAuthRoutes(app: FastifyInstance, dependencies: AuthRoute
     const session = currentSession(request);
     if (!session) return reply.redirect('/auth/twitch');
     reply.header('Cache-Control', 'no-store');
-    return sendHtml(reply, dashboardPage(session, dependencies.eventSubState?.(session.user.id)));
+    return sendHtml(reply, dashboardPage(session, dependencies.eventSubState?.(session.user.id), dependencies.realRaids === true));
   });
 
   app.get('/auth/me', async (request, reply) => {
@@ -145,7 +146,7 @@ export function registerAuthRoutes(app: FastifyInstance, dependencies: AuthRoute
       capabilities: {
         overlay: true,
         eventSub: dependencies.eventSubState?.(session.user.id) === 'ready',
-        realRaids: false,
+        realRaids: dependencies.realRaids === true,
       },
     };
   });
@@ -409,7 +410,12 @@ function eventSubReadiness(state: LiveChatState | undefined): string {
   return '<li data-state="pending"><strong>EventSub chat</strong><span>Connecting to your Twitch chat. Reload this page to check again.</span></li>';
 }
 
-function dashboardPage(session: UserSession, eventSub: LiveChatState | undefined): string {
+function realRaidReadiness(enabled: boolean): string {
+  if (enabled) return '<li data-state="ready"><strong>Real raids</strong><span>Raids are sent to Twitch. !roulette moves real viewers, and !cancel can stop a raid during its countdown.</span></li>';
+  return '<li data-state="pending"><strong>Real raids</strong><span>Permission is granted; live control remains disabled until an explicit activation step.</span></li>';
+}
+
+function dashboardPage(session: UserSession, eventSub: LiveChatState | undefined, realRaids: boolean): string {
   const displayName = escapeHtml(session.user.display_name);
   const login = escapeHtml(session.user.login);
   const channel = encodeURIComponent(session.overlay.channelId);
@@ -438,7 +444,7 @@ function dashboardPage(session: UserSession, eventSub: LiveChatState | undefined
           <li data-state="ready"><strong>Twitch OAuth</strong><span>Authenticated with the required scopes.</span></li>
           <li data-state="ready"><strong>OBS overlay</strong><span>Private URL and secure WebSocket are ready.</span></li>
           ${eventSubReadiness(eventSub)}
-          <li data-state="pending"><strong>Real raids</strong><span>Permission is granted; live control remains disabled until an explicit activation step.</span></li>
+          ${realRaidReadiness(realRaids)}
         </ul>
       </section>
 

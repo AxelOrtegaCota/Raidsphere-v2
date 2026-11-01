@@ -11,6 +11,7 @@ async function start(): Promise<void> {
     overlayRoot,
     ...(process.env.TWITCH_EVENTSUB_ENABLED === 'true' ? { liveChat: {} } : {}),
     ...(process.env.TWITCH_REAL_CANDIDATES_ENABLED === 'true' ? { realCandidates: {} } : {}),
+    ...(process.env.TWITCH_REAL_RAIDS_ENABLED === 'true' ? { realRaids: {} } : {}),
   });
   const shutdown = async (): Promise<void> => {
     await app.close();
