@@ -61,5 +61,6 @@ Focused regression coverage:
 Production limitations remain unchanged:
 
 - OAuth sessions are stored in process memory and are lost on redeploy.
-- Real raid execution is still disabled/simulated.
+- Real raid execution is off by default; `TWITCH_REAL_RAIDS_ENABLED` turns it on (not tried against Twitch yet).
+- The roulette does not use this panel: with `TWITCH_REAL_CANDIDATES_ENABLED`, its candidates are the live channels connected to RaidSphere (`server/src/twitch/registered-candidates.ts`).
 - Language metadata is not geolocation.
