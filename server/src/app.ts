@@ -12,6 +12,8 @@ export interface AppDependencies {
   overlayRoot?: string;
   issueViewingCredential: (channelId: string) => string;
   auth?: Omit<AuthRouteDependencies, 'issueViewingCredential'>;
+  // Live only when raids reach Twitch; translation is reported on its own.
+  mode?: 'simulation' | 'live';
 }
 
 export function createApp(dependencies: AppDependencies) {
@@ -49,8 +51,9 @@ export function createApp(dependencies: AppDependencies) {
       application: 'RaidSphere',
       status: 'ok',
       protocolVersion: PROTOCOL_VERSION,
-      // Phase 2 runs only with synthetic channels and simulated raids (D2-15).
-      mode: 'simulation',
+      mode: dependencies.mode ?? 'simulation',
+      // Only the mock provider exists so far, so no output is a real translation.
+      translation: 'simulated',
       // Read-only channel subscriptions exist; no remote control path does (D2-11).
       capabilities: { channelSubscriptions: true, controlCommands: false },
     };

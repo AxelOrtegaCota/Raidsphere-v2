@@ -16,7 +16,7 @@ import {
 } from './eventsub.js';
 import { getChannelInfo } from './helix.js';
 import { hasRequiredScopes, loadOAuthConfig } from './oauth.js';
-import { createSessionTokenProvider } from './session-tokens.js';
+import { createSessionTokenProvider, type AccessTokenProvider } from './session-tokens.js';
 import type { UserSession } from './sessions.js';
 
 export type LiveChatState = 'offline' | 'connecting' | 'ready';
@@ -56,6 +56,8 @@ async function readChannelLanguage(session: UserSession): Promise<string | null>
 export class LiveChat {
   readonly #deps: LiveChatDependencies;
   readonly #clients = new Map<string, EventSubClient>();
+  // Shared with raids, because a refresh token works only once.
+  readonly #tokens = new Map<string, AccessTokenProvider>();
   readonly #createClient: NonNullable<LiveChatOptions['createClient']>;
   readonly #channelLanguage: NonNullable<LiveChatOptions['channelLanguage']>;
   readonly #maxConnections: number;
@@ -82,13 +84,14 @@ export class LiveChat {
     try {
       const config = loadOAuthConfig(process.env);
       this.#clients.get(channelId)?.stop();
+      const getAccessToken = createSessionTokenProvider({ userId: channelId, config });
       const client = this.#createClient({
-        clientId: config.clientId, userId: channelId,
-        getAccessToken: createSessionTokenProvider({ userId: channelId, config }),
+        clientId: config.clientId, userId: channelId, getAccessToken,
         onNotification: (notification) => { this.#route(channelId, notification); },
         reportError: this.#deps.reportError,
       });
       this.#clients.set(channelId, client);
+      this.#tokens.set(channelId, getAccessToken);
       client.start();
       void client.watchChat(channelId);
     } catch {
@@ -99,6 +102,11 @@ export class LiveChat {
   disconnect(channelId: string): void {
     this.#clients.get(channelId)?.stop();
     this.#clients.delete(channelId);
+    this.#tokens.delete(channelId);
+  }
+
+  tokenProvider(channelId: string): AccessTokenProvider | null {
+    return this.#tokens.get(channelId) ?? null;
   }
 
   state(channelId: string): LiveChatState {
@@ -115,6 +123,7 @@ export class LiveChat {
   close(): void {
     for (const client of this.#clients.values()) client.stop();
     this.#clients.clear();
+    this.#tokens.clear();
   }
 
   // The roulette only runs for known streamers. A failure leaves chat working without it.
