@@ -6,7 +6,7 @@ RaidSphere is being developed for the Codex × TwitchCon Hackathon 2026 by a fou
 
 ## Team Handoff — Phase 2 Local MVP
 
-Phase 2 adds a complete local roulette in simulation mode: the backend runs `!roulette`, 30-second voting, selection, and a simulated raid on synthetic channels, and the OBS overlay follows it read-only over `/ws` with globe markers, a raid arc, vote bars, and a winner card. Status and evidence are in [Phase 2 progress](docs/PHASE2_PROGRESS.md), [Phase 2 backend decisions](docs/phase-2-backend-decisions.md), and the [Phase 2 backend plan](docs/phase-2-backend-plan.md). Real raids, real chat, AI translation, and persistence are not yet implemented; Twitch OAuth and Helix reads exist on the `railway` work but are not connected to the roulette.
+Phase 2 adds a complete local roulette in simulation mode: the backend runs `!roulette`, 30-second voting, selection, and a simulated raid on synthetic channels, and the OBS overlay follows it read-only over `/ws` with globe markers, a raid arc, vote bars, and a winner card. Status and evidence are in [Phase 2 progress](docs/PHASE2_PROGRESS.md), [Phase 2 backend decisions](docs/phase-2-backend-decisions.md), and the [Phase 2 backend plan](docs/phase-2-backend-plan.md). Since Phase 2, real Twitch chat, real candidates, real raids, and Azure translation have been added behind opt-in settings (see Current status); persistence is not implemented.
 
 The Phase 1 foundation was verified with Node.js 20.18.0 and npm 10.8.2, including an OBS browser source check; see [Phase 1 verification results](docs/phase-1-decisions.md#phase-1-verification-results).
 
@@ -22,11 +22,12 @@ Included source:
 
 - Private npm workspaces and strict TypeScript configuration.
 - Shared public models and versioned Zod 4 notification contracts.
-- Fastify health entry point (`mode: 'simulation'`).
+- Fastify health entry point (`mode: 'simulation'`, or `'live'` when real raids are enabled).
 - Roulette coordinator with authoritative in-memory state, vote rules, deadlines, selection, and simulated raid outcomes, behind ports that real Twitch adapters will implement.
 - Synthetic `rsdemo_` channels; no real channel data.
 - Module B chat command parser and simulated raid gateway, connected to the coordinator through adapters; a broadcaster flag counts only for the channel owner.
 - Module C translation service with emote preservation, caching, bounded concurrency, and invalidation, using a mock provider; simulated raider chat reaches it through the chat translation pipeline during a translation window.
+- Azure AI Translator as the real translation provider and language detector when `AZURE_TRANSLATOR_KEY` is set ([D4-01](docs/phase-4-decisions.md)).
 - A 15-minute translation window opened on the destination by a confirmed raid arrival.
 - Read-only `/ws` with per-channel viewing credentials generated at startup and kept in memory (D2-11).
 - Overlay in OBS mode by default: transparent, a globe that follows the session (candidate markers, winner, animated raid arc, camera moves), vote bars per language, a winner card, translation bubbles, a text status panel, and a Simulation label. `?mode=interactive` adds the discovery tools.
@@ -34,7 +35,7 @@ Included source:
 
 The earlier F1–F5 static-review corrections are covered by passing regression tests. Verification added dependency corrections (a `light-my-request` override, Vitest 4, Zod 4), a typed Fastify error handler, and three overlay rendering fixes.
 
-Real Twitch chat is off by default: `TWITCH_EVENTSUB_ENABLED=true` connects each logged-in channel to EventSub, routing commands, chat, and moderation to the application. On 2026-10-31, `!roulette`, `!vote`, and `!cancel` worked from a broadcaster's real Twitch chat on Railway; viewer and moderator accounts, real chat translation, and real moderation are not tried yet. `TWITCH_REAL_CANDIDATES_ENABLED=true` also replaces synthetic candidates with the other live channels connected to RaidSphere; it needs real chat enabled, has passed local tests only, and leaves one streamer alone with no candidates. `TWITCH_REAL_RAIDS_ENABLED=true`, with both flags above, sends raids to Twitch and moves real viewers; it has passed local tests only. Translations stay labeled as simulated. Pending functionality includes an AI translation provider, language detection, broadcaster control over the network, and persistence. SQLite remains the future persistence target; Phase 1 does not install, configure, or open it.
+Real Twitch chat is off by default: `TWITCH_EVENTSUB_ENABLED=true` connects each logged-in channel to EventSub, routing commands, chat, and moderation to the application. On 2026-10-31, `!roulette`, `!vote`, and `!cancel` worked from a broadcaster's real Twitch chat on Railway; viewer and moderator accounts, real chat translation, and real moderation are not tried yet. `TWITCH_REAL_CANDIDATES_ENABLED=true` also replaces synthetic candidates with the other live channels connected to RaidSphere; it needs real chat enabled, has passed local tests only, and leaves one streamer alone with no candidates. `TWITCH_REAL_RAIDS_ENABLED=true`, with both flags above, sends raids to Twitch and moves real viewers; it has passed local tests only. Real raids, real candidates, and translation of real chat have not been tried against Twitch yet. Translations are labeled as simulated unless `AZURE_TRANSLATOR_KEY` is set. Pending functionality includes broadcaster control over the network and persistence. SQLite remains the future persistence target; Phase 1 does not install, configure, or open it.
 
 ## Architecture and ownership
 
@@ -47,7 +48,7 @@ shared/    Public models, runtime schemas, and events.ts contracts
 docs/      Approved decisions and available project documentation
 ```
 
-The backend coordinates Twitch and translation and will publish validated, channel-scoped events. Overlays never receive Twitch credentials or make raid decisions. Chat commands are `!roulette`, `!vote`, and `!cancel`; in Phase 2 they come only from the in-process demo, never from the network.
+The backend coordinates Twitch and translation and will publish validated, channel-scoped events. Overlays never receive Twitch credentials or make raid decisions. Chat commands are `!roulette`, `!vote`, and `!cancel`; they come from the in-process demo, or from real Twitch chat through EventSub when `TWITCH_EVENTSUB_ENABLED=true`.
 
 Read [AGENTS.md](AGENTS.md) for engineering and authorization rules and [Phase 1 decisions](docs/phase-1-decisions.md) for authoritative Phase 1 choices, contract differences, verification results, and limitations. `RAIDSPHERE_CONTEXT.md` is preserved historical design context. The original PDF was unavailable in the most recently inspected checkout.
 
@@ -75,11 +76,11 @@ npm run build
 
 Installation disables dependency lifecycle scripts; none was required. A dependency requiring a script needs separate review and approval. No automated fix or dependency upgrade is implied.
 
-Verified results: type checking passes, 682 of 682 tests pass, the build succeeds, and `npm audit` reports 0 vulnerabilities (2026-10-31, `feature/real-raids`, on Node.js 20.18.0 and npm 10.8.2). Vite warns that the overlay bundle exceeds 500 kB, mostly because of three.js; this is expected for now.
+Verified results: type checking passes and 700 of 700 tests pass on `main` (`f5c24cd`, 2026-11-01, on Node.js 20.18.0 and npm 10.8.2). The build and `npm audit` (0 vulnerabilities) last passed on `feature/real-raids` (2026-10-31). Vite warns that the overlay bundle exceeds 500 kB, mostly because of three.js; this is expected for now.
 
 The root scripts build shared exports before consumers. `npm run typecheck` therefore also writes shared declarations/JavaScript to `shared/dist/`, then checks all workspace source, shared/backend tests, and Vite configuration. Test/tooling configurations use `noEmit`; production builds continue excluding tests.
 
-Tests cover contract compatibility, invalid payloads, snapshot invariants, channel isolation, canonical validator exports, translation result states, strict decimal ports, health behavior, vote and selection rules, the roulette state machine, simulated raids, the Module B adapters, the translation service and window, event publication, the `/ws` origin, credential, handshake, connection-limit, heartbeat, and outgoing-buffer checks, and the overlay display state and reconnection.
+Tests cover contract compatibility, invalid payloads, snapshot invariants, channel isolation, canonical validator exports, translation result states, strict decimal ports, health behavior, vote and selection rules, the roulette state machine, simulated raids, the Module B adapters, the translation service and window, the Azure translator and language detection (with a fake HTTP client), event publication, the `/ws` origin, credential, handshake, connection-limit, heartbeat, and outgoing-buffer checks, and the overlay display state and reconnection.
 
 Windows notes:
 

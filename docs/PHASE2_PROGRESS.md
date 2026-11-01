@@ -57,6 +57,8 @@ Reconnection is covered by automated tests: the overlay retries a lost connectio
 
 The `railway` branch adds Twitch OAuth, sessions, Helix reads, and a candidate discovery panel. These are real Twitch integrations, but they are **not connected to the roulette**: the roulette still uses synthetic channels and simulated raids, and EventSub chat exists only as unconnected code. The discovery panel is available only in `?mode=interactive`. See [PHASE_STATUS.md](../PHASE_STATUS.md) and [raid candidate discovery](raid-candidate-discovery.md).
 
+*Update 2026-11-01:* EventSub chat, real candidates, and real raids are now connected behind flags; see the [phase plan](phase-plan.md).
+
 ## Phase 4 work already started
 
 - Module 3: a confirmed arrival opens a 15-minute translation window on the destination (`5a2deed`).
@@ -65,6 +67,8 @@ The `railway` branch adds Twitch OAuth, sessions, Helix reads, and a candidate d
 - Module 5: deleted messages, cleared users, and chat clears cancel running translations and remove bubbles; a memory stops late or early events from showing a moderated message.
 
 All of this runs on simulated chat and the mock provider; real chat needs Phase 3 EventSub, and real translation needs an AI provider.
+
+*Update 2026-11-01:* Azure AI Translator is now the real provider ([D4-01](phase-4-decisions.md)).
 
 ## Close-out
 
