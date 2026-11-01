@@ -18,6 +18,7 @@ export {
   getLanguageName,
   needsTranslation,
   type TranslationProvider,
+  type LanguageDetector,
   type TranslationRequest,
   type TranslationResult,
   type TranslationError,
@@ -34,6 +35,13 @@ export {
   getTranslationProvider,
   setTranslationProvider,
 } from './mock-provider.js';
+
+// Azure AI Translator provider and language detector
+export {
+  AzureTranslator,
+  loadAzureTranslatorConfig,
+  type AzureTranslatorConfig,
+} from './azure.js';
 
 // Adapter to the Module D chat translator port
 export {

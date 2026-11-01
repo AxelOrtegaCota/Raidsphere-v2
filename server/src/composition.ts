@@ -13,6 +13,7 @@ import {
 } from './simulation/fixtures.js';
 import { ServiceChatTranslator } from './translation/chat-translator.js';
 import { MockTranslationProvider } from './translation/mock-provider.js';
+import type { LanguageDetector, TranslationProvider } from './translation/provider.js';
 import { RaidGatewayAdapter } from './twitch/adapters.js';
 import { LiveChat } from './twitch/live-chat.js';
 import type { LiveChatOptions } from './twitch/live-chat.js';
@@ -25,7 +26,8 @@ import type { ViewingLimits } from './websocket.js';
 // Composes the Phase 2 simulation runtime: real clock and timers, in-memory state with
 // synthetic fixtures, simulated raids, and read-only viewing (D2-11, D2-12, D2-15).
 // Raids use the Module B simulated gateway through its adapter to the raid port, and chat
-// translation uses the Module C service with its simulated provider (Phase 4, module 4).
+// translation uses the Module C service with its simulated provider (Phase 4, module 4), or
+// Azure AI Translator when a key is configured (Phase 4, modules 1 and 2).
 // Real Twitch chat is opt-in: without liveChat, no EventSub connection ever opens.
 
 export interface RuntimeOptions {
@@ -37,6 +39,8 @@ export interface RuntimeOptions {
   viewingLimits?: Partial<ViewingLimits>;
   overlayRoot?: string;
   liveChat?: LiveChatOptions;
+  // A real provider that also detects languages; without one, translation stays simulated.
+  translation?: TranslationProvider & LanguageDetector;
 }
 
 export function createRuntime(options: RuntimeOptions) {
@@ -59,7 +63,9 @@ export function createRuntime(options: RuntimeOptions) {
     ...(options.roulette ? { config: options.roulette } : {}),
   });
   coordinator = rouletteCoordinator;
-  const translator = new ServiceChatTranslator({ provider: new MockTranslationProvider(), simulationMode: true });
+  const translator = options.translation
+    ? new ServiceChatTranslator({ provider: options.translation, detector: options.translation, simulationMode: false })
+    : new ServiceChatTranslator({ provider: new MockTranslationProvider(), simulationMode: true });
   const chatPipeline = new ChatTranslationPipeline({
     clock: systemClock, windows: rouletteCoordinator, translator, publisher,
     onError: () => options.reportError('A chat message could not be translated.'),

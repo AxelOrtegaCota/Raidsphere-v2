@@ -2,15 +2,19 @@ import { fileURLToPath } from 'node:url';
 import { createRuntime, demoOverlayUrls } from './composition.js';
 import { loadServerConfig } from './config.js';
 import { startupLines } from './startup.js';
+import { AzureTranslator, loadAzureTranslatorConfig } from './translation/azure.js';
 
 async function start(): Promise<void> {
   const config = loadServerConfig({ PORT: process.env.PORT, HOST: process.env.HOST });
   const overlayRoot = fileURLToPath(new URL('../../overlay/dist/', import.meta.url));
+  const azure = loadAzureTranslatorConfig(process.env);
   const { app, issuedCredentials } = createRuntime({
     reportError: (message) => console.error(message),
     overlayRoot,
     ...(process.env.TWITCH_EVENTSUB_ENABLED === 'true' ? { liveChat: {} } : {}),
+    ...(azure ? { translation: new AzureTranslator(azure) } : {}),
   });
+  console.info(azure ? 'Translation: Azure AI Translator.' : 'Translation: simulated (AZURE_TRANSLATOR_KEY is not set).');
   const shutdown = async (): Promise<void> => {
     await app.close();
   };

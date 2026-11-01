@@ -83,8 +83,8 @@ Phases 2–5 and the milestone order are a recommended plan, not completed deliv
 
 | # | Module | Status |
 | --- | --- | --- |
-| 1 | AI provider (server-only key, timeout, validated output, prompt-injection resistance) | Pending: provider and model to be chosen |
-| 2 | Language detection (unknown when unsure; never assume English) | Pending: library or model call to be decided |
+| 1 | AI provider (server-only key, timeout, validated output, prompt-injection resistance) | Code exists: Azure AI Translator ([D4-01](phase-4-decisions.md)); not yet verified against Azure |
+| 2 | Language detection (unknown when unsure; never assume English) | Code exists: Azure detection with a score threshold and a chat slang filter ([D4-01](phase-4-decisions.md)); not yet verified against Azure |
 | 3 | 15-minute translation window, opened only by a confirmed arrival | Done (`5a2deed`) |
 | 4 | Chat pipeline: message → filters and limits → translation → `translate:bubble`, with a last check before publishing | Done in simulation with simulated chat and the mock provider; connecting EventSub is pending (Phase 3) |
 | 5 | Moderation: deleted messages, bans and timeouts, chat clears, with a memory so late or early events cannot show a moderated message | Done in simulation; subscribing to the real EventSub moderation events is pending (Phase 3) |
@@ -95,4 +95,4 @@ Phases 2–5 and the milestone order are a recommended plan, not completed deliv
 1. **Rotate the Twitch client secret** reported as exposed. A scan of tracked files and Git history found no committed credential, so the exposure happened outside the repository.
 2. **Phase 5 follow-ups from Phase 2:** repeat the OBS check, including the bubble queue and reconnection after a refresh, and have module owners review the changes outside their modules.
 3. **Modules B and D:** connect Phase 3 (EventSub chat, Helix candidates, real raids, `channel.raid` arrivals) through the existing ports in `server/src/application/ports.ts`.
-4. **Module C:** choose the AI provider and model, then build Phase 4 modules 1 and 2.
+4. **Module C:** verify the Azure provider against a real F0 resource and calibrate the detection threshold.
