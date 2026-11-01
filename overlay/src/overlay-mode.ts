@@ -13,3 +13,10 @@ export function readOverlayMode(search: string, hasCredential: boolean): Overlay
 export function showsSimulationLabel(health: unknown): boolean {
   return !(typeof health === 'object' && health !== null && 'mode' in health && health.mode === 'live');
 }
+
+// Real raids do not make the translations real, so that stays labeled on its own.
+export function simulationLabel(health: unknown): string | null {
+  if (showsSimulationLabel(health)) return 'Simulation';
+  const reported = typeof health === 'object' && health !== null && 'translation' in health ? health.translation : null;
+  return reported === 'real' ? null : 'Simulated translations';
+}

@@ -86,6 +86,16 @@ export {
   type LiveChatOptions,
   type LiveChatState,
 } from './live-chat.js';
+export {
+  RegisteredCandidateSource,
+  type RegisteredCandidateDependencies,
+  type RegisteredCandidateOptions,
+} from './registered-candidates.js';
+export {
+  RealRaidGateway,
+  type RealRaidGatewayDependencies,
+  type RealRaidOptions,
+} from './real-raid-gateway.js';
 
 // ============================================================================
 // Phase 3: Sessions

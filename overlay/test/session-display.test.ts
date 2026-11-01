@@ -4,9 +4,9 @@ import { describe, expect, it } from 'vitest';
 import { PROTOCOL_VERSION, serverEventSchema } from '@raidsphere/shared';
 import type { Candidate, LanguageCode, ServerEvent } from '@raidsphere/shared';
 import { COUNTRY_POINTS, EMPTY_SCENE, globeScene, interpolateView } from '../src/globe-session.js';
-import { readOverlayMode, showsSimulationLabel } from '../src/overlay-mode.js';
+import { readOverlayMode, showsSimulationLabel, simulationLabel } from '../src/overlay-mode.js';
 import { describeRoulettePanel } from '../src/roulette-panel.js';
-import { applyEvent, initialViewState } from '../src/view-state.js';
+import { applyEvent, describeView, initialViewState } from '../src/view-state.js';
 import type { ViewState } from '../src/view-state.js';
 
 // All identifiers are synthetic fixtures.
@@ -65,6 +65,22 @@ describe('overlay mode', () => {
     expect(showsSimulationLabel(null)).toBe(true);
     expect(showsSimulationLabel('<!doctype html>')).toBe(true);
     expect(showsSimulationLabel({ mode: 'live' })).toBe(false);
+  });
+
+  it('keeps translations labeled while raids are real', () => {
+    expect(simulationLabel({ mode: 'simulation', translation: 'simulated' })).toBe('Simulation');
+    expect(simulationLabel(null)).toBe('Simulation');
+    expect(simulationLabel({ mode: 'live', translation: 'simulated' })).toBe('Simulated translations');
+    expect(simulationLabel({ mode: 'live' })).toBe('Simulated translations');
+    expect(simulationLabel({ mode: 'live', translation: 'real' })).toBeNull();
+  });
+});
+
+describe('raid text', () => {
+  it('says simulated by default and drops it only when told', () => {
+    const pending = raidStarted(chosen(voted(started(), { ja: 1 })));
+    expect(describeView(pending, START).detail).toContain('(simulated)');
+    expect(describeView(pending, START, false).detail).not.toContain('simulated');
   });
 });
 

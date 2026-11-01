@@ -14,7 +14,7 @@ As of 2026-10-31. Phases 1 and 2 are complete and merged into `main`, and the ap
 | Checks | Phase 1: 63/63 tests, typecheck, and build on `main` after the merge. `main` after PR #2: 599/599 tests, typecheck, build, and audit (2026-10-31, on Node.js 20.18.0). |
 | Version control | Development continues in `AxelOrtegaCota/Raidsphere-v2`, a copy of `Articnn/Raidsphere`. Its PR #2 (`852e4e2`) brought Phases 2, 3, and 4 into `main`. `feature/project-foundation` (`4219a21`) is obsolete. |
 
-This status is based on local verification, Git history, [Phase 1 decisions](phase-1-decisions.md), and [Phase 2 backend decisions](phase-2-backend-decisions.md). Real raids and persistence are not implemented yet, and translation reaches real chat only after Phase 3 opens real translation windows; Azure translation runs when `AZURE_TRANSLATOR_KEY` is set; Twitch OAuth and Helix reads exist on `railway` but are not connected to the roulette.
+This status is based on local verification, Git history, [Phase 1 decisions](phase-1-decisions.md), and [Phase 2 backend decisions](phase-2-backend-decisions.md). Real candidates and real raids are wired behind `TWITCH_REAL_CANDIDATES_ENABLED` and `TWITCH_REAL_RAIDS_ENABLED` but real raids are not tried against Twitch yet, so translation has not reached real chat; Azure translation runs when `AZURE_TRANSLATOR_KEY` is set. Persistence is not implemented.
 
 Phase 2 backend decisions are recorded in [Phase 2 backend decisions](phase-2-backend-decisions.md), and their build order and progress in the [Phase 2 backend plan](phase-2-backend-plan.md).
 
@@ -25,7 +25,7 @@ Phase 2 backend decisions are recorded in [Phase 2 backend decisions](phase-2-ba
 | Phase 0 — Definition | Proposal, MVP scope, modules A/B/C/D, architecture, and collaboration. | Essentially complete |
 | Phase 1 — Foundation | Workspaces, contracts, minimal backend, static overlay, tests, and verification. | Complete; merged into `main` |
 | Phase 2 — Local MVP | End-to-end roulette with synthetic channels, 30 s voting, selection, and a synchronized globe. | Complete; merged into `main` (PRs #2 and #3 of `Raidsphere-v2`) |
-| Phase 3 — Real Twitch | OAuth, EventSub/chat, commands, eligibility, raid requests, and observed arrivals. | In progress: OAuth and Helix discovery work; EventSub chat is wired behind `TWITCH_EVENTSUB_ENABLED`, and broadcaster commands worked against Twitch; real raids are not connected |
+| Phase 3 — Real Twitch | OAuth, EventSub/chat, commands, eligibility, raid requests, and observed arrivals. | In progress: OAuth and Helix discovery work; EventSub chat is wired behind `TWITCH_EVENTSUB_ENABLED`, and broadcaster commands worked against Twitch; registered live candidates are wired behind `TWITCH_REAL_CANDIDATES_ENABLED`; real raids are wired behind `TWITCH_REAL_RAIDS_ENABLED` and not tried against Twitch |
 | Phase 4 — AI translation | Bilingual messages, emote preservation, moderation, and the 15-minute window. | Started: translation window, overlay bubbles, chat pipeline, and moderation work in simulation; Azure translation and language detection verified with synthetic phrases; real chat pending (Phase 3) |
 | Phase 5 — Final integration | QA, OBS performance, security, demo, documentation, and hackathon submission. | Pending |
 

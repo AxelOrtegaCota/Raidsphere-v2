@@ -4,7 +4,7 @@ import type { ConnectionStatus } from './connection';
 import { EMPTY_SCENE, globeScene, interpolateView } from './globe-session';
 import type { CameraView, GlobeScene } from './globe-session';
 import { coarseCountryPoint } from './location';
-import { readOverlayMode, showsSimulationLabel } from './overlay-mode';
+import { readOverlayMode, showsSimulationLabel, simulationLabel } from './overlay-mode';
 import { describeRoulettePanel, renderRoulettePanel } from './roulette-panel';
 import { createSearchPanel } from './search-panel';
 import { createTranslationLayer } from './translation-bubbles';
@@ -34,10 +34,17 @@ const mode = readOverlayMode(window.location.search, target !== null);
 document.documentElement.dataset.mode = mode;
 const apiBaseUrl = window.location.origin;
 
-// The label is removed only when the server positively reports live mode.
+// The labels change only when the server positively reports live mode.
+let raidsSimulated = true;
 void fetch(`${apiBaseUrl}/health`, { cache: 'no-store' })
   .then((response) => response.json())
-  .then((health: unknown) => { badge.hidden = !showsSimulationLabel(health); })
+  .then((health: unknown) => {
+    const label = simulationLabel(health);
+    badge.hidden = label === null;
+    if (label) badge.textContent = label;
+    raidsSimulated = showsSimulationLabel(health);
+    if (target) render();
+  })
   .catch(() => { badge.hidden = false; });
 
 // Discovery never appears in the OBS scene, which is what viewers of the stream see.
@@ -61,7 +68,7 @@ const renderTranslations = (): void => {
   translations.render(translationView, nowMs);
 };
 const render = (): void => {
-  const text = describeView(view, Date.now());
+  const text = describeView(view, Date.now(), raidsSimulated);
   headline.textContent = text.headline;
   detail.textContent = text.detail;
 };

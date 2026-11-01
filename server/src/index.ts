@@ -12,6 +12,8 @@ async function start(): Promise<void> {
     reportError: (message) => console.error(message),
     overlayRoot,
     ...(process.env.TWITCH_EVENTSUB_ENABLED === 'true' ? { liveChat: {} } : {}),
+    ...(process.env.TWITCH_REAL_CANDIDATES_ENABLED === 'true' ? { realCandidates: {} } : {}),
+    ...(process.env.TWITCH_REAL_RAIDS_ENABLED === 'true' ? { realRaids: {} } : {}),
     ...(azure ? { translation: new AzureTranslator(azure) } : {}),
   });
   console.info(azure ? 'Translation: Azure AI Translator.' : 'Translation: simulated (AZURE_TRANSLATOR_KEY is not set).');
