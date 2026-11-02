@@ -3,6 +3,7 @@
  * Only streamers connected to RaidSphere qualify: their chat is readable, so translation
  * works when a raid arrives, and nobody receives a raid without having joined.
  */
+import { languageCodeSchema } from '@raidsphere/shared';
 import { COUNTRY_BY_LANGUAGE } from '../application/illustrative-country.js';
 import type { CandidateSource, LiveChannel } from '../application/ports.js';
 import type { StreamerRepository } from '../persistence/contracts.js';
@@ -62,8 +63,11 @@ export class RegisteredCandidateSource implements CandidateSource {
   }
 
   async #toLiveChannel(stream: Stream): Promise<LiveChannel | null> {
-    const streamer = await this.#deps.streamers.findById(stream.userId);
-    if (!streamer) return null;
+    const stored = await this.#deps.streamers.findById(stream.userId);
+    if (!stored) return null;
+    // The stream's current language wins: the stored one is read only at login and may be stale.
+    const current = languageCodeSchema.safeParse(stream.language);
+    const streamer = current.success ? { ...stored, language: current.data } : stored;
     return {
       streamer, viewers: stream.viewerCount, gameName: stream.gameName, title: stream.title,
       illustrativeCountry: COUNTRY_BY_LANGUAGE[streamer.language],

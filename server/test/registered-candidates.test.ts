@@ -37,6 +37,19 @@ describe('registered candidate source', () => {
     }]);
   });
 
+  it('uses the current stream language, or the stored one when it is unsupported', async () => {
+    const source = new RegisteredCandidateSource({
+      connectedChannels: () => ['2002', '3003'],
+      streamers: repository([streamer('2002', { language: 'en' }), streamer('3003', { language: 'en' })]),
+      fetchStreams: async () => [stream('2002', { language: 'es' }), stream('3003', { language: 'ru' })],
+      reportError: () => undefined,
+    });
+
+    const channels = await source.listLiveChannels();
+    expect(channels.map((channel) => [channel.streamer.id, channel.streamer.language, channel.illustrativeCountry]))
+      .toEqual([['2002', 'es', 'MX'], ['3003', 'en', expect.any(String)]]);
+  });
+
   it('asks only for connected channels', async () => {
     const fetchStreams = vi.fn(async () => []);
     const source = new RegisteredCandidateSource({

@@ -14,6 +14,8 @@ export interface AppDependencies {
   auth?: Omit<AuthRouteDependencies, 'issueViewingCredential'>;
   // Live only when raids reach Twitch; translation is reported on its own.
   mode?: 'simulation' | 'live';
+  // Real only when a translation provider is configured.
+  translation?: 'simulated' | 'real';
 }
 
 export function createApp(dependencies: AppDependencies) {
@@ -52,8 +54,7 @@ export function createApp(dependencies: AppDependencies) {
       status: 'ok',
       protocolVersion: PROTOCOL_VERSION,
       mode: dependencies.mode ?? 'simulation',
-      // Only the mock provider exists so far, so no output is a real translation.
-      translation: 'simulated',
+      translation: dependencies.translation ?? 'simulated',
       // Read-only channel subscriptions exist; no remote control path does (D2-11).
       capabilities: { channelSubscriptions: true, controlCommands: false },
     };

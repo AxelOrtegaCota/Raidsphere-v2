@@ -62,8 +62,10 @@ describe('real raid gateway', () => {
   });
 
   it.each([[400], [404], [409]])('rejects when Twitch answers %i', async (status) => {
-    const { instance } = gateway({ start: vi.fn(async () => { throw new HelixError('private detail', status); }) });
+    const { instance, errors } = gateway({ start: vi.fn(async () => { throw new HelixError('private detail', status); }) });
     await expect(instance.requestRaid(REQUEST)).resolves.toEqual({ outcome: 'rejected' });
+    // Only the status code reaches the log, never Twitch's message.
+    expect(errors).toEqual([`Twitch refused a raid request (HTTP ${status}).`]);
   });
 
   it('rejects when Twitch limits the request, since it never started', async () => {
@@ -298,6 +300,7 @@ describe('roulette with real raids', () => {
     const cookie = `raidsphere_session=${session.sessionId}`;
 
     const health = await runtime.app.inject({ method: 'GET', url: '/health' });
+    // Real raids do not make translation real.
     expect(health.json()).toMatchObject({ mode: 'live', translation: 'simulated' });
     const me = await runtime.app.inject({ method: 'GET', url: '/auth/me', headers: { cookie } });
     expect(me.json().capabilities.realRaids).toBe(true);
