@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { PROTOCOL_VERSION, serverEventSchema } from '@raidsphere/shared';
+import { PROTOCOL_VERSION, publicRouletteStateSchema, serverEventSchema } from '@raidsphere/shared';
 import type { Candidate, LanguageCode, ServerEvent } from '@raidsphere/shared';
 import { COUNTRY_POINTS, EMPTY_SCENE, globeScene, interpolateView } from '../src/globe-session.js';
 import { readOverlayMode, showsSimulationLabel, simulationLabel } from '../src/overlay-mode.js';
+import { presentSessionPanel } from '../src/control-room';
 import { describeRoulettePanel } from '../src/roulette-panel.js';
 import { applyControlState, applyEvent, describeView, initialViewState } from '../src/view-state.js';
 import type { ViewState } from '../src/view-state.js';
@@ -49,6 +50,27 @@ const raidStarted = (state: ViewState) => applyEvent(state, event('raid:started'
 }, { sessionId: SESSION }));
 
 describe('overlay mode', () => {
+  it('hides the interactive headline without a session and keeps it for each session outcome', () => {
+    const panel = { hidden: false, dataset: {} as Record<string, string> };
+    presentSessionPanel(panel as unknown as HTMLElement, 'interactive', null);
+    expect(panel.hidden).toBe(true);
+    const state = chosen(started()).roulette!;
+    for (const status of ['voting', 'selecting', 'chosen', 'raid_pending', 'done', 'cancelled', 'failed', 'unknown'] as const) {
+      const session = publicRouletteStateSchema.parse({
+        ...state, status, chosenCandidate: status === 'voting' || status === 'selecting' ? null : state.chosenCandidate,
+      });
+      presentSessionPanel(panel as unknown as HTMLElement, 'interactive', session);
+      expect(panel.hidden).toBe(false);
+      expect(panel.dataset.hasSession).toBe('true');
+    }
+  });
+  it('leaves the OBS headline unchanged with or without a session and preserves its winner model', () => {
+    const headlinePanel = { hidden: false, dataset: {} as Record<string, string> };
+    presentSessionPanel(headlinePanel as unknown as HTMLElement, 'obs', null);
+    presentSessionPanel(headlinePanel as unknown as HTMLElement, 'obs', chosen(started()).roulette);
+    expect(headlinePanel).toEqual({ hidden: false, dataset: {} });
+    expect(describeRoulettePanel(chosen(started()))?.winner?.name).toBe('Demo rsdemo_ja_01');
+  });
   it('defaults to OBS with a credential and opts into interactive mode explicitly', () => {
     expect(readOverlayMode('', true)).toBe('obs');
     expect(readOverlayMode('?mode=obs', true)).toBe('obs');
@@ -211,6 +233,7 @@ describe('camera transition', () => {
 
 describe('overlay markup', () => {
   const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
   const hiddenView = /<section id="roulette-view"[\s\S]*?<!-- Flag Competition Panel -->/.exec(html)?.[0] ?? '';
 
   it('keeps every session panel outside the hidden roulette view', () => {
@@ -219,5 +242,26 @@ describe('overlay markup', () => {
       expect(html).toContain(`id="${id}"`);
       expect(hiddenView).not.toContain(`id="${id}"`);
     }
+  });
+  it('keeps a live status region, initially hidden Cancel, and the ordered controls in the roulette card', () => {
+    expect(html).toMatch(/id="control-status" role="status" aria-live="polite"/);
+    expect(html).toMatch(/id="cancel-raid"[^>]*disabled hidden/);
+    const card = /<div class="roulette-card">[\s\S]*?<section class="control-feedback"/.exec(html)?.[0] ?? '';
+    const ids = ['mode-manual', 'roulette-wheel-container', 'candidate-list', 'prepare-roulette', 'spin-roulette', 'raid-winner'];
+    const positions = ids.map((id) => card.indexOf(`id="${id}"`));
+    expect(positions.every((position) => position >= 0)).toBe(true);
+    expect(positions).toEqual([...positions].sort((a, b) => a - b));
+  });
+  it('scopes the new layout and visibility rules to interactive mode, leaving OBS panels outside those rules', () => {
+    const controlStyles = css.split('/* Broadcaster control room. OBS retains the original scene layout above. */')[1];
+    expect(controlStyles).toBeDefined();
+    const selectors = [...controlStyles!.matchAll(/([^{}]+)\{/g)].map((match) => match[1]!.trim()).filter((selector) => !selector.startsWith('@media'));
+    expect(selectors.length).toBeGreaterThan(0);
+    for (const selector of selectors) for (const part of selector.split(',')) {
+      expect(part.trim().startsWith("html[data-mode='interactive']")).toBe(true);
+    }
+    expect(html).toMatch(/<section id="roulette" class="roulette"/);
+    expect(html).toMatch(/<section class="translations"/);
+    expect(html).toMatch(/<section id="session-status" class="status" aria-live="polite">/);
   });
 });

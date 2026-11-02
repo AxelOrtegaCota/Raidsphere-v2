@@ -1,5 +1,5 @@
 import Globe from 'globe.gl';
-import { createControlRoom } from './control-room';
+import { createControlRoom, presentSessionPanel } from './control-room';
 import { connectToChannel, readOverlayTarget } from './connection';
 import type { ConnectionStatus } from './connection';
 import { EMPTY_SCENE, globeScene, interpolateView } from './globe-session';
@@ -24,9 +24,10 @@ const translationWindow = document.querySelector<HTMLElement>('#translation-wind
 const bubbleList = document.querySelector<HTMLOListElement>('#bubbles');
 const roulettePanel = document.querySelector<HTMLElement>('#roulette');
 const app = document.querySelector<HTMLElement>('#app');
+const sessionPanel = document.querySelector<HTMLElement>('#session-status');
 
 if (!container || !headline || !detail || !status || !badge || !locateCountry || !locationStatus ||
-    !translationWindow || !bubbleList || !roulettePanel || !app) {
+    !translationWindow || !bubbleList || !roulettePanel || !app || !sessionPanel) {
   throw new Error('The overlay is missing its required elements.');
 }
 
@@ -66,6 +67,7 @@ const renderTranslations = (): void => {
   translations.render(translationView, nowMs);
 };
 const render = (): void => {
+  presentSessionPanel(sessionPanel, mode, view.roulette);
   const text = describeView(view, Date.now(), raidsSimulated);
   headline.textContent = text.headline;
   detail.textContent = text.detail;
@@ -107,9 +109,11 @@ if (target) {
   }, { once: true });
   renderSession();
 } else {
-  // No credential: standalone mode. The overlay works for discovery without a roulette session.
-  status.textContent = 'Standalone mode — use the search panel to discover streams.';
+  // A viewing credential and an authenticated broadcaster session are independent.
+  status.textContent = mode === 'interactive' ? 'Checking your Twitch session…'
+    : 'Standalone mode — use the search panel to discover streams.';
 }
+presentSessionPanel(sessionPanel, mode, view.roulette);
 
 // Returns the function that applies session scenes. OBS mode renders only while something
 // moves; interactive mode keeps the rotating, draggable globe.
@@ -254,7 +258,7 @@ function startLocation(
 }
 
 // Discovery belongs to the broadcaster's browser tab, never to the OBS scene.
-function startDiscovery(root: HTMLElement): void {
+function startDiscovery(root: HTMLElement, connectionStatus: HTMLElement): void {
   const searchPanel = createSearchPanel(root, {
     apiBaseUrl,
     isOverlay: true,
@@ -262,9 +266,13 @@ function startDiscovery(root: HTMLElement): void {
     onAdd: (candidate) => controls.add(candidate),
   });
   const controls = createControlRoom(root, {
-    onStatus: (user) => searchPanel.updateUserStatus(user
-      ? { authenticated: true, isLive: user.isLive, login: user.login, simulated: user.simulated }
-      : { authenticated: false, isLive: false }),
+    onStatus: (user) => {
+      searchPanel.updateUserStatus(user
+        ? { authenticated: true, isLive: user.isLive, login: user.login, simulated: user.simulated }
+        : { authenticated: false, isLive: false });
+      connectionStatus.textContent = user ? `${user.isLive ? 'Live' : 'Signed in'} as ${user.login}${user.isLive ? '' : ' · offline'}`
+        : 'Log in with Twitch from the dashboard to enable controls.';
+    },
     onState: (roulette, simulated) => {
       raidsSimulated = simulated;
       view = applyControlState(view, roulette);
@@ -278,4 +286,4 @@ function startDiscovery(root: HTMLElement): void {
 }
 
 // Initialize controls only after the display state exists, and never in OBS mode.
-if (mode === 'interactive') startDiscovery(app);
+if (mode === 'interactive') startDiscovery(app, status);
