@@ -37,6 +37,34 @@ The earlier F1–F5 static-review corrections are covered by passing regression 
 
 Real Twitch chat is off by default: `TWITCH_EVENTSUB_ENABLED=true` connects each logged-in channel to EventSub, routing commands, chat, and moderation to the application. On 2026-10-31, `!roulette`, `!vote`, and `!cancel` worked from a broadcaster's real Twitch chat on Railway; viewer and moderator accounts, real chat translation, and real moderation are not tried yet. `TWITCH_REAL_CANDIDATES_ENABLED=true` also replaces synthetic candidates with the other live channels connected to RaidSphere; it needs real chat enabled and leaves one streamer alone with no candidates. `TWITCH_REAL_RAIDS_ENABLED=true`, with both flags above, sends raids to Twitch and moves real viewers. On 2026-11-01, on Railway, a roulette with real candidates sent a real raid between two live channels, the arrival was confirmed through EventSub, and raider chat on the destination was translated by Azure into bubbles. Not tried yet: `!cancel` during a real raid, real moderation, and commands from viewer or moderator accounts. The source channel's language is read only at login. Translations are labeled as simulated unless `AZURE_TRANSLATOR_KEY` is set. Pending functionality includes broadcaster control over the network and persistence. SQLite remains the future persistence target; Phase 1 does not install, configure, or open it.
 
+## Using the deployed application
+
+The production application is available through its Railway-provided fully qualified domain name (FQDN):
+
+**https://raidsphere.up.railway.app**
+
+1. Open the FQDN in a browser and select **Continue with Twitch**.
+2. Authorize the requested Twitch permissions. After authentication, RaidSphere redirects to the broadcaster dashboard.
+3. Confirm that the dashboard reports Twitch OAuth and the private OBS overlay as ready. Live chat and real-raid readiness depend on the production feature flags and EventSub connection state.
+4. Copy the complete private overlay URL from the dashboard. Do not share it: the URL contains a read-only viewing credential in its fragment.
+5. For OBS, add a Browser Source at 1920 × 1080 and paste the private overlay URL exactly as provided. OBS mode is read-only and hides broadcaster controls.
+6. For the interactive broadcaster control room, open the private overlay URL in a browser and add `?mode=interactive` immediately before the `#` fragment. For example:
+
+   ```text
+   https://raidsphere.up.railway.app/<channel>/overlay?mode=interactive#channel=<id>&cred=<credential>
+   ```
+
+7. The source Twitch channel must be live before RaidSphere enables raid controls. In the control room:
+   - **Globe:** discover a live channel and start a raid directly.
+   - **Manual Roulette:** add live channels, prepare the candidate pool, spin, and start the raid to the server-selected winner.
+   - **Auto Roulette:** choose six or seven candidates; RaidSphere builds the pool across its audience-size tiers, then the server selects the winner.
+8. After a real raid request, wait for RaidSphere to report the EventSub-confirmed outcome. Do not repeat a request whose outcome is reported as uncertain.
+9. Use **Log out** to end authenticated broadcaster control and request Twitch token revocation. Logout does not invalidate an already issued read-only OBS viewing URL; a server restart or explicit credential rotation replaces it.
+
+The non-secret deployment health response is available at `https://raidsphere.up.railway.app/health`. A healthy production response reports `status: "ok"`; `mode` and `translation` indicate whether real raids and real translation are enabled.
+
+Sessions and viewing credentials are currently stored in memory. A Railway restart can require a new Twitch login and a newly copied overlay URL.
+
 ## Architecture and ownership
 
 ```text
