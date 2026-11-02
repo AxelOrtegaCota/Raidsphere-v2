@@ -493,6 +493,22 @@ Add new entries at the end. Do not rewrite an entry after it is approved; supers
 - **Affected files:** `server/src/application/roulette.ts`, `server/test/roulette.test.ts`, `server/test/simulation.test.ts`.
 - **Verification:** `npm run typecheck`, `npm test` (155/155), and `npm run build` passed on 2026-10-28; the full-flow and end-to-end simulation tests assert the final source snapshot with status `done`.
 
+### D2-20: Browser Auto roulette uses an audience-size ladder
+
+- **Status:** IMPLEMENTED; verification pending
+- **Date:** 2026-11-02
+- **Decided by:** project owner
+- **Scope:** Browser Auto candidate preparation only. Manual selection, chat roulette, server-authoritative winner selection, raid execution, authentication, Logout, and OBS behavior are unchanged.
+- **Decision:**
+  1. Apply the broadcaster's saved inclusive viewer bounds and language preferences before tiering. Preferences are never widened.
+  2. Use the single exported `AUTO_VIEWER_TIERS` definition: T1 0–10, T2 11–50, T3 51–100, T4 101–250, T5 251–500, T6 501–1000, T7 1001+. Exclude the source and deduplicate channel IDs.
+  3. Walk tiers ascending, drawing one channel uniformly within each non-empty tier using the injected random source. With all tiers populated, six slots cover T1–T6 and seven cover T1–T7.
+  4. If tiers are empty, fill remaining slots with additional draws in ascending round-robin passes over the remaining buckets. Never repeat a channel; return fewer channels when the eligible pool is smaller. Return candidates sorted by viewers ascending without mutating discovery input.
+  5. Prepared pools retain `sourceViewers` and store the actual saved preference bounds. The 120-second expiry and shared Zod contracts remain unchanged.
+  6. Spin rechecks live status and current saved viewer/language preferences. It does not enforce the former source-relative 0.5×–2× rule or reject drift across tier boundaries.
+- **Discovery limitation:** The existing Auto query requests `/streams?first=100`, following at most four pages with `after` cursors and no small-audience targeting. `discoveryLimited` reports a cursor remaining after that budget. Only returned channels can populate tiers. If discovery favors large channels, low tiers may remain empty; their real availability has not been verified. Paging is unchanged and requires separate approval to expand.
+- **Verification:** Deterministic unit, route, and overlay regression tests added; none executed for this change. Local Auto preview fixtures now span all seven tiers. Real Twitch discovery and integration behavior remain unverified.
+
 ## Implementation and verification status
 
 Keep implemented source, verified behavior, pending work, and unverified assumptions separate.

@@ -51,11 +51,17 @@ class ControlElement {
   click(): void { if (!this.disabled) this.fire('click'); }
 }
 const idleStatus = { channelId: '1001', login: 'fixturecaster', isLive: true, viewers: 100, simulated: true, roulette: null };
+const logoutReply = { message: 'Logged out', authenticated: false, integrationCleanup: 'confirmed', twitchRevocation: 'confirmed' };
+function deferred<T>() {
+  let release: ((value: T) => void) | undefined;
+  const promise = new Promise<T>((resolve) => { release = resolve; });
+  return { promise, resolve: (value: T) => { if (!release) throw new Error('Missing fixture resolver.'); release(value); } };
+}
 function room() {
   vi.useFakeTimers();
   const selectors = new Map<string, ControlElement>();
   for (const selector of ['#globe-view', '#roulette-view', '#view-globe', '#view-roulette', '#mode-manual', '#mode-auto', '#auto-count',
-    '#prepare-roulette', '#spin-roulette', '#raid-winner', '#cancel-raid', '#candidate-list', '#control-status',
+    '#prepare-roulette', '#spin-roulette', '#raid-winner', '#cancel-raid', '#logout', '#logout-label', '#candidate-list', '#control-status',
     '#roulette-wheel-container', '#roulette-wheel-empty', '#roulette-wheel-hint', '#candidate-count', '.auto-count-label', '#manual-candidates']) {
     selectors.set(selector, new ControlElement());
   }
@@ -63,12 +69,17 @@ function room() {
   get('#control-status').textContent = 'Checking your Twitch session…';
   let response: { status: number; body: unknown } = { status: 200, body: idleStatus };
   let postResponse: unknown = {};
+  let postStatus = 200;
   let postError: Error | null = null;
+  let nextGet: (() => Promise<Response>) | null = null;
+  let nextPost: (() => Promise<Response>) | null = null;
   const fetchMock = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
     if (init?.method === 'POST') {
+      if (nextPost) { const pending = nextPost; nextPost = null; return pending(); }
       if (postError) throw postError;
-      return new Response(JSON.stringify(postResponse), { status: 200 });
+      return new Response(JSON.stringify(postResponse), { status: postStatus });
     }
+    if (nextGet) { const pending = nextGet; nextGet = null; return pending(); }
     return new Response(JSON.stringify(response.body), { status: response.status });
   });
   vi.stubGlobal('fetch', fetchMock);
@@ -79,15 +90,133 @@ function room() {
     matchMedia: () => ({ matches: true }),
   });
   const onStatus = vi.fn();
+  const onState = vi.fn();
   const controls = createControlRoom({ querySelector: (selector: string) => selectors.get(selector) ?? null } as unknown as HTMLElement,
-    { onStatus, onState: vi.fn() });
+    { onStatus, onState });
   return {
-    get, controls, fetchMock, onStatus,
+    get, controls, fetchMock, onStatus, onState,
     respond: (status: number, body: unknown) => { response = { status, body }; },
-    post: (body: unknown) => { postResponse = body; },
+    post: (body: unknown, status = 200) => { postResponse = body; postStatus = status; },
     failPost: (error: Error) => { postError = error; },
+    nextGet: (pending: () => Promise<Response>) => { nextGet = pending; },
+    nextPost: (pending: () => Promise<Response>) => { nextPost = pending; },
   };
 }
+
+describe('authenticated logout button', () => {
+  it('appears for an authenticated live or offline owner and disappears without authenticated control status', async () => {
+    const h = room();
+    expect(h.get('#logout').hidden).toBe(true);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.get('#logout').hidden).toBe(false);
+    expect(h.get('#logout').disabled).toBe(false);
+    expect(h.get('#logout-label').textContent).toBe('Log out');
+    h.respond(200, { ...idleStatus, isLive: false, viewers: 0 });
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(h.get('#logout').hidden).toBe(false);
+    h.respond(401, {}); await vi.advanceTimersByTimeAsync(5_000);
+    expect(h.get('#logout').hidden).toBe(true);
+  });
+
+  it('sends one credentialed CSRF-protected POST, then clears authenticated state and disables protected actions', async () => {
+    const h = room(); await vi.advanceTimersByTimeAsync(0);
+    h.controls.add(candidate);
+    h.post(logoutReply); h.respond(401, {});
+    h.get('#logout').click(); await vi.advanceTimersByTimeAsync(0);
+    const posts = h.fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST');
+    expect(posts).toHaveLength(1);
+    expect(posts[0]?.[0]).toBe('/auth/logout');
+    expect(posts[0]?.[1]).toMatchObject({ credentials: 'include', body: '{}', headers: { 'X-RaidSphere-Control': '1', 'Content-Type': 'application/json' } });
+    expect(h.get('#control-status').textContent).toContain('Logged out of RaidSphere.');
+    expect(h.get('#logout').hidden).toBe(true);
+    expect(h.get('#candidate-count').textContent).toBe('0 channels');
+    expect(h.get('#roulette-wheel-container').hidden).toBe(true);
+    expect(h.onStatus).toHaveBeenLastCalledWith(null);
+    expect(h.onState).toHaveBeenLastCalledWith(null, true);
+    for (const id of ['#prepare-roulette', '#spin-roulette', '#raid-winner', '#cancel-raid']) expect(h.get(id).disabled).toBe(true);
+    await h.controls.raid(candidate);
+    h.get('#logout').fire('click');
+    expect(h.fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(h.get('#control-status').textContent).toContain('Logged out of RaidSphere.');
+  });
+
+  it('blocks duplicate clicks while logout is pending', async () => {
+    const h = room(); await vi.advanceTimersByTimeAsync(0);
+    const pending = deferred<Response>(); h.nextPost(() => pending.promise); h.respond(401, {});
+    h.get('#logout').click();
+    expect(h.get('#logout').disabled).toBe(true);
+    expect(h.get('#logout-label').textContent).toBe('Logging out…');
+    h.get('#logout').fire('click'); h.get('#logout').fire('click');
+    expect(h.fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1);
+    pending.resolve(new Response(JSON.stringify(logoutReply), { status: 200 }));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.get('#logout').hidden).toBe(true);
+  });
+
+  it('reports local success without claiming Twitch revocation when upstream confirmation is missing', async () => {
+    const h = room(); await vi.advanceTimersByTimeAsync(0);
+    h.post({ ...logoutReply, twitchRevocation: 'unconfirmed' }); h.respond(401, {});
+    h.get('#logout').click(); await vi.advanceTimersByTimeAsync(0);
+    const notice = h.get('#control-status').textContent;
+    expect(notice).toContain('Logged out of RaidSphere.');
+    expect(notice).toContain('could not be confirmed');
+    expect(h.get('#prepare-roulette').disabled).toBe(true);
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(h.get('#control-status').textContent).toBe(notice);
+  });
+
+  it.each(['network', 'http', 'invalid-success'] as const)('does not claim logout succeeded after %s failure', async (failure) => {
+    const h = room(); await vi.advanceTimersByTimeAsync(0);
+    const updates = h.onState.mock.calls.length;
+    if (failure === 'network') h.failPost(new TypeError('Synthetic lost response'));
+    else if (failure === 'http') h.post({ error: 'Synthetic upstream failure' }, 503);
+    else h.post({ ...logoutReply, authenticated: true });
+    h.get('#logout').click(); await vi.advanceTimersByTimeAsync(0);
+    expect(h.get('#control-status').textContent).toContain('Log out could not be confirmed');
+    expect(h.get('#control-status').textContent).not.toContain('Logged out of RaidSphere.');
+    expect(h.get('#prepare-roulette').disabled).toBe(true);
+    expect(h.onState).toHaveBeenCalledTimes(updates);
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(h.get('#control-status').textContent).toContain('session is still active');
+    expect(h.get('#logout').hidden).toBe(false);
+    expect(h.fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1);
+  });
+
+  it('uses a fresh 401 to confirm loss of local authentication after a lost logout response', async () => {
+    const h = room(); await vi.advanceTimersByTimeAsync(0);
+    h.failPost(new TypeError('Synthetic lost response')); h.respond(401, {});
+    h.get('#logout').click(); await vi.advanceTimersByTimeAsync(0);
+    expect(h.get('#control-status').textContent).toContain('could not be confirmed');
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(h.get('#control-status').textContent).toContain('session is no longer authenticated');
+    expect(h.get('#control-status').textContent).toContain('token revocation was not confirmed');
+    expect(h.onState).toHaveBeenLastCalledWith(null, true);
+  });
+
+  it.each(['headers', 'body'] as const)('does not restore authenticated UI from stale polling %s after logout', async (stage) => {
+    const h = room(); await vi.advanceTimersByTimeAsync(0);
+    const headers = deferred<Response>(); const body = deferred<unknown>();
+    if (stage === 'headers') h.nextGet(() => headers.promise);
+    else {
+      const response = new Response('{}', { status: 200 });
+      vi.spyOn(response, 'json').mockImplementation(() => body.promise);
+      h.nextGet(async () => response);
+    }
+    await vi.advanceTimersByTimeAsync(5_000);
+    h.post(logoutReply); h.respond(401, {});
+    h.get('#logout').click(); await vi.advanceTimersByTimeAsync(0);
+    const notice = h.get('#control-status').textContent;
+    if (stage === 'headers') headers.resolve(new Response(JSON.stringify(idleStatus), { status: 200 }));
+    else body.resolve(idleStatus);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.get('#control-status').textContent).toBe(notice);
+    expect(h.get('#logout').hidden).toBe(true);
+    expect(h.get('#prepare-roulette').disabled).toBe(true);
+    expect(h.onStatus).toHaveBeenLastCalledWith(null);
+    expect(h.onState).toHaveBeenLastCalledWith(null, true);
+  });
+});
 
 describe('successful status polling', () => {
   it('replaces Checking with the logged-in live ready message, including unchanged later polls', async () => {
@@ -193,7 +322,7 @@ describe('control card presentation', () => {
     });
     h.post({
       poolId: '00000000-0000-4000-8000-000000000001', mode: 'manual', candidates: [destination],
-      sourceViewers: 100, minViewers: 50, maxViewers: 200, discoveryLimited: false, expiresAtMs: Date.now() + 120_000,
+      sourceViewers: 100, minViewers: 0, maxViewers: 1_000_000, discoveryLimited: false, expiresAtMs: Date.now() + 120_000,
     });
     h.get('#prepare-roulette').click(); await vi.advanceTimersByTimeAsync(0);
     expect(h.get('#spin-roulette').classes.has('is-primary')).toBe(true);
@@ -201,6 +330,38 @@ describe('control card presentation', () => {
     const posts = h.fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST');
     expect(posts).toHaveLength(1);
     expect(JSON.parse(String(posts[0]?.[1]?.body))).toEqual({ channelId: '1001', mode: 'manual', candidateIds: ['2002'] });
+  });
+  it('describes Auto tiers and displays the server ladder and limited discovery without changing requests or Logout', async () => {
+    const h = room(); await vi.advanceTimersByTimeAsync(0);
+    h.get('#mode-auto').click();
+    expect(h.get('#candidate-list').children[0]?.textContent).toContain('one channel per audience size, from small to large');
+    expect(h.get('#roulette-wheel-hint').textContent).toContain('one channel per audience size, from small to large');
+    const candidates = [5, 1_500].map((viewers, index) => candidateSchema.parse({
+      streamerId: String(2002 + index), login: `fixture_${index}`, displayName: index === 0 ? candidate.displayName : 'Large fixture',
+      avatarUrl: null, language: 'en', illustrativeCountry: null, viewers, gameName: '', title: '',
+    }));
+    h.post({
+      poolId: '00000000-0000-4000-8000-000000000001', mode: 'auto', candidates,
+      sourceViewers: 100, minViewers: 0, maxViewers: 1_000_000, discoveryLimited: true, expiresAtMs: Date.now() + 120_000,
+    });
+    h.get('#prepare-roulette').click(); await vi.advanceTimersByTimeAsync(0);
+    const posts = h.fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST');
+    expect(posts).toHaveLength(1);
+    expect(JSON.parse(String(posts[0]?.[1]?.body))).toEqual({ channelId: '1001', mode: 'auto', count: 6 });
+    expect(h.get('#control-status').textContent).toContain('2 live candidates available, ordered from small to large');
+    expect(h.get('#control-status').textContent).toContain('saved 0–1000000 viewer preferences');
+    expect(h.get('#control-status').textContent).toContain('Discovery reached its page limit');
+    expect(h.get('#candidate-list').children.map((row) => row.children[0]?.textContent)).toEqual([
+      `${candidate.displayName} · 5 viewers`, 'Large fixture · 1500 viewers',
+    ]);
+    expect(h.get('#spin-roulette').disabled).toBe(false);
+    expect(h.get('#logout').hidden).toBe(false);
+    h.post(logoutReply); h.respond(401, {});
+    h.get('#logout').click(); await vi.advanceTimersByTimeAsync(0);
+    expect(h.get('#logout').hidden).toBe(true);
+    expect(h.get('#spin-roulette').disabled).toBe(true);
+    expect(h.get('#candidate-count').textContent).toBe('0 channels');
+    expect(h.get('#control-status').textContent).toContain('Logged out of RaidSphere.');
   });
   it('highlights only the furthest available step and never highlights a disabled action', () => {
     const buttons = [new ControlElement(), new ControlElement(), new ControlElement()];

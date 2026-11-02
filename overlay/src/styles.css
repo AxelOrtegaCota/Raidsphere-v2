@@ -1407,6 +1407,24 @@ html[data-mode='interactive'] .control-feedback {
 }
 html[data-mode='interactive'] .control-feedback p { flex: 1; min-width: 0; margin: 0; line-height: 1.4; overflow-wrap: anywhere; }
 html[data-mode='interactive'] #cancel-raid { flex: none; font-size: 12px; padding: 6px 10px; }
+html[data-mode='interactive'] #logout {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  gap: 7px;
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid rgb(159 135 255 / 45%);
+  border-radius: 8px;
+  background: rgb(114 87 217 / 12%);
+  color: #d9cfff;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+html[data-mode='interactive'] #logout:hover:not(:disabled) { background: rgb(114 87 217 / 28%); border-color: #9f87ff; }
+html[data-mode='interactive'] #logout:disabled { opacity: .5; cursor: not-allowed; }
 
 html[data-mode='interactive'] .search-panel {
   grid-area: 1 / 2 / -1 / 3;
