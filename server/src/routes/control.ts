@@ -155,7 +155,7 @@ export function registerControlRoutes(app: FastifyInstance, dependencies: Contro
         catch { throw new ControlConflict('Select unique destinations that are still live and match your preferences, excluding your own channel.'); }
       } else {
         const discovery = await discover(session);
-        candidates = autoCandidates(source.streamerId, source.viewers, discovery.streams.map(streamCandidate).filter(eligible), input.count, random);
+        candidates = autoCandidates(source.streamerId, discovery.streams.map(streamCandidate).filter(eligible), input.count, random);
         discoveryLimited = discovery.limited;
       }
       // One short-lived pool per owner, with bounded process memory.
@@ -163,7 +163,7 @@ export function registerControlRoutes(app: FastifyInstance, dependencies: Contro
       if (!pools.has(source.streamerId) && pools.size >= 1_000) throw new ControlConflict('Candidate preparation is at capacity.');
       const prepared = preparedRouletteSchema.parse({
         poolId: randomUUID(), mode: input.mode, candidates, sourceViewers: source.viewers,
-        minViewers: source.viewers * 0.5, maxViewers: source.viewers * 2,
+        minViewers: preferences.minViewers, maxViewers: preferences.maxViewers,
         discoveryLimited, expiresAtMs: Date.now() + 120_000,
       });
       pools.set(session.user.id, prepared);
@@ -188,9 +188,6 @@ export function registerControlRoutes(app: FastifyInstance, dependencies: Contro
       if (refreshed.some((entry) => entry.viewers < source.minViewers || entry.viewers > source.maxViewers ||
           (!source.acceptsOtherLanguages && entry.language !== source.language))) {
         throw new ControlConflict('A destination no longer matches your configured preferences. Prepare candidates again.');
-      }
-      if (pool.mode === 'auto' && refreshed.some((entry) => entry.viewers < candidate.viewers * 0.5 || entry.viewers > candidate.viewers * 2)) {
-        throw new ControlConflict('Viewer counts changed outside the required range. Prepare candidates again.');
       }
       return result(await coordinator.browserSpin(source, refreshed, pool.mode, input.requestId, candidate.language));
     } catch (error) { return failure(reply, error); }

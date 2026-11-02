@@ -252,6 +252,14 @@ describe('overlay markup', () => {
     expect(positions.every((position) => position >= 0)).toBe(true);
     expect(positions).toEqual([...positions].sort((a, b) => a - b));
   });
+  it('provides a native keyboard-accessible logout button with a decorative icon inside the OBS-hidden control header', () => {
+    const header = /<section class="control-feedback"[\s\S]*?<\/section>/.exec(html)?.[0] ?? '';
+    expect(header).toMatch(/<button id="logout" type="button" aria-label="Log out of RaidSphere" disabled hidden>/);
+    expect(header).toMatch(/<svg aria-hidden="true" focusable="false"/);
+    expect(header).toContain('<span id="logout-label">Log out</span>');
+    expect(css).toMatch(/html:not\(\[data-mode='interactive'\]\) \.control-feedback,[\s\S]*?display: none !important/);
+    expect(css).toContain("html[data-mode='interactive'] button:focus-visible");
+  });
   it('scopes the new layout and visibility rules to interactive mode, leaving OBS panels outside those rules', () => {
     const controlStyles = css.split('/* Broadcaster control room. OBS retains the original scene layout above. */')[1];
     expect(controlStyles).toBeDefined();

@@ -137,14 +137,36 @@ describe('manual and automatic candidates', () => {
     h.state.streams[1] = stream('2002', -1);
     expect((await h.post('prepare', { channelId: SOURCE, mode: 'auto', count: 6 })).statusCode).toBe(502);
   });
-  it('uses inclusive half-to-double bounds, deduplicates, and reports fewer than six without widening', async () => {
+  it('uses a tier ladder, deduplicates, and reports fewer than six with the actual preference bounds', async () => {
     const h = setup();
     h.state.streams.push(stream('2002', 50), stream('2004', 49), stream('2005', 201));
     h.state.limited = true;
     const response = await h.post('prepare', { channelId: SOURCE, mode: 'auto', count: 7 });
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toMatchObject({ sourceViewers: 100, minViewers: 50, maxViewers: 200, discoveryLimited: true });
-    expect(response.json().candidates.map((entry: { streamerId: string }) => entry.streamerId)).toEqual(['2002', '2003']);
+    expect(response.json()).toMatchObject({ sourceViewers: 100, minViewers: 0, maxViewers: 1_000_000, discoveryLimited: true });
+    expect(response.json().candidates.map((entry: { streamerId: string }) => entry.streamerId)).toEqual(['2004', '2002', '2003', '2005']);
+    expect(h.requestRaid).not.toHaveBeenCalled();
+  });
+  it.each([6, 7] as const)('prepares %i tiers from small to large independently of source viewers', async (count) => {
+    const h = setup();
+    const viewers = [0, 11, 51, 101, 251, 501, 1_001];
+    h.state.streams = [stream(SOURCE, 50_000), ...viewers.map((value, index) => stream(String(2002 + index), value)).reverse()];
+    const response = await h.post('prepare', { channelId: SOURCE, mode: 'auto', count });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().candidates.map((entry: { viewers: number }) => entry.viewers)).toEqual(viewers.slice(0, count));
+    expect(response.json().sourceViewers).toBe(50_000);
+    expect(h.random.nextInt).not.toHaveBeenCalled();
+    expect(h.requestRaid).not.toHaveBeenCalled();
+  });
+  it('applies inclusive saved viewer and language preferences before tiering without widening them', async () => {
+    const h = setup();
+    await h.streamers.save({ ...source, minViewers: 11, maxViewers: 250, acceptsOtherLanguages: false });
+    h.state.streams = [stream(SOURCE), stream('2002', 10), stream('2003', 11), stream('2004', 50),
+      stream('2005', 51, 'it'), stream('2006', 250), stream('2007', 251)];
+    const response = await h.post('prepare', { channelId: SOURCE, mode: 'auto', count: 7 });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ minViewers: 11, maxViewers: 250 });
+    expect(response.json().candidates.map((entry: { streamerId: string }) => entry.streamerId)).toEqual(['2003', '2004', '2006']);
   });
   it('returns zero eligible candidates without widening configured preferences', async () => {
     const h = setup();
@@ -157,17 +179,42 @@ describe('manual and automatic candidates', () => {
   it('samples six or seven candidates using the injected random source', () => {
     const pool = Array.from({ length: 10 }, (_, index) => candidate(String(2000 + index), 100));
     const random = { nextInt: vi.fn((max: number) => max - 1) };
-    expect(autoCandidates(SOURCE, 100, pool, 6, random)).toHaveLength(6);
-    const seven = autoCandidates(SOURCE, 100, pool, 7, random);
+    expect(autoCandidates(SOURCE, pool, 6, random)).toHaveLength(6);
+    const seven = autoCandidates(SOURCE, pool, 7, random);
     expect(seven).toHaveLength(7); expect(seven[0]?.streamerId).toBe('2009');
     expect(new Set(seven.map((entry) => entry.streamerId)).size).toBe(7);
   });
-  it('rechecks changed viewer counts before an auto spin', async () => {
+  it('allows an auto spin after viewer drift across tiers and outside the former relative range', async () => {
     const h = setup();
     const prepared = await h.post('prepare', { channelId: SOURCE, mode: 'auto', count: 6 });
     h.state.streams[1] = stream('2002', 201);
     const response = await h.post('spin', { channelId: SOURCE, poolId: prepared.json().poolId, requestId: randomUUID() });
-    expect(response.statusCode).toBe(409); expect(h.requestRaid).not.toHaveBeenCalled();
+    expect(response.statusCode).toBe(200);
+    expect(response.json().roulette.candidates[0]).toMatchObject({ streamerId: '2002', viewers: 201 });
+    expect(h.requestRaid).not.toHaveBeenCalled();
+  });
+  it.each(['offline', 'below-minimum', 'above-maximum', 'language'] as const)('still rejects an auto spin after a destination becomes %s', async (change) => {
+    const h = setup();
+    await h.streamers.save({ ...source, minViewers: 50, maxViewers: 250, acceptsOtherLanguages: false });
+    h.state.streams = [stream(SOURCE), stream('2002', 50), stream('2003', 250)];
+    const prepared = await h.post('prepare', { channelId: SOURCE, mode: 'auto', count: 6 });
+    expect(prepared.statusCode).toBe(200);
+    if (change === 'offline') h.state.streams = h.state.streams.filter((entry) => entry.userId !== '2002');
+    else h.state.streams[1] = stream('2002', change === 'below-minimum' ? 49 : change === 'above-maximum' ? 251 : 50,
+      change === 'language' ? 'it' : 'es');
+    const response = await h.post('spin', { channelId: SOURCE, poolId: prepared.json().poolId, requestId: randomUUID() });
+    expect(response.statusCode).toBe(409);
+    expect(response.json().error).toContain(change === 'offline' ? 'no longer live' : 'configured preferences');
+    expect(h.requestRaid).not.toHaveBeenCalled();
+  });
+  it('rechecks current saved preferences when they change after preparation', async () => {
+    const h = setup();
+    const prepared = await h.post('prepare', { channelId: SOURCE, mode: 'auto', count: 6 });
+    await h.streamers.save({ ...source, maxViewers: 150 });
+    const response = await h.post('spin', { channelId: SOURCE, poolId: prepared.json().poolId, requestId: randomUUID() });
+    expect(response.statusCode).toBe(409);
+    expect(response.json().error).toContain('configured preferences');
+    expect(h.requestRaid).not.toHaveBeenCalled();
   });
 });
 

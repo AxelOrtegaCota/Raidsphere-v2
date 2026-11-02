@@ -605,6 +605,7 @@ export async function revokeToken(
 
   const response = await fetch(`${TWITCH_AUTH_BASE_URL}/revoke`, {
     method: 'POST',
+    signal: AbortSignal.timeout(8_000),
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
     },

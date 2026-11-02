@@ -94,6 +94,8 @@ export function createControlRoom(root: HTMLElement, options: {
   const spin = required<HTMLButtonElement>('#spin-roulette');
   const raidWinner = required<HTMLButtonElement>('#raid-winner');
   const cancel = required<HTMLButtonElement>('#cancel-raid');
+  const logout = required<HTMLButtonElement>('#logout');
+  const logoutLabel = required('#logout-label');
   const list = required<HTMLUListElement>('#candidate-list');
   const message = required('#control-status');
   const wheelContainer = required('#roulette-wheel-container');
@@ -112,6 +114,11 @@ export function createControlRoom(root: HTMLElement, options: {
   let wheel: RouletteWheel | null = null;
   let displayedSession: string | null = null;
   let actionNotice: string | null = null;
+  let authVersion = 0;
+  let logoutPending = false;
+  let logoutResult: 'none' | 'confirmed' | 'unconfirmed' = 'none';
+  let logoutNotice: string | null = null;
+  let logoutSimulated = true;
   const colors = ['#7257d9', '#c94882', '#327fba', '#3b947a', '#af772c', '#7666b1', '#bd5845'];
 
   selectView(views, 'globe', true);
@@ -128,6 +135,9 @@ export function createControlRoom(root: HTMLElement, options: {
 
   const sessionBusy = (): boolean => Boolean(status?.roulette && ['voting', 'selecting', 'chosen', 'raid_pending', 'unknown'].includes(status.roulette.status));
   const render = (): void => {
+    logout.hidden = status === null;
+    logout.disabled = busy || logoutPending || status === null;
+    logoutLabel.textContent = logoutPending ? 'Logging out…' : 'Log out';
     const canPrepare = Boolean(status?.isLive) && !busy && !uncertainRaid && !sessionBusy();
     manual.setAttribute('aria-pressed', String(mode === 'manual'));
     auto.setAttribute('aria-pressed', String(mode === 'auto'));
@@ -158,7 +168,7 @@ export function createControlRoom(root: HTMLElement, options: {
       const empty = document.createElement('li');
       empty.className = 'candidate-selection-empty';
       empty.textContent = mode === 'manual' ? 'No channels selected. Add live channels from the right panel.'
-        : 'Prepare Auto to find live channels in the required viewer range.';
+        : 'Auto picks one channel per audience size, from small to large. Empty tiers use other available channels.';
       list.append(empty);
     }
     wheelEmpty.hidden = displayedSession !== null;
@@ -166,7 +176,7 @@ export function createControlRoom(root: HTMLElement, options: {
     wheelHint.textContent = prepared?.candidates.length
       ? `${prepared.candidates.length} live candidates prepared. Spin to reveal the server-selected winner.`
       : shownEntries.length ? `${shownEntries.length} channels selected. Prepare candidates before spinning.`
-      : mode === 'manual' ? 'Add live channels from the right panel' : 'Prepare Auto to discover your candidates';
+      : mode === 'manual' ? 'Add live channels from the right panel' : 'Prepare Auto: one channel per audience size, from small to large';
     for (const candidate of shownEntries) {
       const item = document.createElement('li');
       item.className = 'candidate-selection-item';
@@ -219,6 +229,59 @@ export function createControlRoom(root: HTMLElement, options: {
     render();
   };
 
+  const clearAuthenticatedState = (notice: string): void => {
+    status = null;
+    selected = [];
+    prepared = null;
+    uncertainRaid = false;
+    actionNotice = null;
+    displayedSession = null;
+    wheel?.destroy();
+    wheel = null;
+    wheelContainer.replaceChildren();
+    options.onStatus(null);
+    options.onState(null, logoutSimulated);
+    message.textContent = notice;
+  };
+
+  logout.addEventListener('click', () => {
+    if (!status || busy || logoutPending) return;
+    logoutPending = true;
+    busy = true;
+    logoutSimulated = status.simulated;
+    // Invalidate both headers and bodies from any GET that started before this action.
+    authVersion += 1;
+    message.textContent = 'Logging out of RaidSphere…';
+    render();
+    void (async () => {
+      try {
+        const result = await sendControl('/auth/logout', {});
+        if (typeof result !== 'object' || result === null || !('authenticated' in result) || result.authenticated !== false ||
+            !('twitchRevocation' in result) || (result.twitchRevocation !== 'confirmed' && result.twitchRevocation !== 'unconfirmed') ||
+            !('integrationCleanup' in result) || (result.integrationCleanup !== 'confirmed' && result.integrationCleanup !== 'unconfirmed')) {
+          throw new Error('The logout response could not be verified.');
+        }
+        logoutResult = 'confirmed';
+        logoutNotice = result.twitchRevocation === 'confirmed' && result.integrationCleanup === 'confirmed'
+          ? 'Logged out of RaidSphere. Log in with Twitch to enable controls.'
+          : 'Logged out of RaidSphere. Twitch disconnection or token revocation could not be confirmed.';
+        clearAuthenticatedState(logoutNotice);
+      } catch {
+        // The server may have ended the session even if its response was lost.
+        // Disable controls until a fresh poll establishes the current authentication state.
+        logoutResult = 'unconfirmed';
+        logoutNotice = 'Log out could not be confirmed. Your session may still be active. No retry was made.';
+        status = null;
+        options.onStatus(null);
+        message.textContent = logoutNotice;
+      } finally {
+        logoutPending = false;
+        busy = false;
+        render();
+      }
+    })();
+  });
+
   const act = async (kind: 'prepare' | 'spin' | 'raid' | 'cancel', body: unknown): Promise<void> => {
     if (busy || !status) return;
     if ((kind === 'raid' || kind === 'spin') && uncertainRaid) return;
@@ -230,7 +293,7 @@ export function createControlRoom(root: HTMLElement, options: {
       const raw = await sendControl(`/api/control/${kind}`, body);
       if (kind === 'prepare') {
         prepared = preparedRouletteSchema.parse(raw);
-        message.textContent = `${prepared.candidates.length} live candidates available${prepared.mode === 'auto' ? ` within ${prepared.minViewers}–${prepared.maxViewers} viewers` : ''}.${prepared.discoveryLimited ? ' Discovery reached its page limit; this is the available count among inspected streams.' : ''}`;
+        message.textContent = `${prepared.candidates.length} live candidates available${prepared.mode === 'auto' ? `, ordered from small to large within your saved ${prepared.minViewers}–${prepared.maxViewers} viewer preferences` : ''}.${prepared.discoveryLimited ? ' Discovery reached its page limit; this is the available count among inspected streams.' : ''}`;
       } else {
         const response = controlResultSchema.parse(raw);
         updateState(response.roulette, response.simulated);
@@ -271,31 +334,44 @@ export function createControlRoom(root: HTMLElement, options: {
   const poll = async (): Promise<void> => {
     if (polling || stopped) return;
     polling = true;
+    const requestAuthVersion = authVersion;
     try {
       // Do not let an older GET overwrite a just-completed POST or interrupt animation.
       if (busy) return;
       const response = await fetch('/api/control/status', { credentials: 'include', cache: 'no-store', signal: AbortSignal.timeout(10_000) });
+      if (requestAuthVersion !== authVersion || busy) return;
       if (!response.ok) {
         if (response.status === 401 || response.status === 403) {
-          status = null; options.onStatus(null); message.textContent = 'Log in with Twitch from the dashboard to enable controls.';
-        } else { status = null; options.onStatus(null); message.textContent = 'Live source status could not be verified. Controls are disabled.'; }
+          if (logoutResult === 'unconfirmed' && response.status === 401) {
+            logoutResult = 'confirmed';
+            logoutNotice = 'Your RaidSphere session is no longer authenticated. Twitch token revocation was not confirmed.';
+            clearAuthenticatedState(logoutNotice);
+          } else {
+            status = null; options.onStatus(null);
+            message.textContent = logoutNotice ?? 'Log in with Twitch from the dashboard to enable controls.';
+          }
+        } else { status = null; options.onStatus(null); message.textContent = logoutNotice ?? 'Live source status could not be verified. Controls are disabled.'; }
         return;
       }
       const next = controlStatusSchema.parse(await response.json());
-      if (busy) return;
+      if (requestAuthVersion !== authVersion || busy) return;
       const previous = status?.roulette;
       const ownerChanged = status !== null && status.channelId !== next.channelId;
       if (ownerChanged) { selected = []; prepared = null; uncertainRaid = false; displayedSession = null; actionNotice = null; }
       status = next;
+      const logoutWasUnconfirmed = logoutResult === 'unconfirmed';
+      logoutResult = 'none';
+      logoutNotice = null;
       options.onStatus(next);
       options.onState(next.roulette, next.simulated);
       if (next.roulette && ['raid_pending', 'done', 'failed', 'unknown', 'cancelled'].includes(next.roulette.status)) uncertainRaid = false;
       if (!uncertainRaid && (previous?.status !== next.roulette?.status || previous?.sessionId !== next.roulette?.sessionId)) actionNotice = null;
+      if (logoutWasUnconfirmed) actionNotice = 'Log out was not confirmed. Your RaidSphere session is still active. Try Log out again.';
       // Always resolve the initial checking message, including a live, idle broadcaster.
       message.textContent = statusPollText(next, actionNotice);
       if (next.roulette) void displayWinner(next.roulette, false);
     } catch {
-      if (!busy) { status = null; options.onStatus(null); message.textContent = 'Live status is unavailable. No control request was retried.'; }
+      if (requestAuthVersion === authVersion && !busy) { status = null; options.onStatus(null); message.textContent = logoutNotice ?? 'Live status is unavailable. No control request was retried.'; }
     } finally {
       polling = false;
       render();

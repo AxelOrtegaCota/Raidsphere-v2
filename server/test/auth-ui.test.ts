@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createRuntime } from '../src/composition.js';
-import { createSession, destroySession } from '../src/twitch/sessions.js';
+import { createSession, destroySession, getSession } from '../src/twitch/sessions.js';
+import { candidateSchema, streamerSchema } from '@raidsphere/shared';
 import type { TwitchTokens, TwitchUser } from '../src/twitch/oauth.js';
 
 const temporaryRoots: string[] = [];
@@ -35,6 +36,158 @@ const tokens: TwitchTokens = {
   expires_in: 3600,
   scope: ['channel:manage:raids', 'user:read:chat'],
 };
+
+describe('authenticated logout', () => {
+  const runtimes: Array<ReturnType<typeof createRuntime>> = [];
+  afterEach(async () => {
+    for (const runtime of runtimes.splice(0)) await runtime.app.close();
+    vi.restoreAllMocks();
+  });
+  function setup() {
+    vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    vi.stubEnv('TWITCH_CLIENT_ID', 'logout-fixture-client');
+    vi.stubEnv('TWITCH_CLIENT_SECRET', 'logout-fixture-secret');
+    vi.stubEnv('TWITCH_REDIRECT_URI', 'https://localhost/auth/callback');
+    const fetchMock = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) => new Response(null, { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    // Construction does not start EventSub; only the existing disconnect hook is exercised.
+    const runtime = createRuntime({ reportError: () => undefined, liveChat: { channelLanguage: async () => 'en' } });
+    runtimes.push(runtime);
+    if (!runtime.liveChat) throw new Error('Expected the logout integration fixture.');
+    const disconnect = vi.spyOn(runtime.liveChat, 'disconnect');
+    const session = createSession('test-session', user, tokens, { channelId: user.id, viewingCredential: 'x'.repeat(43) });
+    const headers = { host: 'localhost', cookie: 'raidsphere_session=test-session', origin: 'https://localhost', 'x-raidsphere-control': '1' };
+    const logout = (overrides: Record<string, string> = {}, payload: Record<string, unknown> = {}) => runtime.app.inject({
+      method: 'POST', url: '/auth/logout', headers: { ...headers, ...overrides }, payload,
+    });
+    return { runtime, fetchMock, session, disconnect, headers, logout };
+  }
+
+  it('rejects missing or viewing-only credentials and never offers GET logout', async () => {
+    const h = setup();
+    expect((await h.logout({ cookie: '' })).statusCode).toBe(401);
+    expect((await h.logout({ cookie: `raidsphere_session=${'x'.repeat(43)}` })).statusCode).toBe(401);
+    expect((await h.runtime.app.inject({ method: 'GET', url: '/auth/logout', headers: h.headers })).statusCode).toBe(404);
+    expect(getSession('test-session')).not.toBeNull();
+    expect(h.fetchMock).not.toHaveBeenCalled(); expect(h.disconnect).not.toHaveBeenCalled();
+  });
+
+  const rejectedLogoutHeaders: Record<string, string>[] = [
+    { origin: 'https://untrusted.invalid' },
+    { origin: 'null' },
+    { 'sec-fetch-site': 'cross-site' },
+    { 'x-raidsphere-control': '' },
+  ];
+  it.each(rejectedLogoutHeaders)('rejects CSRF/origin input %j before any session mutation', async (headers) => {
+    const h = setup();
+    expect((await h.logout(headers)).statusCode).toBe(403);
+    expect(getSession('test-session')).not.toBeNull();
+    expect(h.fetchMock).not.toHaveBeenCalled(); expect(h.disconnect).not.toHaveBeenCalled();
+  });
+
+  it('rejects another identity in the body or a mismatched stored owner', async () => {
+    const h = setup();
+    expect((await h.logout({}, { channelId: '987654321' })).statusCode).toBe(400);
+    h.session.overlay.channelId = '987654321';
+    expect((await h.logout()).statusCode).toBe(403);
+    expect(getSession('test-session')).not.toBeNull(); expect(h.fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('invalidates local authority, expires the protected cookie, and rejects all subsequent controls', async () => {
+    const h = setup();
+    const response = await h.logout();
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ message: 'Logged out', authenticated: false, integrationCleanup: 'confirmed', twitchRevocation: 'confirmed' });
+    expect(response.headers['cache-control']).toBe('no-store');
+    const expired = String(response.headers['set-cookie']);
+    for (const attribute of ['raidsphere_session=;', 'Max-Age=0', 'HttpOnly', 'SameSite=Lax', 'Secure', 'Path=/']) expect(expired).toContain(attribute);
+    expect(expired).not.toContain('test-session');
+    expect(getSession('test-session')).toBeNull();
+    expect(h.disconnect).toHaveBeenCalledOnce(); expect(h.disconnect).toHaveBeenCalledWith(user.id);
+    expect(h.fetchMock).toHaveBeenCalledOnce();
+    const [url, init] = h.fetchMock.mock.calls[0]!;
+    expect(String(url)).toBe('https://id.twitch.tv/oauth2/revoke');
+    expect(String(url)).not.toContain(tokens.access_token);
+    expect(init).toMatchObject({ method: 'POST' });
+    expect(init?.signal).toBeInstanceOf(AbortSignal);
+    expect(new URLSearchParams(String(init?.body)).get('token')).toBe(tokens.access_token);
+    for (const action of ['prepare', 'spin', 'raid', 'cancel']) {
+      const protectedRequest = await h.runtime.app.inject({ method: 'POST', url: `/api/control/${action}`, headers: h.headers, payload: {} });
+      expect(protectedRequest.statusCode).toBe(401);
+    }
+    expect((await h.runtime.app.inject({ method: 'GET', url: '/auth/me', headers: h.headers })).statusCode).toBe(401);
+    expect((await h.runtime.app.inject({ method: 'GET', url: '/auth/status', headers: h.headers })).json()).toEqual({ authenticated: false });
+  });
+
+  it.each(['server-error', 'network-error'] as const)('keeps local logout final after a Twitch %s', async (failure) => {
+    const h = setup();
+    if (failure === 'server-error') h.fetchMock.mockResolvedValue(new Response('upstream-private-detail', { status: 503 }));
+    else h.fetchMock.mockRejectedValue(new TypeError('upstream-private-detail'));
+    const response = await h.logout();
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ authenticated: false, twitchRevocation: 'unconfirmed' });
+    expect(getSession('test-session')).toBeNull();
+    expect(h.fetchMock).toHaveBeenCalledOnce();
+    for (const privateValue of [tokens.access_token, tokens.refresh_token, 'logout-fixture-secret', 'upstream-private-detail']) expect(response.body).not.toContain(privateValue);
+  });
+
+  it('still revokes the token and destroys the session when integration cleanup fails', async () => {
+    const h = setup(); h.disconnect.mockImplementation(() => { throw new Error('private-cleanup-detail'); });
+    const response = await h.logout();
+    expect(response.json()).toMatchObject({ authenticated: false, integrationCleanup: 'unconfirmed', twitchRevocation: 'confirmed' });
+    expect(getSession('test-session')).toBeNull(); expect(h.fetchMock).toHaveBeenCalledOnce();
+    expect(response.body).not.toContain('private-cleanup-detail');
+  });
+
+  it('uses an eight-second abort deadline and never restores the session after an upstream timeout', async () => {
+    const h = setup(); const deadline = new AbortController();
+    const timeout = vi.spyOn(AbortSignal, 'timeout').mockReturnValueOnce(deadline.signal);
+    h.fetchMock.mockImplementation(async (_input, init) => new Promise<Response>((_resolve, reject) => {
+      const signal = init?.signal;
+      if (!signal) { reject(new Error('Expected a revocation deadline.')); return; }
+      signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+    }));
+    const pending = h.logout();
+    await vi.waitFor(() => { expect(h.fetchMock).toHaveBeenCalledOnce(); });
+    expect(getSession('test-session')).toBeNull();
+    expect(timeout).toHaveBeenCalledWith(8_000);
+    deadline.abort(new DOMException('Synthetic deadline', 'TimeoutError'));
+    const response = await pending;
+    expect(response.json()).toMatchObject({ authenticated: false, twitchRevocation: 'unconfirmed' });
+    expect(getSession('test-session')).toBeNull(); expect(h.fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it('rejects a duplicate while the first revocation is still in flight', async () => {
+    const h = setup();
+    let finish: ((response: Response) => void) | undefined;
+    h.fetchMock.mockImplementation(async () => new Promise<Response>((resolve) => { finish = resolve; }));
+    const first = h.logout();
+    await vi.waitFor(() => { expect(h.fetchMock).toHaveBeenCalledOnce(); });
+    expect((await h.logout()).statusCode).toBe(401);
+    if (!finish) throw new Error('Expected a pending fixture revocation.');
+    finish(new Response(null, { status: 200 }));
+    expect((await first).statusCode).toBe(200);
+    expect(h.fetchMock).toHaveBeenCalledOnce(); expect(h.disconnect).toHaveBeenCalledOnce();
+  });
+
+  it('preserves active roulette state and existing OBS viewing credentials', async () => {
+    const h = setup();
+    const source = streamerSchema.parse({
+      id: user.id, login: user.login, displayName: user.display_name, avatarUrl: null, language: 'en',
+      minViewers: 0, maxViewers: 1_000_000, acceptsOtherLanguages: true, reputation: 0,
+    });
+    const destination = candidateSchema.parse({
+      streamerId: '987654321', login: 'fixture_target', displayName: 'Fixture Target', avatarUrl: null,
+      language: 'en', illustrativeCountry: null, viewers: 50, gameName: '', title: '',
+    });
+    await h.runtime.coordinator.browserSpin(source, [destination], 'manual', 'fixture-active-spin');
+    const before = await h.runtime.coordinator.snapshot(user.id);
+    const viewing = [...h.runtime.issuedCredentials];
+    await h.logout();
+    expect(await h.runtime.coordinator.snapshot(user.id)).toEqual(before);
+    expect([...h.runtime.issuedCredentials]).toEqual(viewing);
+  });
+});
 
 afterEach(async () => {
   vi.unstubAllGlobals();

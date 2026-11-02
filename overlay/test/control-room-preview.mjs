@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 function installFixtures() {
   const scenarios = ['logged-out', 'offline', 'live-empty', 'manual-empty', 'manual-three', 'auto', 'auto-prepared',
     'winner', 'winner-live', 'voting', 'queued', 'cancelled', 'rejected', 'uncertain', 'request-uncertain',
-    'status-error', 'forbidden', 'obs', 'obs-idle'];
+    'status-error', 'forbidden', 'logout-error', 'logout-partial', 'logout-lost-response', 'obs', 'obs-idle'];
   const params = new URLSearchParams(location.search);
   const scenario = params.get('scenario') || 'live-empty';
   if (!scenarios.includes(scenario)) throw new Error('Unknown local preview scenario.');
@@ -25,6 +25,10 @@ function installFixtures() {
     language: languages[index], illustrativeCountry: null, viewers: 70 + index * 15,
     gameName: 'Just Chatting', title: 'A synthetic live stream for local UI checks',
   }));
+  // Only Auto fixtures use the tier ladder; existing Manual, OBS and Logout fixtures stay intact.
+  const autoLadder = candidates.map((candidate, index) => ({
+    ...candidate, viewers: [5, 30, 75, 150, 375, 750, 1_500][index],
+  }));
   const makeSession = (pool, status = 'chosen', mode = 'manual') => ({
     sessionId: 'synthetic-preview-session', fromStreamerId: '1001', mode, status, candidates: pool,
     votes: mode === 'chat' ? { en: 1, es: 2 } : {}, createdAtMs: now - 10_000,
@@ -38,6 +42,7 @@ function installFixtures() {
     if (scenario === 'queued') Object.assign(roulette, { raidRequestedAtMs: now - 5_000, estimatedCountdownSeconds: 90 });
   }
   let prepared = null;
+  let authenticated = !['logged-out', 'forbidden'].includes(scenario);
   const requests = [];
   const originalFetch = window.fetch.bind(window);
   const json = (value, status = 200) => Promise.resolve(new Response(JSON.stringify(value), {
@@ -50,8 +55,8 @@ function installFixtures() {
     const path = url.pathname;
     if (path === '/health') return json({ mode: simulated ? 'simulation' : 'live', translation: 'simulated' });
     if (path === '/api/control/status') {
-      if (scenario === 'logged-out') return json({ error: 'Synthetic unauthenticated session.' }, 401);
       if (scenario === 'forbidden') return json({ error: 'Synthetic forbidden session.' }, 403);
+      if (!authenticated) return json({ error: 'Synthetic unauthenticated session.' }, 401);
       if (scenario === 'status-error') return json({ error: 'Synthetic status failure.' }, 503);
       return json({ channelId: '1001', login: 'fixturecaster', isLive: scenario !== 'offline', viewers: scenario === 'offline' ? 0 : 100, simulated, roulette });
     }
@@ -63,16 +68,27 @@ function installFixtures() {
       })), search_results: [],
     });
     if (path === '/api/categories') return json({ categories: [] });
+    if (path === '/auth/logout' && method === 'POST') {
+      requests.push({ method, path, body: {} });
+      if (!authenticated) return json({ error: 'Not authenticated.' }, 401);
+      if (scenario === 'logout-error') return json({ error: 'Synthetic logout failure.' }, 503);
+      authenticated = false;
+      if (scenario === 'logout-lost-response') throw new TypeError('Synthetic lost logout response.');
+      return json({
+        message: 'Logged out', authenticated: false, integrationCleanup: 'confirmed',
+        twitchRevocation: scenario === 'logout-partial' ? 'unconfirmed' : 'confirmed',
+      });
+    }
     if (path.startsWith('/api/control/') && method === 'POST') {
       const body = typeof init?.body === 'string' ? JSON.parse(init.body) : {};
       requests.push({ method, path, body });
-      if (['logged-out', 'forbidden'].includes(scenario)) return json({ error: 'Synthetic authentication rejection.' }, 401);
+      if (!authenticated) return json({ error: 'Synthetic authentication rejection.' }, 401);
       if (scenario === 'offline') return json({ error: 'Your source stream is offline. A raid requires a live source stream.' }, 409);
       if (path === '/api/control/prepare') {
-        const pool = body.mode === 'auto' ? candidates.slice(0, body.count) : candidates.filter((candidate) => body.candidateIds?.includes(candidate.streamerId));
+        const pool = body.mode === 'auto' ? autoLadder.slice(0, body.count) : candidates.filter((candidate) => body.candidateIds?.includes(candidate.streamerId));
         prepared = {
           poolId: '00000000-0000-4000-8000-000000000001', mode: body.mode, candidates: pool,
-          sourceViewers: 100, minViewers: 50, maxViewers: 200, discoveryLimited: false, expiresAtMs: Date.now() + 120_000,
+          sourceViewers: 100, minViewers: 0, maxViewers: 1_000_000, discoveryLimited: false, expiresAtMs: Date.now() + 120_000,
         };
         return json(prepared);
       }
@@ -158,6 +174,7 @@ function installFixtures() {
         }),
         primaryActions: actions.filter((button) => button.classList.contains('is-primary')).map((button) => button.id),
         cancelVisible: visible('#cancel-raid'), autoCountVisible: visible('#auto-count'),
+        logoutVisible: visible('#logout'), logoutDisabled: document.querySelector('#logout')?.disabled,
         headlineVisible: visible('#session-status'), roulettePanelVisible: visible('#roulette'),
         bubblesVisible: visible('#bubbles') && Boolean(document.querySelector('#bubbles')?.childElementCount),
         controlRequests: requests.length,

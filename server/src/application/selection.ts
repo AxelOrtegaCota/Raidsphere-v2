@@ -23,20 +23,40 @@ export function manualCandidates(sourceId: string, ids: readonly string[], live:
   });
 }
 
-// Sampling never changes the bounds, even when fewer than six channels qualify.
-export function autoCandidates(sourceId: string, sourceViewers: number, live: readonly Candidate[], count: 6 | 7, random: RandomSource): Candidate[] {
-  if (!Number.isSafeInteger(sourceViewers) || sourceViewers < 0) throw new Error('Invalid source viewer count.');
-  const pool = [...new Map(live.filter((candidate) => candidate.streamerId !== sourceId &&
-    candidate.viewers >= sourceViewers * 0.5 && candidate.viewers <= sourceViewers * 2)
+export const AUTO_VIEWER_TIERS = [
+  { minViewers: 0, maxViewers: 10 },
+  { minViewers: 11, maxViewers: 50 },
+  { minViewers: 51, maxViewers: 100 },
+  { minViewers: 101, maxViewers: 250 },
+  { minViewers: 251, maxViewers: 500 },
+  { minViewers: 501, maxViewers: 1_000 },
+  { minViewers: 1_001, maxViewers: Number.POSITIVE_INFINITY },
+] as const;
+
+// Saved preferences must be applied by the caller before tiering. Only local buckets mutate.
+export function autoCandidates(sourceId: string, live: readonly Candidate[], count: 6 | 7, random: RandomSource): Candidate[] {
+  const pool = [...new Map(live.filter((candidate) => candidate.streamerId !== sourceId)
     .map((candidate) => [candidate.streamerId, candidate] as const)).values()];
+  const buckets = AUTO_VIEWER_TIERS.map(({ minViewers, maxViewers }) =>
+    pool.filter((candidate) => candidate.viewers >= minViewers && candidate.viewers <= maxViewers));
   const chosen: Candidate[] = [];
-  while (pool.length && chosen.length < count) {
-    const index = pool.length === 1 ? 0 : random.nextInt(pool.length);
-    const [candidate] = pool.splice(index, 1);
-    if (!candidate) throw new Error('The random source returned an invalid candidate index.');
-    chosen.push(candidate);
+  const pickPass = (): boolean => {
+    const before = chosen.length;
+    for (const bucket of buckets) {
+      if (chosen.length === count) break;
+      if (!bucket.length) continue;
+      const index = bucket.length === 1 ? 0 : random.nextInt(bucket.length);
+      const [candidate] = bucket.splice(index, 1);
+      if (!candidate) throw new Error('The random source returned an invalid candidate index.');
+      chosen.push(candidate);
+    }
+    return chosen.length > before;
+  };
+  // First cover each non-empty tier; further passes fill gaps in ascending round-robin order.
+  while (chosen.length < count) {
+    if (!pickPass()) break;
   }
-  return chosen;
+  return chosen.sort((a, b) => a.viewers - b.viewers);
 }
 
 // Draws uniformly among the languages sharing the highest count. With zero votes every

@@ -5,6 +5,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { createRateLimiter } from './rate-limit.js';
 import { randomUUID } from 'node:crypto';
+import { z } from 'zod';
 import {
   buildAuthorizationUrl,
   exchangeCode,
@@ -34,6 +35,7 @@ const OAUTH_STATE_COOKIE_NAME = 'raidsphere_oauth_state';
 const STATE_TTL_MS = 5 * 60 * 1000;
 const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
 const pendingStates = new Map<string, number>();
+const logoutBodySchema = z.object({}).strict().optional();
 // Discovery works without login and spends the app's Twitch quota, so each address is limited.
 const DISCOVERY_LIMIT = { windowMs: 60_000, max: 120, maxKeys: 5_000 };
 
@@ -152,20 +154,38 @@ export function registerAuthRoutes(app: FastifyInstance, dependencies: AuthRoute
   });
 
   app.post('/auth/logout', async (request, reply) => {
+    reply.header('Cache-Control', 'no-store');
     const session = currentSession(request);
-    if (session) {
-      try {
-        await dependencies.onLogout?.(session);
-        await revokeToken(loadOAuthConfig(process.env), session.tokens.access_token);
-      } catch {
-        // Local logout still succeeds if Twitch is unavailable or the token was already revoked.
-      }
-      destroySession(session.sessionId);
+    if (!session) return reply.code(401).send({ error: 'Not authenticated.' });
+    if (session.userId !== session.user.id || session.overlay.channelId !== session.user.id) {
+      return reply.code(403).send({ error: 'The session does not own this channel.' });
     }
-    const secure = isSecureRedirect(loadOAuthConfig(process.env).redirectUri);
-    return reply
-      .header('Set-Cookie', cookie(SESSION_COOKIE_NAME, '', { maxAge: 0, secure }))
-      .send({ message: 'Logged out' });
+    // Match the existing control boundary: cookies alone cannot authorize a cross-site POST.
+    let validOrigin = true;
+    if (request.headers.origin) {
+      try {
+        const origin = new URL(request.headers.origin);
+        validOrigin = ['http:', 'https:'].includes(origin.protocol) && origin.host === request.headers.host;
+      } catch { validOrigin = false; }
+    }
+    if (!validOrigin || request.headers['sec-fetch-site'] === 'cross-site' || request.headers['x-raidsphere-control'] !== '1') {
+      return reply.code(403).send({ error: 'Use the RaidSphere control room on this origin.' });
+    }
+    if (!logoutBodySchema.safeParse(request.body).success) return reply.code(400).send({ error: 'Invalid logout input.' });
+
+    // End local authority before any await. Duplicate requests cannot reuse the session,
+    // and upstream failures never roll this back. Viewing credentials and raids are separate.
+    destroySession(session.sessionId);
+    const secure = request.protocol === 'https' || isSecureRedirect(process.env.TWITCH_REDIRECT_URI ?? '');
+    reply.header('Set-Cookie', cookie(SESSION_COOKIE_NAME, '', { maxAge: 0, secure }));
+    let integrationCleanup: 'confirmed' | 'unconfirmed' = 'confirmed';
+    let twitchRevocation: 'confirmed' | 'unconfirmed' = 'confirmed';
+    try { await dependencies.onLogout?.(session); }
+    catch { integrationCleanup = 'unconfirmed'; }
+    try { await revokeToken(loadOAuthConfig(process.env), session.tokens.access_token); }
+    catch { twitchRevocation = 'unconfirmed'; }
+    // Only fixed outcomes are public; upstream exceptions and token values are never returned.
+    return { message: 'Logged out', authenticated: false, integrationCleanup, twitchRevocation };
   });
 
   app.get('/auth/status', async (request, reply) => {
