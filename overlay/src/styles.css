@@ -1360,3 +1360,196 @@ html[data-mode='obs'] .view-toggle { display: none; }
   .winner-glow { animation: none; }
   .winner-text { animation: none; }
 }
+
+/* Broadcaster control room. OBS retains the original scene layout above. */
+html[data-mode='interactive'] #app {
+  --control-gap: 20px;
+  --discovery-width: clamp(320px, 27vw, 380px);
+  --wheel-size: clamp(170px, 31vh, 340px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--discovery-width);
+  grid-template-rows: 44px auto minmax(0, 1fr) auto;
+  gap: 12px var(--control-gap);
+  padding: var(--control-gap);
+  overflow: hidden;
+}
+
+html[data-mode='interactive'] .view-toggle {
+  grid-area: 1 / 1;
+  position: static;
+  justify-self: center;
+  align-self: center;
+  transform: none;
+}
+html[data-mode='interactive'] .badge {
+  grid-area: 1 / 1;
+  position: static;
+  align-self: center;
+  justify-self: start;
+  max-width: 180px;
+  padding: 5px 9px;
+  font-size: 10px;
+}
+html[data-mode='interactive'] .control-feedback {
+  grid-area: 2 / 1;
+  position: static;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  max-height: 88px;
+  padding: 8px 14px;
+  transform: none;
+  border-radius: 12px;
+  overflow-y: auto;
+  z-index: 5;
+}
+html[data-mode='interactive'] .control-feedback p { flex: 1; min-width: 0; margin: 0; line-height: 1.4; overflow-wrap: anywhere; }
+html[data-mode='interactive'] #cancel-raid { flex: none; font-size: 12px; padding: 6px 10px; }
+
+html[data-mode='interactive'] .search-panel {
+  grid-area: 1 / 2 / -1 / 3;
+  position: relative;
+  inset: auto;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  max-height: 100%;
+  transform: none;
+}
+html[data-mode='interactive'] .search-panel .candidates-list { min-height: 80px; max-height: none; }
+html[data-mode='interactive'] .search-panel .candidate-detail { min-height: 0; overflow-y: auto; }
+html[data-mode='interactive'] .search-panel .search-filters { flex: none; padding: 12px 16px; }
+html[data-mode='interactive'] .search-panel .search-panel-header { padding: 14px 16px; }
+html[data-mode='interactive'] .search-panel .filter-row input { min-width: 0; }
+
+html[data-mode='interactive'] #globe-view,
+html[data-mode='interactive'] #roulette-view {
+  grid-area: 3 / 1;
+  position: relative;
+  inset: auto;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+html[data-mode='interactive'] #roulette-view { display: grid; place-items: center; }
+html[data-mode='interactive'] .location-panel { top: auto; bottom: 8px; left: 8px; }
+
+html[data-mode='interactive'] .roulette-card {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) 112px auto;
+  gap: 12px;
+  width: min(640px, 100%);
+  height: 100%;
+  max-height: 680px;
+  min-height: 0;
+  padding: 18px;
+  border: 1px solid rgb(174 194 255 / 28%);
+  border-radius: 16px;
+  background: linear-gradient(145deg, rgb(8 10 24 / 96%), rgb(13 11 31 / 92%));
+  box-shadow: 0 24px 70px rgb(0 0 0 / 40%);
+}
+html[data-mode='interactive'] .roulette-card-top { display: flex; justify-content: center; align-items: center; gap: 16px; }
+html[data-mode='interactive'] .auto-count-label { display: flex; align-items: center; gap: 8px; color: #c8c7dc; }
+html[data-mode='interactive'] #auto-count { padding: 7px 8px; border: 1px solid rgb(174 194 255 / 25%); border-radius: 8px; background: #15172c; color: #fff; font: inherit; }
+html[data-mode='interactive'] .roulette-wheel-slot { display: grid; place-items: center; width: 100%; height: 100%; min-height: 0; }
+html[data-mode='interactive'] .roulette-wheel-container {
+  height: min(100%, var(--wheel-size));
+  width: auto;
+  max-width: 100%;
+  max-height: 100%;
+  aspect-ratio: 1;
+  margin: 0;
+}
+html[data-mode='interactive'] .roulette-wheel { width: 100% !important; height: auto !important; max-height: 100%; object-fit: contain; }
+html[data-mode='interactive'] .roulette-wheel-empty {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  justify-items: center;
+  gap: 10px;
+  height: min(100%, calc(var(--wheel-size) + 40px));
+  width: min(100%, 340px);
+  min-height: 0;
+}
+html[data-mode='interactive'] .empty-wheel {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  max-width: 100%;
+  aspect-ratio: 1;
+  border: 2px solid rgb(174 194 255 / 24%);
+  border-radius: 50%;
+  background: repeating-conic-gradient(from -90deg, #3a315f 0deg 58deg, #1b1e36 58deg 60deg, #283a59 60deg 118deg, #1b1e36 118deg 120deg);
+  box-shadow: inset 0 0 36px rgb(0 0 0 / 25%);
+}
+html[data-mode='interactive'] .empty-wheel span {
+  display: grid;
+  place-items: center;
+  width: 28%;
+  aspect-ratio: 1;
+  border: 1px solid rgb(174 194 255 / 30%);
+  border-radius: 50%;
+  background: #15172c;
+  color: #c8c7dc;
+  font-size: 26px;
+}
+html[data-mode='interactive'] #roulette-wheel-hint { margin: 0; text-align: center; color: #a8a8c0; font-size: 12px; line-height: 1.4; }
+
+html[data-mode='interactive'] .manual-candidates { display: flex; flex-direction: column; gap: 8px; width: 100%; min-height: 0; padding: 10px 12px; }
+html[data-mode='interactive'] .candidate-list-heading { display: flex; justify-content: space-between; margin: 0; font-size: 12px; }
+html[data-mode='interactive'] #candidate-count { color: #a8a8c0; font-variant-numeric: tabular-nums; }
+html[data-mode='interactive'] .candidate-selection-list { flex: 1; align-content: start; min-height: 0; max-height: none; gap: 4px; overflow-y: auto; }
+html[data-mode='interactive'] .candidate-selection-item { min-width: 0; min-height: 25px; margin: 0; padding: 3px 8px; border: 0; cursor: default; font-size: 12px; }
+html[data-mode='interactive'] .candidate-selection-item > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html[data-mode='interactive'] .candidate-selection-item button { flex: none; padding: 3px 8px; border: 1px solid rgb(174 194 255 / 25%); border-radius: 6px; background: #252843; color: #fff; font: inherit; }
+html[data-mode='interactive'] .candidate-selection-empty { margin: 4px 0; color: #a8a8c0; font-size: 12px; line-height: 1.4; }
+html[data-mode='interactive'] .roulette-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; }
+html[data-mode='interactive'] .roulette-actions button {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 48px;
+  padding: 6px 8px;
+  border: 1px solid rgb(174 194 255 / 25%);
+  border-radius: 10px;
+  background: #252843;
+  color: #f8f7ff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.35;
+  box-shadow: none;
+  cursor: pointer;
+}
+html[data-mode='interactive'] .roulette-actions button::before { content: attr(data-step); display: grid; place-items: center; flex: 0 0 20px; height: 20px; border-radius: 50%; background: rgb(255 255 255 / 10%); }
+html[data-mode='interactive'] .roulette-actions button.is-primary:not(:disabled) { border-color: #9f87ff; background: linear-gradient(135deg, #7257d9, #4a5cdb); box-shadow: 0 4px 16px rgb(111 141 255 / 18%); }
+html[data-mode='interactive'] .roulette-actions button:disabled { opacity: .42; cursor: not-allowed; box-shadow: none; }
+html[data-mode='interactive'] button:focus-visible,
+html[data-mode='interactive'] select:focus-visible,
+html[data-mode='interactive'] input:focus-visible { outline: 3px solid #ffd166; outline-offset: 3px; }
+
+html[data-mode='interactive'] .status {
+  grid-area: 4 / 1;
+  position: static;
+  width: 100%;
+  min-width: 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  box-shadow: none;
+}
+html[data-mode='interactive'] .status:not([data-has-session='true']) { display: none; }
+html[data-mode='interactive'] .status .brand,
+html[data-mode='interactive'] #connection-status { display: none; }
+html[data-mode='interactive'] #headline { max-width: none; margin: 0 0 3px; font-size: 18px; line-height: 1.25; }
+html[data-mode='interactive'] #detail { margin: 0; font-size: 12px; line-height: 1.4; }
+html[data-mode='interactive'] .roulette { grid-area: 3 / 1; position: relative; top: auto; left: auto; right: auto; justify-self: end; align-self: start; width: min(300px, 45%); max-height: 100%; overflow-y: auto; transform: none; }
+html[data-mode='interactive'] #roulette-view:not([hidden]) ~ .roulette { display: none; }
+
+@media (max-height: 820px) {
+  html[data-mode='interactive'] #app { --control-gap: 16px; gap: 10px 16px; }
+  html[data-mode='interactive'] .roulette-card { padding: 14px; gap: 10px; grid-template-rows: auto minmax(0, 1fr) 104px auto; }
+}

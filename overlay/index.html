@@ -31,38 +31,40 @@
 
       <!-- Roulette View -->
       <section id="roulette-view" class="view-panel" aria-label="Roulette view" hidden>
-        <div id="roulette-wheel-container" class="roulette-wheel-container"></div>
-        <div class="roulette-controls">
-          <div class="roulette-mode-selector">
-            <button id="mode-manual" type="button" class="mode-btn active">
-              ✋ Manual
-            </button>
-            <button id="mode-auto" type="button" class="mode-btn">
-              🎲 Auto (6-7)
-            </button>
+        <div class="roulette-card">
+          <div class="roulette-card-top">
+            <div class="roulette-mode-selector" role="group" aria-label="Candidate selection mode">
+              <button id="mode-manual" type="button" class="mode-btn active" aria-pressed="true">Manual</button>
+              <button id="mode-auto" type="button" class="mode-btn" aria-pressed="false">Auto</button>
+            </div>
+            <label class="auto-count-label" hidden>Channels
+              <select id="auto-count" aria-label="Auto candidate count" hidden>
+                <option value="6">6 channels</option><option value="7">7 channels</option>
+              </select>
+            </label>
           </div>
-          <label class="auto-count-label">Auto candidates
-            <select id="auto-count" aria-label="Auto candidate count" hidden>
-              <option value="6">6 channels</option><option value="7">7 channels</option>
-            </select>
-          </label>
+          <div class="roulette-wheel-slot">
+            <div id="roulette-wheel-empty" class="roulette-wheel-empty">
+              <div class="empty-wheel" aria-hidden="true"><span>?</span></div>
+              <p id="roulette-wheel-hint">Add live channels from the right panel</p>
+            </div>
+            <div id="roulette-wheel-container" class="roulette-wheel-container" hidden></div>
+          </div>
           <div id="manual-candidates" class="manual-candidates" hidden>
-            <p>Select streamers for the roulette:</p>
-            <ul id="candidate-list" class="candidate-selection-list"></ul>
+            <p class="candidate-list-heading">Candidates <span id="candidate-count">0 channels</span></p>
+            <ul id="candidate-list" class="candidate-selection-list" aria-label="Roulette candidates"></ul>
           </div>
-          <div class="roulette-actions">
-            <button id="prepare-roulette" type="button" disabled>Prepare candidates</button>
-            <button id="spin-roulette" type="button" class="btn-spin" disabled>
-              🎰 Spin!
-            </button>
-            <button id="raid-winner" type="button" disabled>Simulate raid to winner</button>
+          <div class="roulette-actions" role="group" aria-label="Roulette steps: prepare, spin, then optionally raid">
+            <button id="prepare-roulette" type="button" data-step="1" disabled>Prepare candidates</button>
+            <button id="spin-roulette" type="button" data-step="2" disabled>Spin!</button>
+            <button id="raid-winner" type="button" data-step="3" disabled>Simulate raid to winner</button>
           </div>
         </div>
       </section>
 
       <section class="control-feedback" aria-label="Broadcaster controls">
         <p id="control-status" role="status" aria-live="polite">Checking your Twitch session…</p>
-        <button id="cancel-raid" type="button" disabled>Cancel current session / raid</button>
+        <button id="cancel-raid" type="button" disabled hidden>Cancel current session / raid</button>
       </section>
 
       <!-- Flag Competition Panel -->
@@ -91,7 +93,7 @@
         <p id="translation-window" class="translation-window" hidden></p>
         <ol id="bubbles" class="bubbles" aria-live="polite"></ol>
       </section>
-      <section class="status" aria-live="polite">
+      <section id="session-status" class="status" aria-live="polite">
         <p class="brand">RaidSphere</p>
         <h1 id="headline">Raids without language barriers</h1>
         <p id="detail"></p>

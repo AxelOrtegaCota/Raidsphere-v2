@@ -8,6 +8,26 @@ type ControlStatus = ReturnType<typeof controlStatusSchema.parse>;
 type Prepared = ReturnType<typeof preparedRouletteSchema.parse>;
 type ViewElements = { globe: HTMLElement; roulette: HTMLElement; globeButton: HTMLButtonElement; rouletteButton: HTMLButtonElement };
 
+export function statusPollText(status: ControlStatus, notice: string | null = null): string {
+  const offline = 'Your source stream is offline. A raid requires a live source stream.';
+  if (notice) return status.isLive ? notice : `${offline} ${notice}`;
+  if (!status.isLive) return offline;
+  return status.roulette ? outcomeText(status.roulette, status.simulated)
+    : `Live as ${status.login} · add channels or switch to Auto`;
+}
+
+// Presentation only: OBS continues to own the existing headline and session panels.
+export function presentSessionPanel(panel: HTMLElement, mode: 'interactive' | 'obs', state: PublicRouletteState | null): void {
+  if (mode === 'obs') return;
+  panel.hidden = state === null;
+  panel.dataset.hasSession = String(state !== null);
+}
+
+export function highlightNextAction(actions: readonly HTMLButtonElement[]): void {
+  const next = [...actions].reverse().find((action) => !action.disabled);
+  for (const action of actions) action.classList.toggle('is-primary', action === next);
+}
+
 export function selectView(elements: ViewElements, selected: 'globe' | 'roulette', interactive: boolean): void {
   const globe = !interactive || selected === 'globe';
   elements.globe.hidden = !globe;
@@ -77,6 +97,9 @@ export function createControlRoom(root: HTMLElement, options: {
   const list = required<HTMLUListElement>('#candidate-list');
   const message = required('#control-status');
   const wheelContainer = required('#roulette-wheel-container');
+  const wheelEmpty = required('#roulette-wheel-empty');
+  const wheelHint = required('#roulette-wheel-hint');
+  const candidateCount = required('#candidate-count');
   let status: ControlStatus | null = null;
   let selected: DiscoveryCandidate[] = [];
   let mode: 'manual' | 'auto' = 'manual';
@@ -88,6 +111,7 @@ export function createControlRoom(root: HTMLElement, options: {
   let pollTimer: ReturnType<typeof setTimeout> | undefined;
   let wheel: RouletteWheel | null = null;
   let displayedSession: string | null = null;
+  let actionNotice: string | null = null;
   const colors = ['#7257d9', '#c94882', '#327fba', '#3b947a', '#af772c', '#7666b1', '#bd5845'];
 
   selectView(views, 'globe', true);
@@ -122,14 +146,34 @@ export function createControlRoom(root: HTMLElement, options: {
       !['manual', 'auto'].includes(status.roulette?.mode ?? 'chat');
     raidWinner.textContent = status?.simulated === false ? 'Start Raid to winner' : 'Simulate raid to winner';
     cancel.disabled = busy || !status?.roulette || !['voting', 'chosen', 'raid_pending'].includes(status.roulette.status);
+    cancel.hidden = !status?.roulette || !['voting', 'chosen', 'raid_pending'].includes(status.roulette.status);
+    highlightNextAction([prepare, spin, raidWinner]);
     list.replaceChildren();
     const entries = prepared?.candidates ?? (mode === 'manual' ? selected.map((candidate) => ({ streamerId: candidate.id, displayName: candidate.displayName, viewers: candidate.viewers })) : []);
-    for (const candidate of entries) {
+    const sessionCandidates = status?.roulette && ['manual', 'auto'].includes(status.roulette.mode ?? 'chat')
+      ? status.roulette.candidates : [];
+    const shownEntries = entries.length ? entries : sessionCandidates;
+    candidateCount.textContent = `${shownEntries.length} ${shownEntries.length === 1 ? 'channel' : 'channels'}`;
+    if (!shownEntries.length) {
+      const empty = document.createElement('li');
+      empty.className = 'candidate-selection-empty';
+      empty.textContent = mode === 'manual' ? 'No channels selected. Add live channels from the right panel.'
+        : 'Prepare Auto to find live channels in the required viewer range.';
+      list.append(empty);
+    }
+    wheelEmpty.hidden = displayedSession !== null;
+    wheelContainer.hidden = displayedSession === null;
+    wheelHint.textContent = prepared?.candidates.length
+      ? `${prepared.candidates.length} live candidates prepared. Spin to reveal the server-selected winner.`
+      : shownEntries.length ? `${shownEntries.length} channels selected. Prepare candidates before spinning.`
+      : mode === 'manual' ? 'Add live channels from the right panel' : 'Prepare Auto to discover your candidates';
+    for (const candidate of shownEntries) {
       const item = document.createElement('li');
+      item.className = 'candidate-selection-item';
       const name = document.createElement('span');
       name.textContent = `${candidate.displayName} · ${candidate.viewers} viewers`;
       item.append(name);
-      if (mode === 'manual') {
+      if (mode === 'manual' && selected.some((entry) => entry.id === candidate.streamerId)) {
         const remove = document.createElement('button');
         remove.type = 'button';
         remove.textContent = 'Remove';
@@ -138,6 +182,7 @@ export function createControlRoom(root: HTMLElement, options: {
         remove.addEventListener('click', () => {
           selected = selected.filter((entry) => entry.id !== candidate.streamerId);
           prepared = null;
+          if (!uncertainRaid) actionNotice = null;
           render();
         });
         item.append(remove);
@@ -149,6 +194,8 @@ export function createControlRoom(root: HTMLElement, options: {
   const displayWinner = async (state: PublicRouletteState, animate: boolean): Promise<void> => {
     if (!state.chosenCandidate || !['manual', 'auto'].includes(state.mode ?? 'chat') || displayedSession === state.sessionId) return;
     displayedSession = state.sessionId;
+    wheelEmpty.hidden = true;
+    wheelContainer.hidden = false;
     wheel?.destroy();
     wheel = null;
     try {
@@ -176,6 +223,7 @@ export function createControlRoom(root: HTMLElement, options: {
     if (busy || !status) return;
     if ((kind === 'raid' || kind === 'spin') && uncertainRaid) return;
     busy = true;
+    actionNotice = null;
     message.textContent = kind === 'raid' ? 'Submitting one raid request. Acceptance does not confirm arrival.' : 'Working…';
     render();
     try {
@@ -195,11 +243,12 @@ export function createControlRoom(root: HTMLElement, options: {
     } catch (error) {
       const uncertain = !(error instanceof ControlFailure) || error.uncertain;
       if ((kind === 'raid' || kind === 'cancel') && uncertain) uncertainRaid = true;
-      message.textContent = `${uncertain && (kind === 'raid' || kind === 'cancel') ? 'Uncertain outcome. No retry was made. ' : 'Request rejected. '}${error instanceof Error ? error.message : 'The response could not be verified.'}`;
+      actionNotice = `${uncertain && (kind === 'raid' || kind === 'cancel') ? 'Uncertain outcome. No retry was made. ' : 'Request rejected. '}${error instanceof Error ? error.message : 'The response could not be verified.'}`;
+      message.textContent = actionNotice;
     } finally { busy = false; render(); }
   };
 
-  const chooseMode = (next: typeof mode): void => { if (!busy) { mode = next; prepared = null; render(); } };
+  const chooseMode = (next: typeof mode): void => { if (!busy) { mode = next; prepared = null; if (!uncertainRaid) actionNotice = null; render(); } };
   manual.addEventListener('click', () => chooseMode('manual'));
   auto.addEventListener('click', () => chooseMode('auto'));
   count.addEventListener('change', () => { prepared = null; render(); });
@@ -236,13 +285,14 @@ export function createControlRoom(root: HTMLElement, options: {
       if (busy) return;
       const previous = status?.roulette;
       const ownerChanged = status !== null && status.channelId !== next.channelId;
-      if (ownerChanged) { selected = []; prepared = null; uncertainRaid = false; displayedSession = null; }
+      if (ownerChanged) { selected = []; prepared = null; uncertainRaid = false; displayedSession = null; actionNotice = null; }
       status = next;
       options.onStatus(next);
       options.onState(next.roulette, next.simulated);
       if (next.roulette && ['raid_pending', 'done', 'failed', 'unknown', 'cancelled'].includes(next.roulette.status)) uncertainRaid = false;
-      if (!next.isLive) message.textContent = 'Your source stream is offline. A raid requires a live source stream.';
-      else if (next.roulette && (previous?.status !== next.roulette.status || previous?.sessionId !== next.roulette.sessionId)) message.textContent = outcomeText(next.roulette, next.simulated);
+      if (!uncertainRaid && (previous?.status !== next.roulette?.status || previous?.sessionId !== next.roulette?.sessionId)) actionNotice = null;
+      // Always resolve the initial checking message, including a live, idle broadcaster.
+      message.textContent = statusPollText(next, actionNotice);
       if (next.roulette) void displayWinner(next.roulette, false);
     } catch {
       if (!busy) { status = null; options.onStatus(null); message.textContent = 'Live status is unavailable. No control request was retried.'; }
@@ -261,6 +311,7 @@ export function createControlRoom(root: HTMLElement, options: {
       try {
         selected = addManualCandidate(selected, candidate, status.channelId);
         mode = 'manual'; prepared = null;
+        if (!uncertainRaid) actionNotice = null;
         message.textContent = `${selected.length} manual candidates selected. Prepare candidates before spinning.`;
         selectView(views, 'roulette', true);
         render();
