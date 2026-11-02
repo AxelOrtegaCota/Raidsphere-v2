@@ -28,10 +28,10 @@
 | `eventsub.ts` | 445 | ⚠️ Tested, off by default | WebSocket client over `ws`: reconnection, subscriptions, validated events |
 | `live-chat.ts` | — | ⚠️ Tested, off by default | One connection per logged-in channel; routes chat, commands, moderation, and raids to the application ports |
 | `raids.ts` | 394 | ⚠️ Code exists | Raid gateway — SIMULATED |
-| `real-raid-gateway.ts` | — | ⚠️ Tested, off by default | Real raids through Helix; not tried against Twitch |
+| `real-raid-gateway.ts` | — | ✅ Worked on Twitch, off by default | Real raids through Helix; one real raid with confirmed arrival on 2026-11-01 |
 | `commands.ts` | 220 | ⚠️ Code exists | Parser `!roulette`, `!vote`, `!cancel` |
 | `candidates.ts` | 154 | ⚠️ Code exists | Channel discovery — SYNTHETIC DATA |
-| `registered-candidates.ts` | — | ⚠️ Tested, off by default | Live channels connected to RaidSphere, read from Helix; not tried against Twitch |
+| `registered-candidates.ts` | — | ✅ Worked on Twitch, off by default | Live channels connected to RaidSphere, read from Helix, with the current stream language |
 | `sessions.ts` | 157 | ✅ Working | Session store (in-memory only) |
 
 #### Module C — Translation (1,164 lines)
@@ -70,22 +70,22 @@
 |-----------|--------|----------|
 | Vote bars (30s timer, language percentages) | ✅ Built | — |
 | Channel card (name, game, viewers) | ✅ Built (winner card; no avatars yet) | — |
-| Translation bubbles (purple overlays) | ✅ Built; fed by the simulated chat translation pipeline (real chat pending EventSub) | — |
+| Translation bubbles (purple overlays) | ✅ Built; showed Azure translations of real raider chat on 2026-11-01 | — |
 | Arc animation (origin → destination) | ✅ Built | — |
 
 ### Module B — Real Twitch Connection
 | Component | Status | Priority |
 |-----------|--------|----------|
 | EventSub WebSocket activation | ⚠️ Opt-in with `TWITCH_EVENTSUB_ENABLED=true`; worked against Twitch on 2026-10-31 | HIGH |
-| Real chat message reception | ⚠️ `!roulette`, `!vote`, and `!cancel` worked from the broadcaster account; other roles, real chat translation, and real moderation are not tried yet | HIGH |
-| Real raid execution | ⚠️ Opt-in with `TWITCH_REAL_RAIDS_ENABLED=true`, which also needs real chat and real candidates; tested locally, not tried against Twitch | HIGH |
-| Integration with roulette coordinator | ⚠️ Real chat, commands, moderation, candidates, and raids wired through `live-chat.ts` behind flags; only broadcaster commands tried against Twitch | HIGH |
+| Real chat message reception | ⚠️ `!roulette`, `!vote`, and `!cancel` worked from the broadcaster account; real raider chat was translated on 2026-11-01; other roles and real moderation are not tried yet | HIGH |
+| Real raid execution | ✅ Opt-in with `TWITCH_REAL_RAIDS_ENABLED=true`, which also needs real chat and real candidates; a real raid and its arrival worked on 2026-11-01; `!cancel` during a real raid not tried | HIGH |
+| Integration with roulette coordinator | ⚠️ Real chat, commands, moderation, candidates, and raids wired through `live-chat.ts` behind flags; the full flow worked from the broadcaster account on 2026-11-01 | HIGH |
 
 ### Module C — Real Translation
 | Component | Status | Priority |
 |-----------|--------|----------|
 | Azure AI Translator provider | ⚠️ Opt-in with `AZURE_TRANSLATOR_KEY`; verified with synthetic phrases (D4-01) | MEDIUM |
-| Translation of real Twitch chat | ⚠️ Not tried; needs a real raid to open a window | MEDIUM |
+| Translation of real Twitch chat | ✅ Worked on 2026-11-01 after a real raid; the 0.8 detection threshold is not calibrated | MEDIUM |
 
 ### Module D — Persistence
 | Component | Status | Priority |
@@ -139,7 +139,7 @@ With TWITCH_REAL_RAIDS_ENABLED=true too, raids go to Twitch and move real viewer
 from EventSub; without it the session ends as unknown, never as failed or done.
 ```
 
-### 5. Raids (Off by default, not tried against Twitch)
+### 5. Raids (Off by default, worked on Twitch)
 ```
 Raid execution requires:
 1. Broadcaster must be LIVE
@@ -148,7 +148,9 @@ Raid execution requires:
 
 Currently: simulated by default (server/src/twitch/raids.ts). With TWITCH_EVENTSUB_ENABLED,
 TWITCH_REAL_CANDIDATES_ENABLED, and TWITCH_REAL_RAIDS_ENABLED set, server/src/twitch/real-raid-gateway.ts
-sends the raid through Helix with the source channel's own token. Not tried against Twitch yet.
+sends the raid through Helix with the source channel's own token. On 2026-11-01 a real raid and
+its arrival worked, and raider chat was translated. Known limits: the source channel's language is
+read only at login, and a manual raid in the other direction was refused by Twitch (cause unknown).
 ```
 
 ---

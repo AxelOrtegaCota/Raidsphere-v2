@@ -14,7 +14,7 @@ As of 2026-11-01. Phases 1 and 2 are complete and merged into `main`, and the ap
 | Checks | Phase 1: 63/63 tests, typecheck, and build on `main` after the merge. `main` after PR #2: 599/599 tests, typecheck, build, and audit (2026-10-31, on Node.js 20.18.0). `main` after PR #9 (`f5c24cd`): typecheck and 700/700 tests (2026-11-01). |
 | Version control | Development continues in `AxelOrtegaCota/Raidsphere-v2`, a copy of `Articnn/Raidsphere`. Its PR #2 (`852e4e2`) brought Phases 2, 3, and 4 into `main`; later PRs #3–#9 added the Phase 3 and 4 work. `feature/project-foundation` (`4219a21`) is obsolete. |
 
-This status is based on local verification, Git history, [Phase 1 decisions](phase-1-decisions.md), and [Phase 2 backend decisions](phase-2-backend-decisions.md). Real candidates and real raids are wired behind `TWITCH_REAL_CANDIDATES_ENABLED` and `TWITCH_REAL_RAIDS_ENABLED` but real raids are not tried against Twitch yet, so translation has not reached real chat; Azure translation runs when `AZURE_TRANSLATOR_KEY` is set. Persistence is not implemented.
+This status is based on local verification, Git history, [Phase 1 decisions](phase-1-decisions.md), and [Phase 2 backend decisions](phase-2-backend-decisions.md). Real candidates and real raids run behind `TWITCH_REAL_CANDIDATES_ENABLED` and `TWITCH_REAL_RAIDS_ENABLED`, and Azure translation when `AZURE_TRANSLATOR_KEY` is set; on 2026-11-01 a real raid, its arrival, and translated raider chat worked on Twitch. Persistence is not implemented.
 
 Phase 2 backend decisions are recorded in [Phase 2 backend decisions](phase-2-backend-decisions.md), and their build order and progress in the [Phase 2 backend plan](phase-2-backend-plan.md).
 
@@ -25,8 +25,8 @@ Phase 2 backend decisions are recorded in [Phase 2 backend decisions](phase-2-ba
 | Phase 0 — Definition | Proposal, MVP scope, modules A/B/C/D, architecture, and collaboration. | Essentially complete |
 | Phase 1 — Foundation | Workspaces, contracts, minimal backend, static overlay, tests, and verification. | Complete; merged into `main` |
 | Phase 2 — Local MVP | End-to-end roulette with synthetic channels, 30 s voting, selection, and a synchronized globe. | Complete; merged into `main` (PRs #2 and #3 of `Raidsphere-v2`) |
-| Phase 3 — Real Twitch | OAuth, EventSub/chat, commands, eligibility, raid requests, and observed arrivals. | In progress: OAuth and Helix discovery work; EventSub chat is wired behind `TWITCH_EVENTSUB_ENABLED`, and broadcaster commands worked against Twitch; registered live candidates are wired behind `TWITCH_REAL_CANDIDATES_ENABLED`; real raids are wired behind `TWITCH_REAL_RAIDS_ENABLED` and not tried against Twitch |
-| Phase 4 — AI translation | Bilingual messages, emote preservation, moderation, and the 15-minute window. | Started: translation window, overlay bubbles, chat pipeline, and moderation work in simulation; Azure translation and language detection verified with synthetic phrases; real chat pending (Phase 3) |
+| Phase 3 — Real Twitch | OAuth, EventSub/chat, commands, eligibility, raid requests, and observed arrivals. | In progress: OAuth and Helix discovery work; EventSub chat is wired behind `TWITCH_EVENTSUB_ENABLED`, and broadcaster commands worked against Twitch; registered live candidates are wired behind `TWITCH_REAL_CANDIDATES_ENABLED`; real raids run behind `TWITCH_REAL_RAIDS_ENABLED`, and a real raid and its arrival worked on Twitch (2026-11-01); `!cancel` during a real raid, real moderation, and viewer or moderator accounts are not tried |
+| Phase 4 — AI translation | Bilingual messages, emote preservation, moderation, and the 15-minute window. | Started: translation window, overlay bubbles, chat pipeline, and moderation work in simulation; Azure translation and language detection verified with synthetic phrases and with real raider chat on Twitch (2026-11-01); real moderation not tried |
 | Phase 5 — Final integration | QA, OBS performance, security, demo, documentation, and hackathon submission. | Pending |
 
 ## Phase 1 close-out
@@ -61,8 +61,8 @@ Phase 2 backend decisions are recorded in [Phase 2 backend decisions](phase-2-ba
 | M1 — Integrated base | Phase 1 reviewed and merged; docs, rules, and lockfile aligned. | Done |
 | M2 — Controlled simulation | `!roulette` starts in local mode, voting lasts 30 s, and the backend counts valid votes. | Done (Phase 2: tests and `npm run demo:auto`) |
 | M3 — Connected overlay | The globe shows the session, languages, countdown, and chosen candidate from validated events. | Done: globe markers, raid arc, vote bars, and winner card from validated events (browser and OBS checks) |
-| M4 — Twitch integration | Real flow only for authorized participating channels; raid requests are distinguished from observed arrivals. | In progress: wired behind flags; real raids not tried |
-| M5 — Translation and demo | Original/translated messages, 15-minute expiry, moderation, and demo rehearsal. | In progress: Azure verified with synthetic phrases; real chat and rehearsal pending |
+| M4 — Twitch integration | Real flow only for authorized participating channels; raid requests are distinguished from observed arrivals. | In progress: a real raid and its arrival worked on Twitch (2026-11-01); cancellation and other roles not tried |
+| M5 — Translation and demo | Original/translated messages, 15-minute expiry, moderation, and demo rehearsal. | In progress: real raider chat translated on Twitch (2026-11-01); demo rehearsal pending |
 
 Phases 2–5 and the milestone order are a recommended plan, not completed deliverables.
 
@@ -70,7 +70,7 @@ Phases 2–5 and the milestone order are a recommended plan, not completed deliv
 
 | Priority | Risk | Response |
 | --- | --- | --- |
-| High | Mistaking the simulated Phase 2 flow for real Twitch behavior. | Report implemented and verified work separately; real Twitch chat, raids, and translation exist behind flags but are only partly tried against Twitch, and simulated timings must be recalibrated against Twitch in Phase 3. |
+| High | Mistaking the simulated Phase 2 flow for real Twitch behavior. | Report implemented and verified work separately; real Twitch chat, raids, and translation exist behind flags and the main flow worked on Twitch once (2026-11-01), and simulated timings must be recalibrated against Twitch in Phase 3. |
 | High | Using outdated Twitch scopes or permissions. | Validate them before integrating OAuth or starting raids; limit to authorized participating channels. |
 | Medium | Branching from the obsolete `feature/project-foundation` (`4219a21`). | Always branch from the latest `main`; that branch lacks V1–V7 and the lockfile. |
 | Medium | The Twitch client secret was shared with a teammate's AI assistant. It was not published, and it has not been rotated. | Rotate it in the Twitch developer console before production; never commit, log, or paste secrets, including into AI tools. |
@@ -86,7 +86,7 @@ Phases 2–5 and the milestone order are a recommended plan, not completed deliv
 | 1 | AI provider (server-only key, timeout, validated output, prompt-injection resistance) | Done: Azure AI Translator ([D4-01](phase-4-decisions.md)), verified against a real F0 resource with synthetic phrases; real Twitch chat pending (Phase 3) |
 | 2 | Language detection (unknown when unsure; never assume English) | Done: Azure detection with a score threshold and a chat slang filter ([D4-01](phase-4-decisions.md)), verified against Azure with synthetic phrases; threshold not calibrated on real chat |
 | 3 | 15-minute translation window, opened only by a confirmed arrival | Done (`5a2deed`) |
-| 4 | Chat pipeline: message → filters and limits → translation → `translate:bubble`, with a last check before publishing | Done in simulation; EventSub chat is connected behind `TWITCH_EVENTSUB_ENABLED`, not tried with real raider chat |
+| 4 | Chat pipeline: message → filters and limits → translation → `translate:bubble`, with a last check before publishing | Done; real raider chat from EventSub was translated on Twitch (2026-11-01) |
 | 5 | Moderation: deleted messages, bans and timeouts, chat clears, with a memory so late or early events cannot show a moderated message | Done in simulation; the EventSub moderation events are subscribed behind `TWITCH_EVENTSUB_ENABLED`, not tried against Twitch |
 | 6 | Translation bubbles in the overlay | Done (`b24440d`) |
 
@@ -94,5 +94,5 @@ Phases 2–5 and the milestone order are a recommended plan, not completed deliv
 
 1. **Rotate the Twitch client secret**, which was shared with a teammate's AI assistant. A scan of tracked files and Git history found no committed credential.
 2. **Phase 5 follow-ups from Phase 2:** repeat the OBS check, including the bubble queue and reconnection after a refresh, and have module owners review the changes outside their modules.
-3. **Modules B and D:** run the end-to-end test on Twitch: two live channels, `!roulette`, a real raid, the `channel.raid` arrival, and translated raider chat.
+3. **Modules B and D:** the end-to-end test worked on Twitch (2026-11-01) and led to the fixes on `fix/live-test-findings`: `/health` reports real translation, candidates use the live stream language, refused raids log their HTTP status, and bubbles no longer flicker. Still to try: `!cancel` during a real raid, real moderation, and viewer or moderator accounts. The source channel's language is read only at login.
 4. **Module C:** once real chat reaches a translation window, calibrate the detection threshold and the slang list.
