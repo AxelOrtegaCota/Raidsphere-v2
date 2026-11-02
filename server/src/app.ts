@@ -6,12 +6,14 @@ import { registerWebSocketBoundary } from './websocket.js';
 import type { ViewingDependencies } from './websocket.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import type { AuthRouteDependencies } from './routes/auth.js';
+import { registerControlRoutes, type ControlDependencies } from './routes/control.js';
 
 export interface AppDependencies {
   viewing: ViewingDependencies;
   overlayRoot?: string;
   issueViewingCredential: (channelId: string) => string;
   auth?: Omit<AuthRouteDependencies, 'issueViewingCredential'>;
+  control?: ControlDependencies;
   // Live only when raids reach Twitch; translation is reported on its own.
   mode?: 'simulation' | 'live';
   // Real only when a translation provider is configured.
@@ -55,8 +57,8 @@ export function createApp(dependencies: AppDependencies) {
       protocolVersion: PROTOCOL_VERSION,
       mode: dependencies.mode ?? 'simulation',
       translation: dependencies.translation ?? 'simulated',
-      // Read-only channel subscriptions exist; no remote control path does (D2-11).
-      capabilities: { channelSubscriptions: true, controlCommands: false },
+      // Viewing sockets remain read-only. HTTP controls require an owner session.
+      capabilities: { channelSubscriptions: true, controlCommands: Boolean(dependencies.control) },
     };
   });
 
@@ -72,6 +74,7 @@ export function createApp(dependencies: AppDependencies) {
 
     // Register auth routes (Phase 3)
     registerAuthRoutes(app, { issueViewingCredential: dependencies.issueViewingCredential, ...dependencies.auth });
+    if (dependencies.control) registerControlRoutes(app, dependencies.control);
 
     return app;
 }

@@ -57,7 +57,7 @@ export type RaidCancelResult = 'cancelled' | 'not_cancelled' | 'unknown';
 
 // sessionId is the idempotency key; callers bound each call with a timeout that yields unknown.
 export interface RaidGateway {
-  requestRaid(request: { sessionId: string; fromChannelId: string; toStreamerId: string }): Promise<RaidRequestResult>;
+  requestRaid(request: { sessionId: string; fromChannelId: string; toStreamerId: string; toLogin?: string }): Promise<RaidRequestResult>;
   cancelRaid(request: { sessionId: string; fromChannelId: string }): Promise<RaidCancelResult>;
 }
 

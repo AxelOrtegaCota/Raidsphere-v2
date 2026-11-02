@@ -83,6 +83,7 @@ export function createRuntime(options: RuntimeOptions) {
     candidates, raids, publisher,
     onError: () => options.reportError('A roulette task failed.'),
     onTranslationWindow: (window) => chatMessages?.handleWindow(window),
+    canTranslate: (channelId) => liveChat ? liveChat.state(channelId) === 'ready' : syntheticStreamers.some((streamer) => streamer.id === channelId),
     ...(options.roulette ? { config: options.roulette } : {}),
   });
   coordinator = rouletteCoordinator;
@@ -110,6 +111,10 @@ export function createRuntime(options: RuntimeOptions) {
     issueViewingCredential: (channelId) => credentials.issueForChannel(channelId),
     mode: useRealRaids ? 'live' : 'simulation',
     translation: options.translation ? 'real' : 'simulated',
+    control: {
+      coordinator: rouletteCoordinator, streamers, random: cryptoRandom, simulated: !useRealRaids,
+      canRaid: (channelId) => liveChat?.state(channelId) === 'ready',
+    },
     ...(liveChat ? {
       auth: {
         onAuthenticated: (session) => liveChat.connect(session),

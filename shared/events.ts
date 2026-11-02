@@ -3,7 +3,7 @@ import {
   PROTOCOL_VERSION, candidateSchema, countSchema, identifierSchema,
   illustrativeCountrySchema, languageCodeSchema, loginSchema,
   publicRouletteStateSchema, timestampSchema, translationBubbleSchema,
-  translationWindowSchema, voteCountsSchema,
+  translationWindowSchema, voteCountsSchema, streamLanguageSchema,
 } from './schemas.js';
 
 function notification<TName extends string, TPayload extends z.ZodType>(type: TName, payload: TPayload) {
@@ -22,8 +22,9 @@ function notification<TName extends string, TPayload extends z.ZodType>(type: TN
 
 const rouletteStartEventSchema = notification('roulette:start', z.object({
   candidates: z.array(candidateSchema).min(1).max(100),
-  languages: z.array(languageCodeSchema).min(1).max(languageCodeSchema.options.length),
+  languages: z.array(streamLanguageSchema).min(1).max(100),
   votingEndsAtMs: timestampSchema,
+  mode: z.enum(['chat', 'manual', 'auto', 'direct']).optional(),
 }).strict()).extend({ sessionId: identifierSchema });
 
 const rouletteVotesEventSchema = notification('roulette:votes', z.object({
@@ -33,7 +34,7 @@ const rouletteVotesEventSchema = notification('roulette:votes', z.object({
 
 const rouletteChosenEventSchema = notification('roulette:chosen', z.object({
   candidate: candidateSchema,
-  winningLanguage: languageCodeSchema,
+  winningLanguage: streamLanguageSchema,
   fromCountry: illustrativeCountrySchema.nullable(),
   toCountry: illustrativeCountrySchema.nullable(),
 }).strict()).extend({ sessionId: identifierSchema });
@@ -54,7 +55,7 @@ const raidArrivedEventSchema = notification('raid:arrived', z.object({
   fromLogin: loginSchema,
   toStreamerId: identifierSchema,
   viewers: countSchema,
-  sourceLanguage: languageCodeSchema,
+  sourceLanguage: streamLanguageSchema,
   arrivedAtMs: timestampSchema,
 }).strict()).extend({ sessionId: identifierSchema });
 
@@ -145,6 +146,10 @@ export const serverEventSchema = serverEventUnion.superRefine((event, context) =
     code: 'custom', path, message,
   });
   if (event.type === 'roulette:start') {
+    if ((!event.payload.mode || event.payload.mode === 'chat') &&
+        event.payload.languages.some((language) => !languageCodeSchema.safeParse(language).success)) {
+      issue(['payload', 'languages'], 'Chat roulette requires supported voting languages.');
+    }
     const languages = new Set(event.payload.languages);
     if (new Set(event.payload.candidates.map((candidate) => candidate.streamerId)).size !== event.payload.candidates.length) {
       issue(['payload', 'candidates'], 'Candidate identities must be unique.');

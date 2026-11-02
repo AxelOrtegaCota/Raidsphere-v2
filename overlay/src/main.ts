@@ -1,4 +1,5 @@
 import Globe from 'globe.gl';
+import { createControlRoom } from './control-room';
 import { connectToChannel, readOverlayTarget } from './connection';
 import type { ConnectionStatus } from './connection';
 import { EMPTY_SCENE, globeScene, interpolateView } from './globe-session';
@@ -9,7 +10,7 @@ import { describeRoulettePanel, renderRoulettePanel } from './roulette-panel';
 import { createSearchPanel } from './search-panel';
 import { createTranslationLayer } from './translation-bubbles';
 import { applyTranslationEvent, initialTranslationView, pruneTranslationView } from './translation-view';
-import { applyEvent, describeView, initialViewState, needsTick } from './view-state';
+import { applyControlState, applyEvent, describeView, initialViewState, needsTick } from './view-state';
 import './styles.css';
 
 const container = document.querySelector<HTMLElement>('#globe');
@@ -46,9 +47,6 @@ void fetch(`${apiBaseUrl}/health`, { cache: 'no-store' })
     if (target) render();
   })
   .catch(() => { badge.hidden = false; });
-
-// Discovery never appears in the OBS scene, which is what viewers of the stream see.
-if (mode === 'interactive') startDiscovery(app);
 
 let applyScene: (scene: GlobeScene) => void = () => undefined;
 try {
@@ -260,21 +258,24 @@ function startDiscovery(root: HTMLElement): void {
   const searchPanel = createSearchPanel(root, {
     apiBaseUrl,
     isOverlay: true,
-    onRaid: (candidate) => {
-      // Real raids are not wired to discovery yet; nothing is requested.
-      window.alert(`Starting a raid to ${candidate.displayName} is not available yet.`);
+    onRaid: (candidate) => controls.raid(candidate),
+    onAdd: (candidate) => controls.add(candidate),
+  });
+  const controls = createControlRoom(root, {
+    onStatus: (user) => searchPanel.updateUserStatus(user
+      ? { authenticated: true, isLive: user.isLive, login: user.login, simulated: user.simulated }
+      : { authenticated: false, isLive: false }),
+    onState: (roulette, simulated) => {
+      raidsSimulated = simulated;
+      view = applyControlState(view, roulette);
+      renderSession();
     },
   });
-  void (async () => {
-    try {
-      const response = await fetch(`${apiBaseUrl}/auth/status`, { credentials: 'include' });
-      const data: unknown = await response.json();
-      const authenticated = typeof data === 'object' && data !== null && 'authenticated' in data && data.authenticated === true;
-      const login = authenticated && 'user' in data && typeof data.user === 'string' ? data.user : undefined;
-      // Live status is not checked through Helix yet.
-      searchPanel.updateUserStatus(authenticated ? { authenticated: true, isLive: false, ...(login ? { login } : {}) } : { authenticated: false, isLive: false });
-    } catch {
-      searchPanel.updateUserStatus({ authenticated: false, isLive: false });
-    }
-  })();
+  if (!target) {
+    const ticker = window.setInterval(() => { if (needsTick(view)) render(); }, 1_000);
+    window.addEventListener('pagehide', () => window.clearInterval(ticker), { once: true });
+  }
 }
+
+// Initialize controls only after the display state exists, and never in OBS mode.
+if (mode === 'interactive') startDiscovery(app);

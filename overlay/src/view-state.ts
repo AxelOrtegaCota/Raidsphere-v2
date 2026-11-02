@@ -1,4 +1,5 @@
 import type { IllustrativeCountry, PublicRouletteState, ServerEvent } from '@raidsphere/shared';
+import { languageCodeSchema } from '@raidsphere/shared';
 
 // Overlay display state, derived only from validated server events. The backend stays the
 // authoritative state owner; this mirror never decides anything.
@@ -21,16 +22,17 @@ export function applyEvent(state: ViewState, event: ServerEvent): ViewState {
     case 'state:snapshot':
       // A snapshot of another session drops the route that belonged to the previous one.
       return {
-        ...state, roulette: event.payload.roulette, notice: null,
+        ...applyControlState(state, event.payload.roulette), notice: null,
         route: event.payload.roulette?.sessionId === state.roulette?.sessionId ? state.route : null,
       };
     case 'roulette:start':
       return {
         ...initialViewState,
         roulette: {
-          sessionId: event.sessionId, fromStreamerId: event.channelId, status: 'voting',
+          sessionId: event.sessionId, fromStreamerId: event.channelId, status: event.payload.mode && event.payload.mode !== 'chat' ? 'selecting' : 'voting',
           candidates: event.payload.candidates, votes: {}, createdAtMs: event.occurredAtMs,
           votingEndsAtMs: event.payload.votingEndsAtMs, chosenCandidate: null,
+          ...(event.payload.mode ? { mode: event.payload.mode } : {}),
         },
       };
     case 'roulette:votes':
@@ -41,7 +43,7 @@ export function applyEvent(state: ViewState, event: ServerEvent): ViewState {
     }
     case 'raid:started': {
       const { requestedAtMs, estimatedCountdownSeconds } = event.payload;
-      const next = updateSession(state, event.sessionId, { status: 'raid_pending' });
+      const next = updateSession(state, event.sessionId, { status: 'raid_pending', raidRequestedAtMs: requestedAtMs, estimatedCountdownSeconds });
       return next === state ? state : {
         ...next,
         raidArrivesAtMs: estimatedCountdownSeconds === null ? null : requestedAtMs + estimatedCountdownSeconds * 1_000,
@@ -83,18 +85,24 @@ export function describeView(state: ViewState, nowMs: number, simulated = true):
       return {
         headline: `Voting: ${secondsUntil(roulette.votingEndsAtMs, nowMs)} s left`,
         detail: [...new Set(roulette.candidates.map((candidate) => candidate.language))]
-          .map((language) => `${language} ${roulette.votes[language] ?? 0}`).join(' · '),
+          .map((language) => {
+            const supported = languageCodeSchema.safeParse(language);
+            return `${language} ${supported.success ? roulette.votes[supported.data] ?? 0 : 0}`;
+          }).join(' · '),
       };
     case 'selecting':
       return { headline: 'Selecting a channel', detail: '' };
     case 'chosen':
-      return { headline: `Chosen: ${target?.displayName ?? 'unknown'} (${target?.language ?? '?'})`, detail: `Requesting the raid${label}.` };
+      return { headline: `Chosen: ${target?.displayName ?? 'unknown'} (${target?.language ?? '?'})`, detail:
+        roulette.raidRequestedAtMs !== undefined ? `Submitting one raid request${label}. The outcome is not confirmed.` :
+        roulette.mode === 'manual' || roulette.mode === 'auto'
+          ? 'Selection complete. Start Raid requires an explicit action in the control room.' : `Requesting the raid${label}.` };
     case 'raid_pending':
       return {
         headline: `Raid to ${target?.displayName ?? 'unknown'}`,
         detail: state.raidArrivesAtMs === null
           ? `Waiting for the arrival${label}.`
-          : `Arriving in about ${secondsUntil(state.raidArrivesAtMs, nowMs)} s${label}.`,
+          : `Queued${label}: estimated countdown ${secondsUntil(state.raidArrivesAtMs, nowMs)} s. Arrival is not confirmed.`,
       };
     case 'done':
       return { headline: `Raid arrived at ${target?.displayName ?? 'the destination'}`, detail: `Arrival confirmed${label}.` };
@@ -108,6 +116,16 @@ export function describeView(state: ViewState, nowMs: number, simulated = true):
 }
 
 // Events for another (or no) session never change the displayed session.
+export function applyControlState(state: ViewState, roulette: PublicRouletteState | null): ViewState {
+  const sameSession = roulette?.sessionId === state.roulette?.sessionId;
+  const requestedAt = roulette?.raidRequestedAtMs;
+  const countdown = roulette?.estimatedCountdownSeconds;
+  return {
+    ...state, roulette, arrival: sameSession ? state.arrival : null, route: sameSession ? state.route : null,
+    raidArrivesAtMs: requestedAt !== undefined && countdown != null ? requestedAt + countdown * 1_000 : null,
+  };
+}
+
 function updateSession(state: ViewState, sessionId: string | undefined, changes: Partial<PublicRouletteState>): ViewState {
   if (!state.roulette || sessionId === undefined || state.roulette.sessionId !== sessionId) return state;
   return { ...state, roulette: { ...state.roulette, ...changes } };

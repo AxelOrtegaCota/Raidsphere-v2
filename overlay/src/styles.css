@@ -6,8 +6,55 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #02030a; }
 button { font: inherit; }
+button:focus-visible, select:focus-visible { outline: 3px solid #ffd166; outline-offset: 3px; }
+button:disabled { opacity: .5; cursor: not-allowed; }
+
+/* Until mode is known, default to the read-only OBS surface. */
+html:not([data-mode='interactive']) .view-toggle,
+html:not([data-mode='interactive']) #roulette-view,
+html:not([data-mode='interactive']) .control-feedback,
+html:not([data-mode='interactive']) .search-panel { display: none !important; }
+
+.control-feedback {
+  position: absolute;
+  top: 86px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(500px, calc(100vw - 440px));
+  z-index: 110;
+  padding: 10px 14px;
+  border: 1px solid rgb(174 194 255 / 28%);
+  border-radius: 12px;
+  background: rgb(8 10 24 / 96%);
+  font-size: 13px;
+}
+.control-feedback p { margin: 0 0 8px; }
+.control-feedback button, .roulette-controls button, .candidate-selection-list button {
+  padding: 8px 12px;
+  border: 1px solid rgb(174 194 255 / 40%);
+  border-radius: 8px;
+  background: #252843;
+  color: #fff;
+}
+.roulette-controls { display: grid; gap: 10px; }
+.roulette-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.candidate-selection-list { max-height: 140px; padding: 0; overflow-y: auto; list-style: none; }
+.candidate-selection-list li { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 6px 0; }
+#roulette-view { padding: 190px 420px 240px 24px; overflow-y: auto; }
+.auto-count-label { font-size: 13px; }
+@media (max-width: 900px) {
+  .control-feedback { left: 20px; transform: none; width: calc(100vw - 440px); min-width: 200px; }
+  #roulette-view { padding-left: 16px; }
+}
+@media (max-width: 650px) {
+  html[data-mode='interactive'] #app { overflow-y: auto; }
+  .control-feedback { position: relative; top: 80px; left: 10px; width: calc(100vw - 20px); min-width: 0; }
+  .search-panel { top: 190px !important; right: 10px; width: 210px; max-height: calc(100vh - 210px); }
+  #roulette-view { padding: 200px 230px 24px 10px; }
+}
 
 #app {
   position: relative;
@@ -861,8 +908,9 @@ html[data-mode='obs'] .view-toggle { display: none; }
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 80px 24px 24px;
+  justify-content: flex-start;
+  padding: 190px 420px 260px 24px;
+  overflow-y: auto;
 }
 
 .roulette-wheel-container {

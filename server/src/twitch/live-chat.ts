@@ -85,9 +85,11 @@ export class LiveChat {
       const config = loadOAuthConfig(process.env);
       this.#clients.get(channelId)?.stop();
       const getAccessToken = createSessionTokenProvider({ userId: channelId, config });
-      const client = this.#createClient({
+      const client: EventSubClient = this.#createClient({
         clientId: config.clientId, userId: channelId, getAccessToken,
-        onNotification: (notification) => { this.#route(channelId, notification); },
+        onNotification: (notification) => {
+          if (this.#clients.get(channelId) === client) this.#route(channelId, notification);
+        },
         reportError: this.#deps.reportError,
       });
       this.#clients.set(channelId, client);
@@ -152,7 +154,9 @@ export class LiveChat {
       return;
     }
     if (notification.type === 'channel.raid') {
-      void this.#deps.commands.handleArrival(toRaidArrival(notification.eventId, notification.event, notification.receivedAtMs));
+      // This connection subscribes only to raids leaving its authenticated broadcaster.
+      if (notification.event.from_broadcaster_user_id !== channelId) return;
+      this.#deliver(this.#deps.commands.handleArrival(toRaidArrival(notification.eventId, notification.event, notification.receivedAtMs)));
       return;
     }
     const action = toModerationAction(notification);

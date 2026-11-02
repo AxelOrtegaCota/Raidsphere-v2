@@ -61,7 +61,7 @@ describe('real raid gateway', () => {
     expect(start).not.toHaveBeenCalled();
   });
 
-  it.each([[400], [404], [409]])('rejects when Twitch answers %i', async (status) => {
+  it.each([[400], [403], [404], [408], [409], [422]])('rejects when Twitch answers %i', async (status) => {
     const { instance, errors } = gateway({ start: vi.fn(async () => { throw new HelixError('private detail', status); }) });
     await expect(instance.requestRaid(REQUEST)).resolves.toEqual({ outcome: 'rejected' });
     // Only the status code reaches the log, never Twitch's message.
@@ -85,23 +85,38 @@ describe('real raid gateway', () => {
     expect(errors.join(' ')).not.toContain('private detail');
   });
 
-  it('refreshes the token once after a 401 response', async () => {
+  it('treats a 401 as rejection and never replays the raid', async () => {
     const start = vi.fn()
       .mockRejectedValueOnce(new HelixError('expired', 401))
       .mockResolvedValueOnce(undefined);
     const { instance } = gateway({ start });
 
-    await expect(instance.requestRaid(REQUEST)).resolves.toMatchObject({ outcome: 'accepted' });
+    await expect(instance.requestRaid(REQUEST)).resolves.toMatchObject({ outcome: 'rejected' });
 
-    expect(start).toHaveBeenCalledTimes(2);
-    expect(start).toHaveBeenLastCalledWith('1001', '2002', { accessToken: 'fresh-token', clientId: 'fixture-client' });
+    expect(start).toHaveBeenCalledOnce();
+    expect(start).toHaveBeenLastCalledWith('1001', '2002', { accessToken: 'fixture-token', clientId: 'fixture-client' });
   });
 
-  it('rejects when the refreshed token is refused too', async () => {
+  it('does not retry a consistently refused token', async () => {
     const start = vi.fn(async () => { throw new HelixError('expired', 401); });
     const { instance } = gateway({ start });
     await expect(instance.requestRaid(REQUEST)).resolves.toEqual({ outcome: 'rejected' });
-    expect(start).toHaveBeenCalledTimes(2);
+    expect(start).toHaveBeenCalledOnce();
+  });
+
+  it('bounds token acquisition and never submits a late raid after that timeout', async () => {
+    vi.useFakeTimers();
+    try {
+      let release!: (token: string) => void;
+      const token = new Promise<string>((resolve) => { release = resolve; });
+      const { instance, start } = gateway({ tokenProvider: () => async () => token });
+      const pending = instance.requestRaid(REQUEST);
+      await vi.advanceTimersByTimeAsync(5_000);
+      await expect(pending).resolves.toEqual({ outcome: 'unknown' });
+      release('fixture-late-token');
+      await Promise.resolve();
+      expect(start).not.toHaveBeenCalled();
+    } finally { vi.useRealTimers(); }
   });
 
   it('cancels a raid it started', async () => {
@@ -117,6 +132,22 @@ describe('real raid gateway', () => {
     const { instance, cancel } = gateway();
     await expect(instance.cancelRaid(CANCEL)).resolves.toBe('not_cancelled');
     expect(cancel).not.toHaveBeenCalled();
+  });
+
+  it('rejects a changed request identity and never cancels another source channel', async () => {
+    const { instance, start, cancel } = gateway();
+    await instance.requestRaid(REQUEST);
+    await expect(instance.requestRaid({ ...REQUEST, toStreamerId: '3003' })).resolves.toEqual({ outcome: 'rejected' });
+    await expect(instance.cancelRaid({ ...CANCEL, fromChannelId: '9009' })).resolves.toBe('not_cancelled');
+    expect(start).toHaveBeenCalledOnce(); expect(cancel).not.toHaveBeenCalled();
+  });
+
+  it('retains duplicate protection after cancellation', async () => {
+    const { instance, start } = gateway();
+    await instance.requestRaid(REQUEST);
+    await instance.cancelRaid(CANCEL);
+    await instance.requestRaid(REQUEST);
+    expect(start).toHaveBeenCalledOnce();
   });
 
   it('reports that a raid could not be cancelled when Twitch has none pending', async () => {

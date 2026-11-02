@@ -20,6 +20,13 @@ export interface RouletteWheelConfig {
 const DEFAULT_SPIN_DURATION_MS = 5000;
 const TAU = Math.PI * 2;
 
+export function winnerRotation(current: number, index: number, count: number): number {
+  if (!Number.isInteger(index) || index < 0 || index >= count) throw new Error('Invalid server winner.');
+  const desired = -(index + 0.5) * TAU / count;
+  const delta = ((desired - current) % TAU + TAU) % TAU;
+  return current + 6 * TAU + delta;
+}
+
 // Cached avatar images
 const avatarCache = new Map<string, HTMLImageElement>();
 
@@ -37,11 +44,6 @@ function loadImage(url: string): Promise<HTMLImageElement> {
     img.onerror = () => resolve(img); // Fallback to broken image
     img.src = url;
   });
-}
-
-// Easing function: decelerate (ease-out cubic)
-function easeOutCubic(t: number): number {
-  return 1 - Math.pow(1 - t, 3);
 }
 
 // More dramatic ease-out for realistic wheel spin
@@ -219,28 +221,17 @@ export class RouletteWheel {
     ctx.restore();
   }
 
-  async spin(winnerId?: string): Promise<void> {
+  async spin(winnerId: string): Promise<void> {
     if (this.isSpinning) return;
-    if (this.config.candidates.length === 0) return;
+    if (this.config.candidates.length === 0) throw new Error('A server-selected winner requires candidates.');
 
+    const winner = this.config.candidates.find((candidate) => candidate.id === winnerId);
+    if (!winner) throw new Error('The server winner is not in this wheel.');
     this.isSpinning = true;
 
-    // Determine winner
-    const winner: RouletteCandidate = winnerId
-      ? this.config.candidates.find((c) => c.id === winnerId) ?? this.config.candidates[0]!
-      : this.config.candidates[Math.floor(Math.random() * this.config.candidates.length)]!;
-
     const winnerIndex = this.config.candidates.indexOf(winner);
-    const segmentAngle = TAU / this.config.candidates.length;
-
-    // Calculate target rotation:
-    // Pointer is at top (12 o'clock), we need the winner segment centered under it
-    // Add multiple full rotations for dramatic effect
-    const fullRotations = 5 + Math.random() * 3; // 5-8 full spins
-    const winnerCenterAngle = winnerIndex * segmentAngle + segmentAngle / 2;
-    // We need to rotate so the winner center is at top (-PI/2)
-    // currentRotation + targetDelta should place winner at top
-    const targetRotation = fullRotations * TAU - winnerCenterAngle + Math.PI / 2;
+    // The pointer is at twelve o'clock; use whole turns plus the exact winning angle.
+    const targetRotation = winnerRotation(this.currentRotation, winnerIndex, this.config.candidates.length);
 
     const startRotation = this.currentRotation;
     const startTime = performance.now();
@@ -256,7 +247,7 @@ export class RouletteWheel {
         const progress = Math.min(elapsed / duration, 1);
         const easedProgress = easeOutExpo(progress);
 
-        this.currentRotation = startRotation + targetRotation * easedProgress;
+        this.currentRotation = startRotation + (targetRotation - startRotation) * easedProgress;
 
         // Play tick sound when passing segment boundaries
         this.maybePlayTick();
@@ -329,13 +320,18 @@ export class RouletteWheel {
       // Create winner announcement
       const announcement = document.createElement('div');
       announcement.className = 'roulette-winner-announcement';
-      announcement.innerHTML = `
-        <div class="winner-glow"></div>
-        <div class="winner-text">
-          <span class="winner-label">Winner!</span>
-          <span class="winner-name">${escapeHtml(winner.displayName)}</span>
-        </div>
-      `;
+      const glow = document.createElement('div');
+      glow.className = 'winner-glow';
+      const text = document.createElement('div');
+      text.className = 'winner-text';
+      const label = document.createElement('span');
+      label.className = 'winner-label';
+      label.textContent = 'Winner!';
+      const name = document.createElement('span');
+      name.className = 'winner-name';
+      name.textContent = winner.displayName;
+      text.append(label, name);
+      announcement.append(glow, text);
       this.container.appendChild(announcement);
 
       // Trigger animation
@@ -360,12 +356,6 @@ export class RouletteWheel {
     this.container.classList.remove('roulette-wheel-container');
     this.loadedAvatars.clear();
   }
-}
-
-function escapeHtml(text: string): string {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
 }
 
 /**
