@@ -217,6 +217,23 @@ describe('live chat', () => {
     });
   });
 
+  it('rejects raid arrivals from another source and from a disconnected client', async () => {
+    start(); await runtime.liveChat?.connect(open());
+    const handleArrival = vi.spyOn(runtime.coordinator, 'handleArrival');
+    const notification: EventSubNotification = {
+      eventId: 'foreign-raid', receivedAtMs: 5_000, type: 'channel.raid',
+      event: {
+        from_broadcaster_user_id: '9009', from_broadcaster_user_login: 'other', from_broadcaster_user_name: 'Other',
+        to_broadcaster_user_id: '2002', to_broadcaster_user_login: 'target', to_broadcaster_user_name: 'Target', viewers: 10,
+      },
+    };
+    factory.clients[0]?.emit(notification);
+    expect(handleArrival).not.toHaveBeenCalled();
+    runtime.liveChat?.disconnect(USER_ID);
+    factory.clients[0]?.emit({ ...notification, eventId: 'disconnected-raid', event: { ...notification.event, from_broadcaster_user_id: USER_ID } });
+    expect(handleArrival).not.toHaveBeenCalled();
+  });
+
   it('still connects when the channel language cannot be read', async () => {
     start(async () => { throw new Error('fixture failure'); });
     await expect(runtime.liveChat?.connect(open())).resolves.toBeUndefined();

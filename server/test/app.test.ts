@@ -10,14 +10,14 @@ import { MockTranslationProvider } from '../src/translation/mock-provider.js';
 const createApp = () => createRuntime({ reportError: () => undefined }).app;
 
 describe('server boundaries', () => {
-  it('reports simulation mode and read-only subscriptions without control access', async () => {
+  it('reports simulation mode, read-only subscriptions, and authenticated control support', async () => {
     const app = createApp();
     try {
       const response = await app.inject({ method: 'GET', url: '/health' });
       expect(response.statusCode).toBe(200);
       expect(response.json()).toEqual({
         application: 'RaidSphere', status: 'ok', protocolVersion: 1, mode: 'simulation', translation: 'simulated',
-        capabilities: { channelSubscriptions: true, controlCommands: false },
+        capabilities: { channelSubscriptions: true, controlCommands: true },
       });
       expect(response.headers['cache-control']).toBe('no-store');
       const missing = await app.inject({ method: 'GET', url: '/unknown' });

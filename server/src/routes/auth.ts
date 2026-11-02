@@ -324,7 +324,7 @@ export function registerAuthRoutes(app: FastifyInstance, dependencies: AuthRoute
   });
 }
 
-function currentSession(request: FastifyRequest): UserSession | null {
+export function currentSession(request: FastifyRequest): UserSession | null {
   const sessionId = readCookie(request, SESSION_COOKIE_NAME);
   return sessionId ? getSession(sessionId) : null;
 }
@@ -434,6 +434,7 @@ function dashboardPage(session: UserSession, eventSub: LiveChatState | undefined
         <code id="overlay-url">${safeOverlayPath}</code>
         <div class="actions">
           <a class="primary" href="${safeOverlayPath}">Open overlay</a>
+          <a class="primary" href="/${encodeURIComponent(session.user.login)}/overlay?mode=interactive">Open raid controls</a>
           <button id="copy-overlay" type="button">Copy URL</button>
         </div>
       </section>

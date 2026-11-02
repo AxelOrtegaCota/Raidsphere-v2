@@ -74,7 +74,7 @@ export class RaidGatewayAdapter implements RaidGateway {
     this.deps = dependencies;
   }
 
-  requestRaid(request: { sessionId: string; fromChannelId: string; toStreamerId: string }): Promise<RaidRequestResult> {
+  requestRaid(request: { sessionId: string; fromChannelId: string; toStreamerId: string; toLogin?: string }): Promise<RaidRequestResult> {
     const existing = this.requests.get(request.sessionId);
     if (existing) return existing;
     const result = this.start(request);
@@ -103,21 +103,22 @@ export class RaidGatewayAdapter implements RaidGateway {
     this.raids.clear();
   }
 
-  private async start(request: { sessionId: string; fromChannelId: string; toStreamerId: string }): Promise<RaidRequestResult> {
+  private async start(request: { sessionId: string; fromChannelId: string; toStreamerId: string; toLogin?: string }): Promise<RaidRequestResult> {
     if (this.closed) return { outcome: 'rejected' };
     const [source, target] = await Promise.all([
       this.deps.streamers.findById(request.fromChannelId),
       this.deps.streamers.findById(request.toStreamerId),
     ]);
-    // Without both registered channels no raid is submitted, so the outcome is certain.
-    if (!source || !target || this.closed) return { outcome: 'rejected' };
+    // A validated discovery destination need not register for simulation or real raids.
+    const targetLogin = target?.login ?? request.toLogin;
+    if (!source || !targetLogin || this.closed) return { outcome: 'rejected' };
 
     const raid = this.track(request);
     try {
       const response = await this.deps.gateway.startRaid({
         sessionId: request.sessionId,
         fromStreamerId: source.id, fromLogin: source.login,
-        toStreamerId: target.id, toLogin: target.login,
+        toStreamerId: request.toStreamerId, toLogin: targetLogin,
         sourceLanguage: source.language,
       });
       if (!response.success) {

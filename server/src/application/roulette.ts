@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { candidateSchema, languageCodeSchema } from '@raidsphere/shared';
 import type {
   Candidate, IllustrativeCountry, LanguageCode, PublicRouletteState, ServerEvent, Streamer, TranslationWindow,
 } from '@raidsphere/shared';
@@ -56,10 +57,12 @@ export interface RouletteDependencies {
   onError: (kind: 'task_failed') => void;
   config?: Partial<RouletteConfig>;
   createSessionId?: () => string;
+  canTranslate?: (channelId: string) => boolean;
 }
 
 interface SessionRuntime {
   source: Streamer;
+  streamLanguage?: string;
   fromCountry: IllustrativeCountry | null;
   timers: Set<TimerHandle>;
   broadcastTimer: TimerHandle | null;
@@ -68,6 +71,9 @@ interface SessionRuntime {
 }
 
 const SEEN_LIMIT = 1_000;
+export class ControlConflict extends Error {
+  readonly statusCode = 409;
+}
 const MESSAGES = {
   noCandidates: 'No eligible channel is live right now.',
   rejected: 'The raid request was rejected.',
@@ -84,6 +90,8 @@ export class RouletteCoordinator {
   readonly #runtimes = new Map<string, SessionRuntime>();
   readonly #seenMessages = new Map<string, Set<string>>();
   readonly #seenArrivals = new Set<string>();
+  // Never evict an executed browser action: an old request must not become executable again.
+  readonly #controlRequests = new Map<string, { fingerprint: string; result: Promise<PublicRouletteState> }>();
 
   constructor(dependencies: RouletteDependencies) {
     this.#deps = dependencies;
@@ -101,6 +109,99 @@ export class RouletteCoordinator {
 
   handleArrival(arrival: RaidArrival): Promise<void> {
     return this.#exclusive(arrival.fromChannelId, () => this.#onArrival(arrival));
+  }
+
+  browserSpin(source: Streamer, pool: Candidate[], mode: 'manual' | 'auto', requestId: string, sourceLanguage: string = source.language): Promise<PublicRouletteState> {
+    return this.#control(source.id, requestId, `spin:${mode}:${pool.map((candidate) => candidate.streamerId).join(',')}`, async () => {
+      return (await this.#browserSession(source, pool, mode, sourceLanguage)).publicState;
+    });
+  }
+
+  browserRaid(source: Streamer, requestId: string, target: Candidate | { sessionId: string }, sourceLanguage: string = source.language): Promise<PublicRouletteState> {
+    const identity = 'sessionId' in target ? `session:${target.sessionId}` : `target:${target.streamerId}`;
+    return this.#control(source.id, requestId, `raid:${identity}`, async () => {
+      let chosen: StoredRouletteSession;
+      if ('sessionId' in target) {
+        const current = await this.#deps.sessions.findLatestByChannel(source.id);
+        if (!current || current.publicState.sessionId !== target.sessionId ||
+            !['manual', 'auto'].includes(current.publicState.mode ?? 'chat')) {
+          throw new ControlConflict('The selected browser session is no longer available.');
+        }
+        if (current.publicState.status !== 'chosen') {
+          // Repeated explicit clicks for the same session never resubmit its raid.
+          if (['raid_pending', 'done', 'failed', 'unknown', 'cancelled'].includes(current.publicState.status)) return current.publicState;
+          throw new ControlConflict('This session cannot request a raid.');
+        }
+        chosen = current;
+      } else {
+        chosen = await this.#browserSession(source, [target], 'direct', sourceLanguage);
+      }
+      const candidate = chosen.publicState.chosenCandidate;
+      const runtime = this.#runtimes.get(chosen.publicState.sessionId);
+      if (!candidate || !runtime) throw new ControlConflict('The selected session expired.');
+      await this.#requestRaid(source.id, chosen, candidate, runtime);
+      const latest = await this.#deps.sessions.findLatestByChannel(source.id);
+      if (!latest) throw new Error('The raid session is unavailable.');
+      return latest.publicState;
+    });
+  }
+
+  browserCancel(channelId: string, sessionId: string, requestId: string): Promise<PublicRouletteState> {
+    return this.#control(channelId, requestId, `cancel:${sessionId}`, async () => {
+      const current = await this.#deps.sessions.findLatestByChannel(channelId);
+      if (!current || current.publicState.sessionId !== sessionId) throw new ControlConflict('This session is no longer current.');
+      await this.#cancel(channelId);
+      return (await this.#deps.sessions.findLatestByChannel(channelId))!.publicState;
+    });
+  }
+
+  #control(channelId: string, requestId: string, fingerprint: string, task: () => Promise<PublicRouletteState>): Promise<PublicRouletteState> {
+    const key = `${channelId}:${requestId}`;
+    const previous = this.#controlRequests.get(key);
+    if (previous) {
+      if (previous.fingerprint !== fingerprint) return Promise.reject(new ControlConflict('This request ID was already used for another action.'));
+      return previous.result;
+    }
+    if (this.#controlRequests.size >= SEEN_LIMIT) return Promise.reject(new ControlConflict('The control action limit was reached. Restart the server only after checking pending raids.'));
+    const result = new Promise<PublicRouletteState>((resolve, reject) => {
+      void this.#exclusive(channelId, async () => {
+        try { resolve(await task()); } catch (error) { reject(error); }
+      });
+    });
+    this.#controlRequests.set(key, { fingerprint, result });
+    return result;
+  }
+
+  async #browserSession(source: Streamer, candidates: Candidate[], mode: 'manual' | 'auto' | 'direct', sourceLanguage: string): Promise<StoredRouletteSession> {
+    const pool = candidates.map((candidate) => candidateSchema.parse(candidate));
+    if (!pool.length || pool.length > 100 || new Set(pool.map((candidate) => candidate.streamerId)).size !== pool.length ||
+        pool.some((candidate) => candidate.streamerId === source.id)) throw new ControlConflict('Select unique live destinations other than your own channel.');
+    const latest = await this.#deps.sessions.findLatestByChannel(source.id);
+    if (await this.#deps.sessions.findActiveByChannel(source.id)) throw new ControlConflict('Finish or cancel the current session first.');
+    if (latest?.publicState.status === 'unknown') throw new ControlConflict('The previous raid is uncertain. Check Twitch before another raid can be started.');
+    const candidate = pool[pool.length === 1 ? 0 : this.#deps.random.nextInt(pool.length)];
+    if (!candidate) throw new Error('The random source returned an invalid candidate index.');
+    const nowMs = this.#deps.clock.now();
+    const session: StoredRouletteSession = {
+      version: 1, votesByUser: {}, publicState: {
+        sessionId: this.#createSessionId(), fromStreamerId: source.id, mode, status: 'chosen', candidates: pool,
+        votes: {}, createdAtMs: nowMs, votingEndsAtMs: null, chosenCandidate: candidate,
+      },
+    };
+    if (!await this.#deps.sessions.compareAndSave(session, null)) throw new ControlConflict('Another session is already active.');
+    this.#runtimes.set(session.publicState.sessionId, {
+      source, streamLanguage: sourceLanguage, fromCountry: null, timers: new Set(), broadcastTimer: null, lastBroadcastAtMs: null, lastBroadcastTotal: 0,
+    });
+    const { sessionId } = session.publicState;
+    this.#deps.publisher.publish({
+      type: 'roulette:start', channelId: source.id, sessionId,
+      payload: { candidates: pool, languages: [...new Set(pool.map((entry) => entry.language))], votingEndsAtMs: nowMs + 5_000, mode },
+    });
+    this.#deps.publisher.publish({
+      type: 'roulette:chosen', channelId: source.id, sessionId,
+      payload: { candidate, winningLanguage: candidate.language, fromCountry: null, toCountry: candidate.illustrativeCountry },
+    });
+    return session;
   }
 
   // Latest session, active or terminal, for per-connection snapshots (D2-07 rule 7).
@@ -200,7 +301,7 @@ export class RouletteCoordinator {
     this.#schedule(runtime, this.#config.votingDurationMs, channelId, () => this.#closeVoting(channelId, sessionId));
   }
 
-  async #vote(channelId: string, userId: string, language: Candidate['language']): Promise<void> {
+  async #vote(channelId: string, userId: string, language: LanguageCode): Promise<void> {
     const current = await this.#deps.sessions.findActiveByChannel(channelId);
     if (!current) return;
     const result = castVote(current.publicState, current.votesByUser, { userId, language }, this.#deps.clock.now());
@@ -263,8 +364,14 @@ export class RouletteCoordinator {
   // The raid is requested as soon as a candidate is chosen (D2-07 rule 4).
   async #requestRaid(channelId: string, chosen: StoredRouletteSession, candidate: Candidate, runtime: SessionRuntime): Promise<void> {
     const { sessionId } = chosen.publicState;
+    const requesting = await this.#save(chosen, { raidRequestedAtMs: this.#deps.clock.now() });
+    if (!requesting) return;
+    chosen = requesting;
     const result = await this.#withTimeout(
-      () => this.#deps.raids.requestRaid({ sessionId, fromChannelId: channelId, toStreamerId: candidate.streamerId }),
+      () => this.#deps.raids.requestRaid({
+        sessionId, fromChannelId: channelId, toStreamerId: candidate.streamerId,
+        ...(chosen.publicState.mode && chosen.publicState.mode !== 'chat' ? { toLogin: candidate.login } : {}),
+      }),
       { outcome: 'unknown' as const },
     );
     if (result.outcome === 'rejected') {
@@ -275,7 +382,9 @@ export class RouletteCoordinator {
       await this.#finish(chosen, 'unknown', 'RAID_OUTCOME_UNKNOWN');
       return;
     }
-    if (!(await this.#save(chosen, { status: 'raid_pending' }))) return;
+    if (!(await this.#save(chosen, {
+      status: 'raid_pending', raidRequestedAtMs: result.requestedAtMs, estimatedCountdownSeconds: result.estimatedCountdownSeconds,
+    }))) return;
     this.#deps.publisher.publish({
       type: 'raid:started', channelId, sessionId,
       payload: {
@@ -312,8 +421,9 @@ export class RouletteCoordinator {
 
   async #onArrival(arrival: RaidArrival): Promise<void> {
     if (!remember(this.#seenArrivals, arrival.eventId)) return;
-    const current = await this.#deps.sessions.findActiveByChannel(arrival.fromChannelId);
-    if (!current || current.publicState.status !== 'raid_pending' ||
+    const current = await this.#deps.sessions.findLatestByChannel(arrival.fromChannelId);
+    if (!current || !['raid_pending', 'unknown'].includes(current.publicState.status) ||
+        arrival.observedAtMs < (current.publicState.raidRequestedAtMs ?? current.publicState.createdAtMs) ||
         current.publicState.chosenCandidate?.streamerId !== arrival.toChannelId) return;
     const { sessionId } = current.publicState;
     const runtime = this.#runtimes.get(sessionId);
@@ -325,7 +435,7 @@ export class RouletteCoordinator {
       type: 'raid:arrived', channelId: arrival.toChannelId, sessionId,
       payload: {
         fromStreamerId: arrival.fromChannelId, fromLogin: runtime.source.login, toStreamerId: arrival.toChannelId,
-        viewers: arrival.viewers, sourceLanguage: runtime.source.language, arrivedAtMs: arrival.observedAtMs,
+        viewers: arrival.viewers, sourceLanguage: runtime.streamLanguage ?? runtime.source.language, arrivedAtMs: arrival.observedAtMs,
       },
     });
     // raid:arrived only reaches the destination, so the source gets its final state as a snapshot (D2-19).
@@ -333,9 +443,12 @@ export class RouletteCoordinator {
       type: 'state:snapshot', channelId: arrival.fromChannelId,
       payload: { roulette: done.publicState, translationWindow: await this.translationWindow(arrival.fromChannelId) },
     });
-    const targetLanguage = done.publicState.chosenCandidate?.language;
+    const targetLanguage = languageCodeSchema.safeParse(done.publicState.chosenCandidate?.language);
+    const registered = await this.#deps.streamers.findById(arrival.toChannelId);
     // The window belongs to the destination, so it opens in the destination's channel queue.
-    if (targetLanguage) void this.#exclusive(arrival.toChannelId, () => this.#openWindow(arrival.toChannelId, targetLanguage));
+    if (registered && targetLanguage.success && (this.#deps.canTranslate?.(arrival.toChannelId) ?? true)) {
+      void this.#exclusive(arrival.toChannelId, () => this.#openWindow(arrival.toChannelId, targetLanguage.data));
+    }
   }
 
   // A later arrival replaces an active window and restarts its full duration.
@@ -369,7 +482,14 @@ export class RouletteCoordinator {
   ): Promise<void> {
     if (!(await this.#save(current, { status }))) return;
     const { sessionId, fromStreamerId: channelId } = current.publicState;
-    this.#endRuntime(sessionId);
+    if (status === 'unknown' && current.publicState.mode && current.publicState.mode !== 'chat') {
+      // Keep a short correlation window for a late, authoritative EventSub arrival.
+      const runtime = this.#runtimes.get(sessionId);
+      if (runtime) {
+        this.#clearTimers(runtime);
+        this.#schedule(runtime, 120_000 + this.#config.arrivalGraceMs, channelId, async () => { this.#endRuntime(sessionId); });
+      }
+    } else this.#endRuntime(sessionId);
     const { publisher } = this.#deps;
     if (reason === 'user_cancelled' || reason === 'session_cancelled_before_request') {
       publisher.publish({ type: 'raid:cancelled', channelId, sessionId, payload: { reason } });

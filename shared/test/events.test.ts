@@ -1,7 +1,7 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import * as publicEventContracts from '../events.js';
 import { clientMessageSchema, serverEventSchema } from '../events.js';
-import { candidateSchema, publicRouletteStateSchema, streamerSchema } from '../schemas.js';
+import { candidateSchema, publicRouletteStateSchema, streamerSchema, prepareRouletteSchema, spinControlSchema, raidControlSchema } from '../schemas.js';
 import type { RouletteVotesEvent, ServerEvent, StateSnapshotEvent } from '../events.js';
 
 // All identifiers and message content in this file are synthetic fixtures.
@@ -74,6 +74,21 @@ const validEvents: Record<ServerEvent['type'], unknown> = {
 };
 
 describe('server event boundary', () => {
+  it('preserves broader Twitch language metadata for browser spins and still requires the winning language to match', () => {
+    const destination = { ...candidate, language: 'it' };
+    expect(serverEventSchema.safeParse(event('roulette:start', {
+      candidates: [destination], languages: ['it'], votingEndsAtMs: 31000, mode: 'manual',
+    })).success).toBe(true);
+    expect(serverEventSchema.safeParse(event('roulette:chosen', {
+      candidate: destination, winningLanguage: 'it', fromCountry: null, toCountry: 'US',
+    })).success).toBe(true);
+    expect(serverEventSchema.safeParse(event('roulette:chosen', {
+      candidate: destination, winningLanguage: 'en', fromCountry: null, toCountry: 'US',
+    })).success).toBe(false);
+    expect(serverEventSchema.safeParse(event('roulette:start', {
+      candidates: [destination], languages: ['it'], votingEndsAtMs: 31000,
+    })).success).toBe(false);
+  });
   it.each(Object.entries(validEvents))('accepts the %s contract and preserves its JSON representation', (_type, value) => {
     expect(serverEventSchema.parse(JSON.parse(JSON.stringify(value)))).toEqual(value);
   });
@@ -164,6 +179,21 @@ describe('server event boundary', () => {
     for (const reason of ['timeout', 'api_error', 'unknown']) {
       expect(serverEventSchema.safeParse(event('raid:cancelled', { reason })).success).toBe(false);
     }
+  });
+});
+
+describe('browser control input contracts', () => {
+  const identity = { channelId: '1001', requestId: '00000000-0000-4000-8000-000000000001' };
+  it('rejects duplicate manual candidates, invalid auto counts, and client winners', () => {
+    expect(prepareRouletteSchema.safeParse({ channelId: '1001', mode: 'manual', candidateIds: ['2002', '2002'] }).success).toBe(false);
+    expect(prepareRouletteSchema.safeParse({ channelId: '1001', mode: 'auto', count: 8 }).success).toBe(false);
+    expect(spinControlSchema.safeParse({ ...identity, poolId: identity.requestId, winnerId: '2002' }).success).toBe(false);
+  });
+  it('requires exactly one raid target and never accepts viewing credentials in control input', () => {
+    expect(raidControlSchema.safeParse(identity).success).toBe(false);
+    expect(raidControlSchema.safeParse({ ...identity, toStreamerId: '2002', sessionId: 'fixture' }).success).toBe(false);
+    expect(raidControlSchema.safeParse({ ...identity, toStreamerId: '2002', viewingCredential: 'fixture' }).success).toBe(false);
+    expect(raidControlSchema.safeParse({ ...identity, toStreamerId: '2002' }).success).toBe(true);
   });
 });
 

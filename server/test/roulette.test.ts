@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { LanguageCode, ServerEvent } from '@raidsphere/shared';
+import type { Candidate, LanguageCode, ServerEvent } from '@raidsphere/shared';
 import type {
   ChatCommand, CommandRole, LiveChannel, RaidArrival, RaidCancelResult, RaidRequestResult,
 } from '../src/application/ports.js';
@@ -168,6 +168,54 @@ describe('roulette flow', () => {
     expect((await h.coordinator.snapshot(SOURCE)).roulette?.votes).toEqual({ ko: 1 });
     expect(h.last('roulette:chosen')?.payload.winningLanguage).toBe('ko');
     expect(h.errors).toEqual([]);
+  });
+});
+
+describe('browser roulette remains separate from chat voting', () => {
+  const source = syntheticStreamers.find((streamer) => streamer.id === SOURCE)!;
+  const destination: Candidate = {
+    streamerId: 'external', login: 'external', displayName: 'External live destination', avatarUrl: null,
+    language: 'it', illustrativeCountry: null, viewers: 50, gameName: 'Fixture', title: 'Fixture',
+  };
+  it('publishes a winner without raiding, ignores chat votes, and still accepts !cancel', async () => {
+    const h = setup();
+    const chosen = await h.coordinator.browserSpin(source, [destination], 'manual', 'browser-spin');
+    expect(chosen.status).toBe('chosen'); expect(chosen.votingEndsAtMs).toBeNull();
+    expect(h.last('roulette:chosen')?.payload).toMatchObject({ winningLanguage: 'it', candidate: { streamerId: 'external' } });
+    await h.vote('viewer-1', 'es');
+    expect((await h.coordinator.snapshot(SOURCE)).roulette?.votes).toEqual({});
+    expect(h.raidCalls).toEqual([]);
+    await h.send({ type: 'cancel' });
+    expect(await h.status()).toBe('cancelled'); expect(h.errors).toEqual([]);
+  });
+  it('does not rerun a completed spin request after its session was cancelled', async () => {
+    const h = setup();
+    const first = await h.coordinator.browserSpin(source, [destination], 'manual', 'same-browser-spin');
+    await h.coordinator.browserCancel(SOURCE, first.sessionId, 'cancel-spin');
+    const repeated = await h.coordinator.browserSpin(source, [destination], 'manual', 'same-browser-spin');
+    expect(repeated.sessionId).toBe(first.sessionId);
+    expect(await h.status()).toBe('cancelled');
+    expect(h.events.filter((event) => event.type === 'roulette:chosen')).toHaveLength(1);
+  });
+  it('bounds a hanging browser raid and prevents a second attempt after uncertainty', async () => {
+    const h = setup({ raid: { request: 'hang' } });
+    const pending = h.coordinator.browserRaid(source, 'hanging-raid', destination);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    await h.time.advance(10_000);
+    expect((await pending).status).toBe('unknown');
+    await expect(h.coordinator.browserRaid(source, 'another-raid', destination)).rejects.toThrow('uncertain');
+    expect(h.raidCalls).toEqual(['request:external']);
+    h.coordinator.close();
+  });
+  it('ignores a pre-request observation and confirms a late browser arrival without authorizing translation', async () => {
+    const h = setup({ raid: { request: { outcome: 'unknown' } } });
+    await h.coordinator.browserRaid(source, 'uncertain-raid', destination);
+    await h.arrive({ toChannelId: 'external', eventId: 'too-old', observedAtMs: START - 1 });
+    expect(await h.status()).toBe('unknown');
+    await h.arrive({ toChannelId: 'external', eventId: 'late-confirmed' });
+    expect(await h.status()).toBe('done');
+    expect(await h.coordinator.translationWindow('external')).toBeNull();
+    expect(h.raidCalls).toHaveLength(1);
   });
 });
 

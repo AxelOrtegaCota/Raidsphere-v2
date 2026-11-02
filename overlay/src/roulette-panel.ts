@@ -1,4 +1,4 @@
-import type { LanguageCode } from '@raidsphere/shared';
+import { languageCodeSchema } from '@raidsphere/shared';
 import { getLanguageMeta } from './languages';
 import type { ViewState } from './view-state';
 
@@ -13,7 +13,7 @@ export interface ChannelLine {
 }
 
 export interface LanguageRow {
-  language: LanguageCode;
+  language: string;
   label: string;
   votes: number;
   // Share of all votes, from 0 to 1.
@@ -39,7 +39,8 @@ export function describeRoulettePanel(state: ViewState): RoulettePanel | null {
   const languages = [...new Set(roulette.candidates.map((candidate) => candidate.language))];
   const rows = languages.map((language): LanguageRow => {
     const channels = roulette.candidates.filter((candidate) => candidate.language === language);
-    const votes = roulette.votes[language] ?? 0;
+    const supported = languageCodeSchema.safeParse(language);
+    const votes = supported.success ? roulette.votes[supported.data] ?? 0 : 0;
     return {
       language, label: getLanguageMeta(language).name, votes, share: totalVotes === 0 ? 0 : votes / totalVotes,
       chosen: language === winnerLanguage,
@@ -49,7 +50,7 @@ export function describeRoulettePanel(state: ViewState): RoulettePanel | null {
   });
   const chosen = roulette.chosenCandidate;
   return {
-    rows, totalVotes,
+    rows: roulette.mode && roulette.mode !== 'chat' ? [] : rows, totalVotes,
     winner: chosen ? { ...channelLine(chosen), title: chosen.title, language: getLanguageMeta(chosen.language).name } : null,
   };
 }
@@ -87,7 +88,7 @@ export function renderRoulettePanel(root: HTMLElement, panel: RoulettePanel | nu
   });
   const list = element('ol', 'vote-rows');
   list.append(...rows);
-  const children: HTMLElement[] = [list];
+  const children: HTMLElement[] = panel.rows.length ? [list] : [];
   if (panel.winner) {
     const card = element('article', 'winner-card');
     card.append(

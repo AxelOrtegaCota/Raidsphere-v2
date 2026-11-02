@@ -1,7 +1,7 @@
 /**
  * Module B: real raids through Helix, using the source channel's own token.
- * A raid moves real viewers, so nothing here is retried except after a 401, which proves
- * the request never started. Arrivals come from EventSub, never from this response.
+ * A raid moves real viewers, so requests are never replayed, including after a 401.
+ * Arrivals come from EventSub, never from this response.
  */
 import type { Clock, RaidCancelResult, RaidGateway, RaidRequestResult } from '../application/ports.js';
 import { systemClock } from '../application/runtime.js';
@@ -25,6 +25,7 @@ export interface RealRaidGatewayDependencies extends RealRaidOptions {
 // Twitch holds a raid for up to 90 seconds before it goes out.
 const RAID_COUNTDOWN_SECONDS = 90;
 const TRACKED_SESSIONS = 1_000;
+const TOKEN_WAIT_MS = 5_000;
 const TWITCH_USER_ID = /^[0-9]+$/;
 
 /** Only a client error proves Twitch refused the call; anything else may have started a raid. */
@@ -34,7 +35,7 @@ function isDefiniteRefusal(error: unknown): error is HelixError {
 
 export class RealRaidGateway implements RaidGateway {
   readonly #deps: RealRaidGatewayDependencies;
-  readonly #requests = new Map<string, Promise<RaidRequestResult>>();
+  readonly #requests = new Map<string, { from: string; to: string; result: Promise<RaidRequestResult> }>();
 
   constructor(dependencies: RealRaidGatewayDependencies) {
     this.#deps = dependencies;
@@ -42,24 +43,24 @@ export class RealRaidGateway implements RaidGateway {
 
   requestRaid(request: { sessionId: string; fromChannelId: string; toStreamerId: string }): Promise<RaidRequestResult> {
     const existing = this.#requests.get(request.sessionId);
-    if (existing) return existing;
+    if (existing) return existing.from === request.fromChannelId && existing.to === request.toStreamerId
+      ? existing.result : Promise.resolve({ outcome: 'rejected' });
+    if (this.#requests.size >= TRACKED_SESSIONS) return Promise.resolve({ outcome: 'rejected' });
     const result = this.#start(request.fromChannelId, request.toStreamerId);
-    this.#requests.set(request.sessionId, result);
-    if (this.#requests.size > TRACKED_SESSIONS) {
-      const oldest = this.#requests.keys().next().value;
-      if (oldest !== undefined) this.#requests.delete(oldest);
-    }
+    this.#requests.set(request.sessionId, { from: request.fromChannelId, to: request.toStreamerId, result });
     return result;
   }
 
   async cancelRaid(request: { sessionId: string; fromChannelId: string }): Promise<RaidCancelResult> {
-    const started = await this.#requests.get(request.sessionId);
+    const tracked = this.#requests.get(request.sessionId);
+    if (!tracked || tracked.from !== request.fromChannelId) return 'not_cancelled';
+    const started = await tracked.result;
     // A raid the streamer started by hand is not ours to stop.
     if (started?.outcome !== 'accepted') return 'not_cancelled';
     const { cancel = cancelRaid } = this.#deps;
     try {
       await this.#withToken(request.fromChannelId, (config) => cancel(request.fromChannelId, config));
-      this.#requests.delete(request.sessionId);
+      // Retain the idempotency record after cancellation too.
       return 'cancelled';
     } catch (error) {
       if (isDefiniteRefusal(error)) return 'not_cancelled';
@@ -93,16 +94,19 @@ export class RealRaidGateway implements RaidGateway {
     const { tokenProvider, clientId = () => loadOAuthConfig(process.env).clientId } = this.#deps;
     const provider = tokenProvider(channelId);
     const read = async (forceRefresh: boolean): Promise<HelixRequestConfig> => {
-      const accessToken = await provider?.({ forceRefresh }).catch(() => null);
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      let accessToken: string | null | undefined;
+      try {
+        accessToken = await Promise.race([
+          provider?.({ forceRefresh }).catch(() => null),
+          new Promise<never>((_resolve, reject) => {
+            timer = setTimeout(() => reject(new DOMException('Token acquisition timed out.', 'TimeoutError')), TOKEN_WAIT_MS);
+          }),
+        ]);
+      } finally { clearTimeout(timer); }
       if (!accessToken) throw new HelixError('No access token is available.', 401);
       return { accessToken, clientId: clientId() };
     };
-    const config = await read(false);
-    try {
-      return await call(config);
-    } catch (error) {
-      if (!(error instanceof HelixError) || error.status !== 401) throw error;
-      return call(await read(true));
-    }
+    return call(await read(false));
   }
 }

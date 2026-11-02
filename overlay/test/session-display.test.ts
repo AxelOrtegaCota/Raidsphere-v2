@@ -6,7 +6,7 @@ import type { Candidate, LanguageCode, ServerEvent } from '@raidsphere/shared';
 import { COUNTRY_POINTS, EMPTY_SCENE, globeScene, interpolateView } from '../src/globe-session.js';
 import { readOverlayMode, showsSimulationLabel, simulationLabel } from '../src/overlay-mode.js';
 import { describeRoulettePanel } from '../src/roulette-panel.js';
-import { applyEvent, describeView, initialViewState } from '../src/view-state.js';
+import { applyControlState, applyEvent, describeView, initialViewState } from '../src/view-state.js';
 import type { ViewState } from '../src/view-state.js';
 
 // All identifiers are synthetic fixtures.
@@ -77,6 +77,24 @@ describe('overlay mode', () => {
 });
 
 describe('raid text', () => {
+  it('shows an explicit-action prompt for a browser winner and restores queued countdowns from snapshots', () => {
+    const browser = chosen(started());
+    const state = applyControlState(browser, { ...browser.roulette!, mode: 'manual' });
+    expect(describeView(state, START, false).detail).toContain('explicit action');
+    expect(describeView(state, START, false).detail).not.toContain('Requesting');
+    const queued = applyControlState(state, {
+      ...state.roulette!, status: 'raid_pending', raidRequestedAtMs: START, estimatedCountdownSeconds: 90,
+    });
+    expect(queued.raidArrivesAtMs).toBe(START + 90_000);
+    expect(describeView(queued, START + 5_000, false).detail).toContain('85 s');
+    expect(describeView(queued, START + 5_000, false).detail).toContain('not confirmed');
+  });
+  it('displays a browser winner in the read-only panel without chat voting rows', () => {
+    const selected = chosen(started());
+    const browser = { ...selected, roulette: { ...selected.roulette!, mode: 'manual' as const } };
+    expect(describeRoulettePanel(browser)?.winner?.name).toBe('Demo rsdemo_ja_01');
+    expect(describeRoulettePanel(browser)?.rows).toEqual([]);
+  });
   it('says simulated by default and drops it only when told', () => {
     const pending = raidStarted(chosen(voted(started(), { ja: 1 })));
     expect(describeView(pending, START).detail).toContain('(simulated)');

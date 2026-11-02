@@ -144,7 +144,7 @@ const streamDataSchema = z.object({
   game_name: z.string(),
   type: z.enum(['live', '']),
   title: z.string(),
-  viewer_count: z.number(),
+  viewer_count: z.number().int().nonnegative().safe(),
   started_at: z.string(),
   language: z.string(),
   thumbnail_url: z.string(),
@@ -273,6 +273,7 @@ async function helixFetch<T>(
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const response = await fetch(url, {
       ...options,
+      signal: options.signal ?? AbortSignal.timeout(8_000),
       headers: { ...headers, ...options.headers as Record<string, string> | undefined },
     });
 
@@ -470,7 +471,8 @@ export async function cancelRaid(
 export async function getStreams(
   config: HelixRequestConfig,
   userIds?: readonly string[],
-  first: number = 20
+  first: number = 20,
+  maxAttempts: number = MAX_RETRIES,
 ): Promise<readonly Stream[]> {
   const params = new URLSearchParams({
     first: Math.min(Math.max(first, 1), 100).toString(),
@@ -485,10 +487,20 @@ export async function getStreams(
   }
 
   const url = `${HELIX_BASE_URL}/streams?${params.toString()}`;
-  const response = await helixFetch(url, config, { method: 'GET' }, getStreamsResponseSchema);
+  const response = await helixFetch(url, config, { method: 'GET' }, getStreamsResponseSchema, maxAttempts);
 
   const streams = response.data.map(mapStreamData);
   return Object.freeze(streams);
+}
+
+/** One validated page; callers choose an explicit discovery budget. */
+export async function getStreamsPage(config: HelixRequestConfig, after?: string): Promise<{ streams: readonly Stream[]; cursor?: string }> {
+  const params = new URLSearchParams({ first: '100' });
+  if (after) params.set('after', after);
+  const response = await helixFetch(`${HELIX_BASE_URL}/streams?${params}`, config,
+    { method: 'GET', signal: AbortSignal.timeout(5_000) }, getStreamsResponseSchema, 1);
+  const cursor = response.pagination?.cursor;
+  return { streams: response.data.map(mapStreamData), ...(cursor ? { cursor } : {}) };
 }
 
 /**

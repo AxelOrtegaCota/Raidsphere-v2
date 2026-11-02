@@ -1,487 +1,199 @@
-/**
- * Search Panel for discovering raid candidates via Helix API
- */
+/** Discovery and candidate selection belong only to the broadcaster's interactive tab. */
+import { discoveryResponseSchema } from '@raidsphere/shared';
+import type { DiscoveryCandidate } from '@raidsphere/shared';
 import { TWITCH_LANGUAGES, getLanguageMeta } from './languages.js';
 
-export interface Candidate {
-  id: string;
-  login: string;
-  displayName: string;
-  game: string;
-  title: string;
-  viewers: number;
-  language: string;
-  thumbnailUrl: string;
-  profileImageUrl: string;
-  isLive: boolean;
-}
-
+export type Candidate = DiscoveryCandidate;
 export interface SearchPanelConfig {
   apiBaseUrl: string;
-  isOverlay: boolean; // true = always open, false = toggle with button
-  onRaid?: (candidate: Candidate) => void;
+  isOverlay: boolean;
+  onRaid?: (candidate: Candidate) => void | Promise<void>;
+  onAdd?: (candidate: Candidate) => void;
 }
+export interface UserStatus { authenticated: boolean; isLive: boolean; login?: string; simulated?: boolean }
 
-export interface UserStatus {
-  authenticated: boolean;
-  isLive: boolean;
-  login?: string;
-}
-
-let selectedCandidate: Candidate | null = null;
-let countdownTimer: number | null = null;
-let countdownSeconds = 10;
-let userStatus: UserStatus = { authenticated: false, isLive: false };
+const node = <T extends keyof HTMLElementTagNameMap>(tag: T, className: string, text?: string): HTMLElementTagNameMap[T] => {
+  const element = document.createElement(tag);
+  element.className = className;
+  if (text !== undefined) element.textContent = text;
+  return element;
+};
+const button = (text: string, className: string, action: () => void): HTMLButtonElement => {
+  const element = node('button', className, text);
+  element.type = 'button'; element.addEventListener('click', action); return element;
+};
+const safeImage = (url: string, className: string): HTMLImageElement | null => {
+  if (!url.startsWith('https://')) return null;
+  const image = node('img', className);
+  image.src = url; image.alt = ''; image.loading = 'lazy';
+  image.addEventListener('error', () => image.remove());
+  return image;
+};
 
 export function createSearchPanel(container: HTMLElement, config: SearchPanelConfig): {
-  toggle: () => void;
-  refresh: () => Promise<void>;
-  updateUserStatus: (status: UserStatus) => void;
+  toggle: () => void; refresh: () => Promise<void>; updateUserStatus: (status: UserStatus) => void;
 } {
-  const panel = document.createElement('div');
-  panel.className = 'search-panel';
+  const panel = node('div', 'search-panel');
+  // Fixed local markup only; network text is assigned through DOM properties.
   panel.innerHTML = `
-    <div class="search-panel-header">
-      <h2>🔍 Raid Candidates</h2>
-      ${config.isOverlay ? '' : '<button class="search-panel-close" type="button" aria-label="Close">×</button>'}
-    </div>
-    <div class="user-status">
-      <span class="status-indicator offline"></span>
-      <span class="status-text">Checking status...</span>
-    </div>
+    <div class="search-panel-header"><h2>Raid Candidates</h2></div>
+    <div class="user-status"><span class="status-indicator offline"></span><span class="status-text">Checking status…</span></div>
     <div class="candidates-list"></div>
-    <div class="candidate-detail" hidden>
-      <button class="detail-back" type="button">← Back</button>
-      <div class="detail-content"></div>
-    </div>
-    <div class="search-filters">
-      <h3>Filters</h3>
-      <div class="filter-row">
-        <select id="filter-language" aria-label="Language">
-          <option value="">All languages</option>
-          ${TWITCH_LANGUAGES.map(language => (
-            `<option value="${language.code}">${language.flag} ${language.name}</option>`
-          )).join('')}
-        </select>
-        <input type="text" id="filter-category" placeholder="Category (e.g. Minecraft)" aria-label="Category" autocomplete="off">
-        <div id="category-suggestions" class="suggestions-dropdown"></div>
-      </div>
-      <div class="filter-row">
-        <input type="text" id="filter-search" placeholder="🔍 Search channel..." aria-label="Search channel">
-      </div>
-      <div class="filter-row">
-        <label>Viewers:</label>
-        <select id="filter-viewers" aria-label="Viewer range">
-          <option value="0-10000000">All</option>
-          <option value="0-10">0 - 10</option>
-          <option value="10-50">10 - 50</option>
-          <option value="50-100">50 - 100</option>
-          <option value="100-500">100 - 500</option>
-          <option value="500-1000">500 - 1K</option>
-          <option value="1000-5000">1K - 5K</option>
-          <option value="5000-10000">5K - 10K</option>
-          <option value="10000-50000">10K - 50K</option>
-          <option value="50000-100000">50K - 100K</option>
-          <option value="100000-1000000">100K - 1M</option>
-          <option value="1000000-10000000">1M - 10M</option>
-        </select>
-      </div>
+    <div class="candidate-detail" hidden><button class="detail-back" type="button">Back</button><div class="detail-content"></div></div>
+    <div class="search-filters"><h3>Filters</h3>
+      <div class="filter-row"><select id="filter-language" aria-label="Language"><option value="">All languages</option></select>
+        <input id="filter-category" type="text" placeholder="Category" aria-label="Category" autocomplete="off"><div class="suggestions-dropdown"></div></div>
+      <div class="filter-row"><input id="filter-search" type="text" placeholder="Search channel…" aria-label="Search channel"></div>
+      <div class="filter-row"><label for="filter-viewers">Viewers</label><select id="filter-viewers" aria-label="Viewer range"></select></div>
       <button id="apply-filters" type="button">Apply Filters</button>
-    </div>
-  `;
+    </div>`;
+  container.append(panel);
+  const get = <T extends HTMLElement>(selector: string): T => panel.querySelector<T>(selector)!;
+  const candidatesList = get<HTMLElement>('.candidates-list');
+  const detail = get<HTMLElement>('.candidate-detail');
+  const content = get<HTMLElement>('.detail-content');
+  const language = get<HTMLSelectElement>('#filter-language');
+  const category = get<HTMLInputElement>('#filter-category');
+  const suggestions = get<HTMLElement>('.suggestions-dropdown');
+  const search = get<HTMLInputElement>('#filter-search');
+  const viewers = get<HTMLSelectElement>('#filter-viewers');
+  let user: UserStatus = { authenticated: false, isLive: false };
+  let selected: Candidate | null = null;
+  let countdown: ReturnType<typeof setInterval> | undefined;
+  let autocomplete: ReturnType<typeof setTimeout> | undefined;
+  let categoryId: string | null = null;
+  let searchGeneration = 0;
+  let categoryGeneration = 0;
+  let posting = false;
+  let open = config.isOverlay;
+  panel.classList.toggle('open', open);
+  const toggle = (): void => { open = !open; panel.classList.toggle('open', open); };
+  if (!config.isOverlay) get<HTMLElement>('.search-panel-header').append(button('Close', 'search-panel-close', toggle));
 
-  container.appendChild(panel);
-
-  // Elements
-  const candidatesList = panel.querySelector<HTMLElement>('.candidates-list')!;
-  const candidateDetail = panel.querySelector<HTMLElement>('.candidate-detail')!;
-  const detailContent = panel.querySelector<HTMLElement>('.detail-content')!;
-  const detailBack = panel.querySelector<HTMLButtonElement>('.detail-back')!;
-  const closeBtn = panel.querySelector<HTMLButtonElement>('.search-panel-close');
-  const applyFilters = panel.querySelector<HTMLButtonElement>('#apply-filters')!;
-  const statusIndicator = panel.querySelector<HTMLElement>('.status-indicator')!;
-  const statusText = panel.querySelector<HTMLElement>('.status-text')!;
-
-  // Filters
-  const languageFilter = panel.querySelector<HTMLSelectElement>('#filter-language')!;
-  const categoryFilter = panel.querySelector<HTMLInputElement>('#filter-category')!;
-  const categorySuggestions = panel.querySelector<HTMLElement>('#category-suggestions')!;
-  const searchFilter = panel.querySelector<HTMLInputElement>('#filter-search')!;
-  const viewersFilter = panel.querySelector<HTMLSelectElement>('#filter-viewers')!;
-
-  // Category autocomplete state
-  let selectedCategoryId: string | null = null;
-  let autocompleteTimeout: number | null = null;
-
-  // State
-  let isOpen = config.isOverlay;
-  if (config.isOverlay) {
-    panel.classList.add('open');
+  for (const entry of TWITCH_LANGUAGES) {
+    const option = node('option', '', `${entry.flag} ${entry.name}`); option.value = entry.code; language.append(option);
   }
-
-  // Toggle panel
-  const toggle = () => {
-    isOpen = !isOpen;
-    panel.classList.toggle('open', isOpen);
+  for (const range of ['0-10000000', '0-10', '10-50', '50-100', '100-500', '500-1000', '1000-5000', '5000-10000', '10000-50000', '50000-100000', '100000-1000000', '1000000-10000000']) {
+    const option = node('option', '', range === '0-10000000' ? 'All' : range.replace('-', ' – ')); option.value = range; viewers.append(option);
+  }
+  const cancelCountdown = (): void => { clearInterval(countdown); countdown = undefined; content.querySelector('.detail-countdown')?.remove(); };
+  const openStream = (candidate: Candidate): void => { window.open(`https://twitch.tv/${candidate.login}`, '_blank', 'noopener,noreferrer'); };
+  const canRaid = (candidate: Candidate): boolean => user.authenticated && user.isLive && candidate.isLive && candidate.login !== user.login && !posting;
+  const refreshDetailStatus = (): void => {
+    const raid = content.querySelector<HTMLButtonElement>('.btn-raid');
+    if (raid && selected) { raid.disabled = !canRaid(selected); raid.textContent = user.simulated === false ? 'Start Raid' : 'Simulate Raid'; }
+    const add = content.querySelector<HTMLButtonElement>('.btn-add');
+    if (add && selected) add.disabled = !user.authenticated || !selected.isLive || selected.login === user.login;
+  };
+  const updateUserStatus = (status: UserStatus): void => {
+    user = status;
+    get<HTMLElement>('.status-indicator').className = `status-indicator ${status.isLive ? 'live' : 'offline'}`;
+    get<HTMLElement>('.status-text').textContent = !status.authenticated ? 'Not logged in' :
+      `${status.login ?? 'Your channel'} is ${status.isLive ? 'LIVE' : 'OFFLINE'}${status.simulated !== false ? ' · raids are simulated' : ''}`;
+    refreshDetailStatus();
   };
 
-  if (closeBtn) {
-    closeBtn.addEventListener('click', toggle);
-  }
-
-  // Update user status display
-  const updateUserStatus = (status: UserStatus) => {
-    userStatus = status;
-    if (status.authenticated) {
-      if (status.isLive) {
-        statusIndicator.className = 'status-indicator live';
-        statusText.textContent = `🔴 ${status.login} is LIVE — You can raid`;
-      } else {
-        statusIndicator.className = 'status-indicator offline';
-        statusText.textContent = `⚫ ${status.login} is OFFLINE — Cannot raid`;
-      }
-    } else {
-      statusIndicator.className = 'status-indicator offline';
-      statusText.textContent = '⚫ Not logged in';
-    }
+  const showDetail = (candidate: Candidate): void => {
+    cancelCountdown(); selected = candidate; candidatesList.hidden = true; detail.hidden = false; content.replaceChildren();
+    const avatar = node('div', 'detail-avatar');
+    avatar.append(node('span', 'detail-avatar-fallback', candidate.displayName.charAt(0).toUpperCase()));
+    const image = safeImage(candidate.profileImageUrl || candidate.thumbnailUrl, ''); if (image) avatar.append(image);
+    content.append(avatar, node('h3', '', candidate.displayName), node('p', 'detail-status', candidate.isLive ? 'LIVE' : 'OFFLINE'),
+      node('p', 'detail-language', getLanguageMeta(candidate.language).name), node('p', 'detail-game', `${candidate.game} · ${candidate.viewers} viewers`), node('p', 'detail-title', candidate.title));
+    const timer = node('div', 'detail-countdown');
+    const timerText = node('span', 'countdown-text'); let seconds = 10;
+    timerText.textContent = `Opening stream in ${seconds}s…`;
+    timer.append(timerText, button('Cancel opening', '', cancelCountdown)); content.append(timer);
+    // This existing countdown opens a stream tab only. It never starts a raid.
+    countdown = setInterval(() => {
+      seconds -= 1; timerText.textContent = `Opening stream in ${seconds}s…`;
+      if (seconds <= 0) { cancelCountdown(); openStream(candidate); }
+    }, 1_000);
+    const actions = node('div', 'detail-actions');
+    actions.append(button('Open Stream', 'btn-primary', () => { cancelCountdown(); openStream(candidate); }));
+    actions.append(button('Simulate Raid', 'btn-raid', () => {
+      if (!canRaid(candidate) || !config.onRaid) return;
+      cancelCountdown(); posting = true; refreshDetailStatus();
+      void Promise.resolve().then(() => config.onRaid?.(candidate)).catch(() => {
+        content.append(node('p', 'raid-warning', 'The action could not be completed. Check the control status before trying again.'));
+      }).finally(() => { posting = false; refreshDetailStatus(); });
+    }));
+    if (config.onAdd) actions.append(button('Add to Roulette', 'btn-add', () => { cancelCountdown(); config.onAdd?.(candidate); }));
+    content.append(actions, node('p', 'raid-warning', 'Raids require a live source and destination. Only a confirmed arrival completes a raid.'));
+    refreshDetailStatus();
   };
 
-  // Fetch candidates from API
-  const fetchCandidates = async (): Promise<Candidate[]> => {
-    const params = new URLSearchParams();
-    if (languageFilter.value) params.set('language', languageFilter.value);
-    // Use gameId if we have it from autocomplete, otherwise use category name
-    if (selectedCategoryId) {
-      params.set('gameId', selectedCategoryId);
-    } else if (categoryFilter.value) {
-      params.set('category', categoryFilter.value);
-    }
-    if (searchFilter.value) params.set('q', searchFilter.value);
-    if (viewersFilter.value) params.set('viewers', viewersFilter.value);
-
-    try {
-      const response = await fetch(`${config.apiBaseUrl}/api/test-helix?${params}`, {
-        credentials: 'include',
+  const renderCandidates = (candidates: Candidate[]): void => {
+    candidatesList.replaceChildren();
+    if (!candidates.length) { candidatesList.append(node('p', 'no-results', 'No candidates found. Try different filters.')); return; }
+    for (const candidate of candidates) {
+      const item = node('div', 'candidate-item'); item.tabIndex = 0; item.setAttribute('role', 'button');
+      item.setAttribute('aria-label', `View ${candidate.displayName}`);
+      const avatar = node('div', 'candidate-avatar-wrap');
+      avatar.append(node('span', 'candidate-avatar-fallback', candidate.displayName.charAt(0).toUpperCase()));
+      const image = safeImage(candidate.profileImageUrl || candidate.thumbnailUrl, 'candidate-avatar'); if (image) avatar.append(image);
+      const info = node('div', 'candidate-info'); info.append(node('span', 'candidate-name', candidate.displayName), node('span', 'candidate-game', candidate.game));
+      const meta = node('div', 'candidate-meta', `${candidate.isLive ? 'LIVE' : 'OFFLINE'} · ${candidate.viewers} · ${candidate.language || 'unknown'}`);
+      item.append(avatar, info, meta);
+      item.addEventListener('click', () => showDetail(candidate));
+      item.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); showDetail(candidate); } });
+      item.addEventListener('contextmenu', (event) => {
+        event.preventDefault(); document.querySelector('.context-menu')?.remove();
+        const menu = node('div', 'context-menu');
+        menu.style.left = `${event.clientX}px`; menu.style.top = `${event.clientY}px`;
+        menu.append(button('Open stream', '', () => { openStream(candidate); menu.remove(); }), button('Copy channel URL', '', () => {
+          void navigator.clipboard.writeText(`https://twitch.tv/${candidate.login}`); menu.remove();
+        }));
+        document.body.append(menu);
+        setTimeout(() => document.addEventListener('click', () => menu.remove(), { once: true }), 0);
       });
-      if (!response.ok) {
-        throw new Error('API request failed');
-      }
-      const data = await response.json();
+      candidatesList.append(item);
+    }
+  };
 
-      const candidates: Candidate[] = [];
-
-      // Add streams (main results with viewers)
-      if (data.streams) {
-        for (const s of data.streams) {
-          candidates.push({
-            id: s.id,
-            login: s.login,
-            displayName: s.displayName,
-            game: s.game || 'Unknown',
-            title: s.title || '',
-            viewers: s.viewers || 0,
-            language: s.language || '',
-            thumbnailUrl: s.thumbnailUrl || '',
-            profileImageUrl: s.profileImageUrl || '',
-            isLive: true,
-          });
-        }
-      }
-
-      // Add search results if any (these might not have viewers)
-      if (data.search_results) {
-        for (const ch of data.search_results) {
-          // Avoid duplicates
-          if (!candidates.find(c => c.id === ch.id)) {
-            candidates.push({
-              id: ch.id,
-              login: ch.login,
-              displayName: ch.displayName,
-              game: ch.game || 'Unknown',
-              title: ch.title || '',
-              viewers: ch.viewers || 0,
-              language: ch.language || '',
-              thumbnailUrl: '',
-              profileImageUrl: ch.profileImageUrl || '',
-              isLive: ch.isLive,
-            });
+  const refresh = async (): Promise<void> => {
+    const generation = ++searchGeneration;
+    cancelCountdown(); selected = null; detail.hidden = true; candidatesList.hidden = false;
+    candidatesList.replaceChildren(node('p', 'loading', 'Loading candidates…'));
+    const params = new URLSearchParams({ viewers: viewers.value });
+    if (language.value) params.set('language', language.value);
+    if (categoryId) params.set('gameId', categoryId); else if (category.value) params.set('category', category.value);
+    if (search.value) params.set('q', search.value);
+    try {
+      const response = await fetch(`${config.apiBaseUrl}/api/test-helix?${params}`, { credentials: 'include', signal: AbortSignal.timeout(15_000) });
+      if (!response.ok) throw new Error('Discovery unavailable');
+      const data = discoveryResponseSchema.parse(await response.json());
+      const unique = new Map<string, Candidate>();
+      for (const candidate of [...data.streams, ...data.search_results]) if (!unique.has(candidate.id)) unique.set(candidate.id, candidate);
+      if (generation === searchGeneration) renderCandidates([...unique.values()]);
+    } catch { if (generation === searchGeneration) candidatesList.replaceChildren(node('p', 'no-results', 'Discovery is unavailable or returned invalid data.')); }
+  };
+  get<HTMLButtonElement>('.detail-back').addEventListener('click', () => { cancelCountdown(); selected = null; detail.hidden = true; candidatesList.hidden = false; });
+  get<HTMLButtonElement>('#apply-filters').addEventListener('click', () => { void refresh(); });
+  search.addEventListener('keydown', (event) => { if (event.key === 'Enter') void refresh(); });
+  category.addEventListener('input', () => {
+    categoryId = null; clearTimeout(autocomplete); const generation = ++categoryGeneration;
+    suggestions.replaceChildren(); suggestions.classList.remove('visible');
+    if (category.value.length < 2) return;
+    autocomplete = setTimeout(() => {
+      void (async () => {
+        try {
+          const response = await fetch(`${config.apiBaseUrl}/api/categories?q=${encodeURIComponent(category.value)}`, { credentials: 'include', signal: AbortSignal.timeout(10_000) });
+          if (!response.ok) return;
+          const raw: unknown = await response.json();
+          if (generation !== categoryGeneration || typeof raw !== 'object' || raw === null || !('categories' in raw) || !Array.isArray(raw.categories)) return;
+          suggestions.replaceChildren();
+          for (const value of raw.categories.slice(0, 10)) {
+            if (typeof value !== 'object' || value === null || !('id' in value) || !('name' in value) || typeof value.id !== 'string' || !/^[0-9]+$/.test(value.id) || typeof value.name !== 'string') continue;
+            const id = value.id; const name = value.name.slice(0, 200);
+            suggestions.append(button(name, 'suggestion-item', () => { category.value = name; categoryId = id; suggestions.replaceChildren(); suggestions.classList.remove('visible'); }));
           }
-        }
-      }
-
-      return candidates;
-    } catch (err) {
-      console.error('Failed to fetch candidates:', err);
-      return [];
-    }
-  };
-
-  // Render candidates list
-  const renderCandidates = (candidates: Candidate[]) => {
-    if (candidates.length === 0) {
-      candidatesList.innerHTML = '<p class="no-results">No candidates found. Try different filters.</p>';
-      return;
-    }
-
-    candidatesList.innerHTML = candidates.map(candidate => {
-      const language = getLanguageMeta(candidate.language);
-      const imageUrl = candidate.profileImageUrl || candidate.thumbnailUrl;
-      const initial = escapeHtml(candidate.displayName.charAt(0).toUpperCase());
-
-      return `
-        <div class="candidate-item" data-id="${escapeHtml(candidate.id)}" data-login="${escapeHtml(candidate.login)}">
-          <div class="candidate-avatar-wrap">
-            <span class="candidate-avatar-fallback" aria-hidden="true">${initial}</span>
-            ${imageUrl ? `<img class="candidate-avatar" src="${escapeHtml(imageUrl)}" alt="" loading="lazy">` : ''}
-          </div>
-          <div class="candidate-info">
-            <span class="candidate-name">${escapeHtml(candidate.displayName)}</span>
-            <span class="candidate-game">${escapeHtml(candidate.game)}</span>
-          </div>
-          <div class="candidate-meta">
-            <span class="candidate-status ${candidate.isLive ? 'live' : 'offline'}">${candidate.isLive ? '🔴' : '⚫'}</span>
-            <span class="candidate-viewers">${candidate.viewers > 0 ? candidate.viewers.toLocaleString() : ''}</span>
-            <span class="candidate-lang" title="${escapeHtml(language.name)} stream language; flag is representative, not location">${language.flag} ${escapeHtml(language.code.toUpperCase())}</span>
-          </div>
-        </div>`;
-    }).join('');
-
-    candidatesList.querySelectorAll<HTMLImageElement>('.candidate-avatar').forEach(image => {
-      image.addEventListener('error', () => image.remove());
-    });
-
-    // Add click listeners
-    candidatesList.querySelectorAll('.candidate-item').forEach(item => {
-      const id = item.getAttribute('data-id')!;
-      const candidate = candidates.find(c => c.id === id)!;
-
-      item.addEventListener('click', () => showCandidateDetail(candidate));
-      item.addEventListener('contextmenu', (e) => {
-        e.preventDefault();
-        showContextMenu(e as MouseEvent, candidate);
-      });
-    });
-  };
-
-  // Show candidate detail with countdown
-  const showCandidateDetail = (candidate: Candidate) => {
-    selectedCandidate = candidate;
-    candidatesList.hidden = true;
-    candidateDetail.hidden = false;
-    countdownSeconds = 10;
-
-    const canRaid = userStatus.authenticated && userStatus.isLive && candidate.isLive;
-    const language = getLanguageMeta(candidate.language);
-    const imageUrl = candidate.profileImageUrl || candidate.thumbnailUrl;
-    const initial = escapeHtml(candidate.displayName.charAt(0).toUpperCase());
-
-    detailContent.innerHTML = `
-      <div class="detail-avatar">
-        <span class="detail-avatar-fallback" aria-hidden="true">${initial}</span>
-        ${imageUrl ? `<img src="${escapeHtml(imageUrl)}" alt="" loading="lazy">` : ''}
-      </div>
-      <h3>${escapeHtml(candidate.displayName)}</h3>
-      <p class="detail-status ${candidate.isLive ? 'live' : 'offline'}">
-        ${candidate.isLive ? '🔴 LIVE' : '⚫ OFFLINE'}
-      </p>
-      <p class="detail-language" title="Flag is representative of the stream language, not streamer location">${language.flag} ${escapeHtml(language.name)}</p>
-      <p class="detail-game">${escapeHtml(candidate.game)} • ${candidate.viewers.toLocaleString()} viewers</p>
-      <p class="detail-title">${escapeHtml(candidate.title)}</p>
-
-      <div class="detail-countdown">
-        <span class="countdown-text">Opening in <strong id="countdown-number">${countdownSeconds}</strong>s...</span>
-        <button id="cancel-countdown" type="button">Cancel</button>
-      </div>
-
-      <div class="detail-actions">
-        <button id="btn-open" type="button" class="btn-primary">🔗 Open Stream</button>
-        <button id="btn-raid" type="button" class="btn-raid" ${canRaid ? '' : 'disabled'}>
-          🚀 Start Raid
-        </button>
-      </div>
-      ${!canRaid ? `<p class="raid-warning">${getRaidWarning(candidate)}</p>` : ''}
-    `;
-
-    detailContent.querySelector<HTMLImageElement>('.detail-avatar img')
-      ?.addEventListener('error', event => (event.currentTarget as HTMLImageElement).remove());
-
-    // Start countdown
-    startCountdown(candidate);
-
-    // Button listeners
-    detailContent.querySelector('#cancel-countdown')?.addEventListener('click', cancelCountdown);
-    detailContent.querySelector('#btn-open')?.addEventListener('click', () => {
-      cancelCountdown();
-      openStream(candidate);
-    });
-    detailContent.querySelector('#btn-raid')?.addEventListener('click', () => {
-      if (canRaid && config.onRaid) {
-        cancelCountdown();
-        config.onRaid(candidate);
-      }
-    });
-  };
-
-  const getRaidWarning = (candidate: Candidate): string => {
-    if (!userStatus.authenticated) return 'Login to enable raids';
-    if (!userStatus.isLive) return 'You must be live to raid';
-    if (!candidate.isLive) return 'Target must be live to raid';
-    return '';
-  };
-
-  const startCountdown = (candidate: Candidate) => {
-    cancelCountdown();
-    const countdownEl = detailContent.querySelector<HTMLElement>('#countdown-number');
-
-    countdownTimer = window.setInterval(() => {
-      countdownSeconds--;
-      if (countdownEl) countdownEl.textContent = String(countdownSeconds);
-
-      if (countdownSeconds <= 0) {
-        cancelCountdown();
-        openStream(candidate);
-      }
-    }, 1000);
-  };
-
-  const cancelCountdown = () => {
-    if (countdownTimer) {
-      clearInterval(countdownTimer);
-      countdownTimer = null;
-    }
-    const countdownDiv = detailContent.querySelector('.detail-countdown');
-    if (countdownDiv) countdownDiv.remove();
-  };
-
-  const openStream = (candidate: Candidate) => {
-    window.open(`https://twitch.tv/${candidate.login}`, '_blank');
-  };
-
-  // Context menu for right-click
-  const showContextMenu = (e: MouseEvent, candidate: Candidate) => {
-    // Remove existing menu
-    document.querySelector('.context-menu')?.remove();
-
-    const menu = document.createElement('div');
-    menu.className = 'context-menu';
-    menu.innerHTML = `
-      <button type="button" data-action="open">🔗 Open in new window</button>
-      <button type="button" data-action="copy">📋 Copy channel URL</button>
-    `;
-    menu.style.left = `${e.clientX}px`;
-    menu.style.top = `${e.clientY}px`;
-    document.body.appendChild(menu);
-
-    menu.addEventListener('click', (ev) => {
-      const action = (ev.target as HTMLElement).getAttribute('data-action');
-      if (action === 'open') {
-        window.open(`https://twitch.tv/${candidate.login}`, '_blank');
-      } else if (action === 'copy') {
-        navigator.clipboard.writeText(`https://twitch.tv/${candidate.login}`);
-      }
-      menu.remove();
-    });
-
-    // Close on click outside
-    setTimeout(() => {
-      document.addEventListener('click', () => menu.remove(), { once: true });
-    }, 10);
-  };
-
-  // Back button
-  detailBack.addEventListener('click', () => {
-    cancelCountdown();
-    selectedCandidate = null;
-    candidateDetail.hidden = true;
-    candidatesList.hidden = false;
-  });
-
-  // Apply filters
-  const refresh = async () => {
-    candidatesList.innerHTML = '<p class="loading">Loading candidates...</p>';
-    const candidates = await fetchCandidates();
-    renderCandidates(candidates);
-  };
-
-  applyFilters.addEventListener('click', refresh);
-  searchFilter.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') refresh();
-  });
-
-  // Category autocomplete
-  const fetchCategorySuggestions = async (query: string) => {
-    if (query.length < 2) {
-      categorySuggestions.innerHTML = '';
-      categorySuggestions.classList.remove('visible');
-      return;
-    }
-
-    try {
-      const response = await fetch(`${config.apiBaseUrl}/api/categories?q=${encodeURIComponent(query)}`, {
-        credentials: 'include',
-      });
-      if (!response.ok) return;
-
-      const data = await response.json();
-      if (data.categories && data.categories.length > 0) {
-        categorySuggestions.innerHTML = data.categories.map((c: { id: string; name: string; boxArtUrl: string }) => `
-          <div class="suggestion-item" data-id="${c.id}" data-name="${escapeHtml(c.name)}">
-            <img src="${c.boxArtUrl}" alt="" onerror="this.style.display='none'">
-            <span>${escapeHtml(c.name)}</span>
-          </div>
-        `).join('');
-        categorySuggestions.classList.add('visible');
-
-        // Add click listeners to suggestions
-        categorySuggestions.querySelectorAll('.suggestion-item').forEach(item => {
-          item.addEventListener('click', () => {
-            const id = item.getAttribute('data-id')!;
-            const name = item.getAttribute('data-name')!;
-            categoryFilter.value = name;
-            selectedCategoryId = id;
-            categorySuggestions.innerHTML = '';
-            categorySuggestions.classList.remove('visible');
-          });
-        });
-      } else {
-        categorySuggestions.innerHTML = '<div class="suggestion-empty">No categories found</div>';
-        categorySuggestions.classList.add('visible');
-      }
-    } catch {
-      categorySuggestions.innerHTML = '';
-      categorySuggestions.classList.remove('visible');
-    }
-  };
-
-  categoryFilter.addEventListener('input', () => {
-    selectedCategoryId = null; // Reset selected ID when typing
-    if (autocompleteTimeout) clearTimeout(autocompleteTimeout);
-    autocompleteTimeout = window.setTimeout(() => {
-      fetchCategorySuggestions(categoryFilter.value);
+          suggestions.classList.toggle('visible', suggestions.childElementCount > 0);
+        } catch { suggestions.classList.remove('visible'); }
+      })();
     }, 300);
   });
-
-  categoryFilter.addEventListener('blur', () => {
-    // Delay hiding to allow click on suggestion
-    setTimeout(() => {
-      categorySuggestions.classList.remove('visible');
-    }, 200);
-  });
-
-  categoryFilter.addEventListener('focus', () => {
-    if (categoryFilter.value.length >= 2) {
-      fetchCategorySuggestions(categoryFilter.value);
-    }
-  });
-
-  // Initial load
-  refresh();
-
+  window.addEventListener('pagehide', () => { cancelCountdown(); clearTimeout(autocomplete); searchGeneration += 1; categoryGeneration += 1; }, { once: true });
+  void refresh();
   return { toggle, refresh, updateUserStatus };
-}
-
-function escapeHtml(text: string): string {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
 }

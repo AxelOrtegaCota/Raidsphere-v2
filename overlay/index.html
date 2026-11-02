@@ -12,10 +12,10 @@
 
       <!-- View Toggle -->
       <nav class="view-toggle" aria-label="View selection">
-        <button id="view-globe" type="button" class="view-btn active" aria-pressed="true">
+        <button id="view-globe" type="button" class="view-btn active" aria-pressed="true" aria-controls="globe-view">
           🌍 Globe
         </button>
-        <button id="view-roulette" type="button" class="view-btn" aria-pressed="false">
+        <button id="view-roulette" type="button" class="view-btn" aria-pressed="false" aria-controls="roulette-view">
           🎰 Roulette
         </button>
       </nav>
@@ -41,16 +41,28 @@
               🎲 Auto (6-7)
             </button>
           </div>
+          <label class="auto-count-label">Auto candidates
+            <select id="auto-count" aria-label="Auto candidate count" hidden>
+              <option value="6">6 channels</option><option value="7">7 channels</option>
+            </select>
+          </label>
           <div id="manual-candidates" class="manual-candidates" hidden>
             <p>Select streamers for the roulette:</p>
             <ul id="candidate-list" class="candidate-selection-list"></ul>
           </div>
           <div class="roulette-actions">
+            <button id="prepare-roulette" type="button" disabled>Prepare candidates</button>
             <button id="spin-roulette" type="button" class="btn-spin" disabled>
               🎰 Spin!
             </button>
+            <button id="raid-winner" type="button" disabled>Simulate raid to winner</button>
           </div>
         </div>
+      </section>
+
+      <section class="control-feedback" aria-label="Broadcaster controls">
+        <p id="control-status" role="status" aria-live="polite">Checking your Twitch session…</p>
+        <button id="cancel-raid" type="button" disabled>Cancel current session / raid</button>
       </section>
 
       <!-- Flag Competition Panel -->

@@ -9,6 +9,8 @@ import { z } from 'zod';
 import { candidateSchema, countSchema, identifierSchema, languageCodeSchema } from '@raidsphere/shared';
 import type { Candidate, LanguageCode, IllustrativeCountry } from '@raidsphere/shared';
 
+type SyntheticCandidate = Candidate & { language: LanguageCode };
+
 // Synthetic streamers for development
 const SYNTHETIC_STREAMERS: Array<{
   streamerId: string;
@@ -74,7 +76,7 @@ const candidateFiltersSchema = z.object({
 export function getSyntheticCandidates(
   filters: CandidateFilters = {},
   random: () => number = Math.random
-): Candidate[] {
+): SyntheticCandidate[] {
   const parsed = candidateFiltersSchema.safeParse(filters);
   if (!parsed.success) throw new TypeError('Invalid synthetic candidate filters.');
   if (typeof random !== 'function') throw new TypeError('Invalid random source.');
@@ -84,7 +86,8 @@ export function getSyntheticCandidates(
   const candidates = SYNTHETIC_STREAMERS
     .filter(streamer => streamer.streamerId !== excludeStreamerId &&
       (languages === undefined || languages.includes(streamer.language)))
-    .map(streamer => candidateSchema.parse({
+    .map(streamer => ({
+      ...candidateSchema.parse({
       streamerId: streamer.streamerId,
       login: streamer.login,
       displayName: streamer.displayName,
@@ -94,6 +97,8 @@ export function getSyntheticCandidates(
       viewers: Math.round(streamer.baseViewers * (0.7 + readRandom(random) * 0.6)),
       language: streamer.language,
       illustrativeCountry: streamer.country,
+      }),
+      language: streamer.language,
     }))
     .filter(candidate => candidate.viewers >= minViewers && candidate.viewers <= maxViewers);
 
@@ -103,7 +108,7 @@ export function getSyntheticCandidates(
 /**
  * Get unique languages from candidates.
  */
-export function getAvailableLanguages(candidates: Candidate[]): LanguageCode[] {
+export function getAvailableLanguages(candidates: SyntheticCandidate[]): LanguageCode[] {
   const languages = new Set(candidates.map(c => c.language));
   return Array.from(languages).sort();
 }
