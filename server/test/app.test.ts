@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { createRuntime } from '../src/composition.js';
 import { loadServerConfig } from '../src/config.js';
 import { startupLines } from '../src/startup.js';
+import { MockTranslationProvider } from '../src/translation/mock-provider.js';
 
 const createApp = () => createRuntime({ reportError: () => undefined }).app;
 
@@ -22,6 +23,17 @@ describe('server boundaries', () => {
       const missing = await app.inject({ method: 'GET', url: '/unknown' });
       expect(missing.statusCode).toBe(404);
       expect(missing.json()).toEqual({ error: 'Not found.' });
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('reports real translation only when a provider is configured', async () => {
+    const translation = Object.assign(new MockTranslationProvider(), { detect: async () => null });
+    const app = createRuntime({ reportError: () => undefined, translation }).app;
+    try {
+      const response = await app.inject({ method: 'GET', url: '/health' });
+      expect(response.json()).toMatchObject({ mode: 'simulation', translation: 'real' });
     } finally {
       await app.close();
     }

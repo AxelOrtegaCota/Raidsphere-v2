@@ -32,18 +32,31 @@ export function createTranslationLayer(windowLabel: HTMLElement, list: HTMLOList
         nodes.delete(messageId);
       }
     }
-    for (const bubble of view.bubbles) {
+    const roots = view.bubbles.map((bubble) => {
       const bubbleNodes = nodes.get(bubble.messageId) ?? createBubble(bubble.messageId);
       if (!nodes.has(bubble.messageId)) nodes.set(bubble.messageId, bubbleNodes);
       fill(bubbleNodes, bubble, nowMs);
-      list.append(bubbleNodes.root);
-    }
+      return bubbleNodes.root;
+    });
+    placeInOrder(list, roots);
     // On a very short screen a bubble that does not fit is hidden whole, never cut in half.
     for (const { root } of nodes.values()) root.classList.toggle('clipped', root.offsetTop < list.offsetTop);
     slide(nodes, topsBefore);
   };
 
   return { render };
+}
+
+// Inserts only the nodes that are new or out of place: re-inserting a node that is already
+// shown restarts its entry animation, which made every bubble flicker on each 250 ms render.
+export function placeInOrder(
+  list: Pick<Element, 'firstElementChild' | 'insertBefore'>, roots: readonly Element[],
+): void {
+  let next = list.firstElementChild;
+  for (const root of roots) {
+    if (root === next) next = root.nextElementSibling;
+    else list.insertBefore(root, next);
+  }
 }
 
 // Bubbles that changed position glide there, so the queue reads as moving up one place.

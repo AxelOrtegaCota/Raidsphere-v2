@@ -109,6 +109,7 @@ export function createRuntime(options: RuntimeOptions) {
     ...(options.overlayRoot ? { overlayRoot: options.overlayRoot } : {}),
     issueViewingCredential: (channelId) => credentials.issueForChannel(channelId),
     mode: useRealRaids ? 'live' : 'simulation',
+    translation: options.translation ? 'real' : 'simulated',
     ...(liveChat ? {
       auth: {
         onAuthenticated: (session) => liveChat.connect(session),

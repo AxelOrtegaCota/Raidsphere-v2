@@ -28,7 +28,7 @@ const TRACKED_SESSIONS = 1_000;
 const TWITCH_USER_ID = /^[0-9]+$/;
 
 /** Only a client error proves Twitch refused the call; anything else may have started a raid. */
-function isDefiniteRefusal(error: unknown): boolean {
+function isDefiniteRefusal(error: unknown): error is HelixError {
   return error instanceof HelixError && error.status >= 400 && error.status < 500;
 }
 
@@ -79,7 +79,8 @@ export class RealRaidGateway implements RaidGateway {
       return { outcome: 'accepted', requestedAtMs: clock.now(), estimatedCountdownSeconds: RAID_COUNTDOWN_SECONDS };
     } catch (error) {
       if (isDefiniteRefusal(error)) {
-        reportError('Twitch refused a raid request.');
+        // The status code alone is safe to log; Twitch's message text is not.
+        reportError(`Twitch refused a raid request (HTTP ${error.status}).`);
         return { outcome: 'rejected' };
       }
       reportError('A raid request had no clear answer from Twitch.');
